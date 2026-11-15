@@ -1,6 +1,7 @@
 import type { CxdBlock } from '@cleitext/plugin-sdk';
 import { describe, expect, it } from 'vitest';
-import { fullAcct, linkMentions, mentionMap } from '../src/mentions';
+import { fullAcct, linkMentions, mentionMap, protectMentions } from '../src/mentions';
+import { withAliases } from '../src/service';
 
 const profiles = mentionMap([
   { acct: 'anna@disbigle.com', url: 'https://disbigle.com/@anna' },
@@ -88,5 +89,41 @@ describe('mentions in the article', () => {
   it('complete the accounts of the server itself', () => {
     expect(fullAcct('anna', 'Disbigle.com')).toBe('anna@disbigle.com');
     expect(fullAcct('@bob@mastodon.social', 'disbigle.com')).toBe('bob@mastodon.social');
+  });
+});
+
+describe('protectMentions', () => {
+  it('hides the handles from Cloudflare’s Email Obfuscation, in text and links only', () => {
+    const html =
+      '<head><title>By @a@x.example</title><script>var s="@b@y.example";</script></head>' +
+      '<p data-x="@c@z.example">Thanks @Ersel@disbigle.com and <a href="https://disbigle.com/@Ersel">@Ersel@disbigle.com</a>, mail info@disbigle.com</p>';
+    expect(protectMentions(html)).toBe(
+      '<head><title>By @a@x.example</title><script>var s="@b@y.example";</script></head>' +
+        '<p data-x="@c@z.example">Thanks <!--email_off-->@Ersel@disbigle.com<!--email_on--> and <a href="https://disbigle.com/@Ersel"><!--email_off-->@Ersel@disbigle.com<!--email_on--></a>, mail info@disbigle.com</p>',
+    );
+  });
+
+  it('gives back the same page when there is no handle', () => {
+    const html = '<p>Write to info@disbigle.com</p>';
+    expect(protectMentions(html)).toBe(html);
+  });
+});
+
+describe('withAliases', () => {
+  it('also names the server’s people by the domain of their handles', () => {
+    const hosts = new Set(['app.disbigle.com', 'disbigle.com']);
+    expect(
+      withAliases(
+        [
+          { acct: 'ersel@app.disbigle.com', url: 'https://app.disbigle.com/@Ersel' },
+          { acct: 'bob@mastodon.social', url: 'https://mastodon.social/@bob' },
+        ],
+        hosts,
+      ),
+    ).toEqual([
+      { acct: 'ersel@app.disbigle.com', url: 'https://app.disbigle.com/@Ersel' },
+      { acct: 'bob@mastodon.social', url: 'https://mastodon.social/@bob' },
+      { acct: 'ersel@disbigle.com', url: 'https://app.disbigle.com/@Ersel' },
+    ]);
   });
 });

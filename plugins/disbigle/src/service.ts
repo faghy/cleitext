@@ -6,7 +6,14 @@
 import type { PluginContext, PluginEntry } from '@cleitext/plugin-sdk';
 import { commentsFromContext } from './comments';
 import { DEFAULT_CONFIG, FIELD_GROUP, hostOf, normalizeConfig } from './config';
-import { instanceDomain, publishArticle, ServerError, statusContext, type Http } from './mastodon';
+import {
+  instanceDomain,
+  lookupAccount,
+  publishArticle,
+  ServerError,
+  statusContext,
+  type Http,
+} from './mastodon';
 import { buildPayload, documentText, type ArticleVersion } from './payload';
 import type {
   Announcement,
@@ -16,6 +23,7 @@ import type {
   DisbigleConfig,
   FediComment,
   LogLine,
+  Mention,
   SettingsView,
 } from './types';
 
@@ -273,7 +281,13 @@ export class Disbigle {
         state: 'done',
         statusId: status.id,
         url: status.url,
-        mentions: status.mentions,
+        mentions: await this.resolveMentions(
+          siteId,
+          connection,
+          token,
+          payload.mentions,
+          status.mentions,
+        ),
       };
       await this.ctx.storage.set(siteId, KEY.post(entryId), done);
       for (const id of group) {
@@ -351,13 +365,27 @@ export class Disbigle {
   }
 
   /**
+   * The hosts of the connected server: its address and the domain its handles
+   * use (e.g. disbigle.com for app.disbigle.com), read from the server once.
+   */
+  async serverHosts(siteId: string, connection: Connection): Promise<Set<string>> {
+    const hosts = new Set<string>([new URL(connection.instance).hostname.toLowerCase()]);
+    let domain = await this.ctx.storage.get<string>(siteId, KEY.domain);
+    if (domain === null || domain === undefined) {
+      domain = (await instanceDomain(this.http, connection.instance).catch(() => null)) ?? '';
+      await this.ctx.storage.set(siteId, KEY.domain, domain);
+    }
+    if (domain) hosts.add(domain.toLowerCase());
+    return hosts;
+  }
+
+  /**
    * The addresses of the connected account (`user@host`): its server's, its
-   * profile's and the domain its handles use (e.g. `disbigle@disbigle.com`
-   * for an account of app.disbigle.com), read from the server once.
+   * profile's and the domain its handles use (`disbigle@disbigle.com`).
    */
   private async ownAccts(siteId: string, connection: Connection): Promise<Set<string>> {
     const user = connection.acct.split('@')[0]!.toLowerCase();
-    const hosts = new Set<string>([new URL(connection.instance).hostname.toLowerCase()]);
+    const hosts = await this.serverHosts(siteId, connection);
     const [, accountHost] = connection.acct.toLowerCase().split('@');
     if (accountHost) hosts.add(accountHost);
     try {
@@ -365,13 +393,31 @@ export class Disbigle {
     } catch {
       // No profile address.
     }
-    let domain = await this.ctx.storage.get<string>(siteId, KEY.domain);
-    if (domain === null || domain === undefined) {
-      domain = (await instanceDomain(this.http, connection.instance).catch(() => null)) ?? '';
-      await this.ctx.storage.set(siteId, KEY.domain, domain);
-    }
-    if (domain) hosts.add(domain.toLowerCase());
     return new Set([...hosts].map((host) => `${user}@${host}`));
+  }
+
+  /**
+   * The profiles of the people mentioned: those the server reported, then the
+   * ones it left out, looked up (a few at most).
+   */
+  private async resolveMentions(
+    siteId: string,
+    connection: Connection,
+    token: string,
+    asked: string[],
+    reported: Mention[],
+  ): Promise<Mention[]> {
+    const hosts = await this.serverHosts(siteId, connection);
+    const known = withAliases(reported, hosts);
+    const keys = new Set(known.map((m) => m.acct));
+    for (const acct of asked
+      .map((a) => a.toLowerCase())
+      .filter((a) => !keys.has(a))
+      .slice(0, 10)) {
+      const url = await lookupAccount(this.http, connection.instance, acct, token);
+      if (url) known.push({ acct, url });
+    }
+    return known;
   }
 
   /** The published versions, the one being published first, with full addresses. */
@@ -509,4 +555,24 @@ export function absolute(path: string, origin: string): string {
   } catch {
     return path;
   }
+}
+
+/**
+ * The mentions with the other names of the connected server's people: an
+ * account of app.disbigle.com is also written `user@disbigle.com`.
+ */
+export function withAliases(mentions: Mention[], hosts: Set<string>): Mention[] {
+  const out = [...mentions];
+  const keys = new Set(out.map((m) => m.acct.toLowerCase()));
+  for (const mention of mentions) {
+    const [user, host] = mention.acct.toLowerCase().split('@');
+    if (!user || !host || !hosts.has(host)) continue;
+    for (const other of hosts) {
+      const acct = `${user}@${other}`;
+      if (keys.has(acct)) continue;
+      keys.add(acct);
+      out.push({ acct, url: mention.url });
+    }
+  }
+  return out;
 }

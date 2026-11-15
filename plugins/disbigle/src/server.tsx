@@ -22,12 +22,12 @@ import {
   verifyCredentials,
   type Http,
 } from './mastodon';
-import { linkMentions, mentionMap } from './mentions';
+import { linkMentions, mentionMap, protectMentions } from './mentions';
 import { codeChallenge, codeVerifier, randomState, sameText } from './pkce';
 import { CSS, FediverseSection, type SectionData } from './render';
 import { withAvatars } from './comments';
 import { hostOf } from './config';
-import { CACHE_TAG, commentsTag, Disbigle, KEY, SECRET } from './service';
+import { CACHE_TAG, commentsTag, Disbigle, KEY, SECRET, withAliases } from './service';
 import type { Connection, OAuthPending } from './types';
 
 const BLOCK = `${SLUG}/fediverse`;
@@ -155,11 +155,20 @@ export default definePlugin({
       if (context.entry.type !== 'article') return blocks;
       const record = await disbigle.published(context.siteId, context.entry.id);
       if (!record) return blocks;
+      const connection = await disbigle.connection(context.siteId);
+      // Also `user@disbigle.com` for an account of app.disbigle.com (domain read once).
+      const mentions =
+        connection && connection.instance === record.instance && record.mentions?.length
+          ? withAliases(record.mentions, await disbigle.serverHosts(context.siteId, connection))
+          : record.mentions;
       return [
-        ...linkMentions(blocks, mentionMap(record.mentions)),
+        ...linkMentions(blocks, mentionMap(mentions)),
         { id: 'disbigle-fediverse', type: BLOCK, v: 1, attrs: {} },
       ];
     });
+
+    // Cloudflare's Email Obfuscation would take `@user@server` for an email address.
+    ctx.hooks.filter('render.html', (html) => protectMentions(html));
 
     ctx.ai?.addContext({
       title: 'Disbigle',

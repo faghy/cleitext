@@ -81,3 +81,35 @@ export function linkMentions(blocks: CxdBlock[], profiles: Map<string, string>):
   });
   return changed ? out : blocks;
 }
+
+const HANDLE_RE =
+  /(?<![\p{L}\p{N}_.@-])@[\p{L}\p{N}_.-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+(?![\p{L}\p{N}_-])/giu;
+const RAW_TEXT = /^<(script|style|textarea|title)\b/i;
+
+/**
+ * Wraps the `@user@server` handles in the page text in `<!--email_off-->`,
+ * so Cloudflare's Email Obfuscation does not turn them into hidden email
+ * addresses. Tags, attributes, scripts and styles are left alone.
+ */
+export function protectMentions(html: string): string {
+  if (!/@[^@\s<>"']+@/.test(html)) return html;
+  const parts = html.split(/(<!--[\s\S]*?-->|<[^>]*>)/);
+  let raw: string | null = null;
+  let changed = false;
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]!;
+    if (i % 2 === 1) {
+      if (raw) {
+        if (new RegExp(`^</${raw}\\s*>`, 'i').test(part)) raw = null;
+      } else raw = RAW_TEXT.exec(part)?.[1]?.toLowerCase() ?? null;
+      continue;
+    }
+    if (raw || !part.includes('@')) continue;
+    const next = part.replace(HANDLE_RE, '<!--email_off-->$&<!--email_on-->');
+    if (next !== part) {
+      parts[i] = next;
+      changed = true;
+    }
+  }
+  return changed ? parts.join('') : html;
+}

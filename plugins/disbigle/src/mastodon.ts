@@ -269,6 +269,26 @@ export async function instanceDomain(http: Http, instance: string): Promise<stri
   return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(host) ? host : null;
 }
 
+/**
+ * `GET /api/v1/accounts/lookup`: the profile of `user@host`, for a mention the
+ * server did not report back; null when unknown or not answered.
+ */
+export async function lookupAccount(
+  http: Http,
+  instance: string,
+  acct: string,
+  token: string,
+): Promise<string | null> {
+  const body = await call(http, {
+    url: `${instance}/api/v1/accounts/lookup?acct=${encodeURIComponent(acct)}`,
+    method: 'GET',
+    headers: { accept: 'application/json', authorization: `Bearer ${token}` },
+    timeoutMs: 3000,
+  }).catch(() => null);
+  const url = body ? str(body.url) : '';
+  return /^https?:\/\//i.test(url) ? url : null;
+}
+
 /** `GET /api/v1/statuses/:id/context`, without a token: what anyone may read. */
 export async function statusContext(
   http: Http,

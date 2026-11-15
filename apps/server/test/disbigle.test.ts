@@ -154,6 +154,11 @@ function server(call: Call): { status: number; body: unknown } {
       },
     };
   }
+  // A person the post did not report back.
+  if (method === 'GET' && url.pathname === '/api/v1/accounts/lookup')
+    return url.searchParams.get('acct') === 'carl@social.example'
+      ? { status: 200, body: { id: '12', acct: 'carl', url: `${INSTANCE}/@carl` } }
+      : { status: 404, body: { error: 'Record not found' } };
   // The server's web domain differs from its address (as on Disbigle).
   if (method === 'GET' && url.pathname === '/api/v1/instance')
     return { status: 200, body: { uri: 'social.example', title: 'Social' } };
@@ -415,10 +420,10 @@ describe('Disbigle', () => {
     expect(page.statusCode).toBe(200);
     const html = page.body;
     expect(html).toMatch(
-      /<a [^>]*href="https:\/\/fedi\.example\/@anna"[^>]*>@anna@fedi\.example<\/a>/,
+      /<a [^>]*href="https:\/\/fedi\.example\/@anna"[^>]*><!--email_off-->@anna@fedi\.example<!--email_on--><\/a>/,
     );
     expect(html).toMatch(
-      /<a [^>]*href="https:\/\/mastodon\.social\/@bob"[^>]*>@bob@mastodon\.social<\/a>/,
+      /<a [^>]*href="https:\/\/mastodon\.social\/@bob"[^>]*><!--email_off-->@bob@mastodon\.social<!--email_on--><\/a>/,
     );
     expect(html).toContain('carla@nowhere.example');
     expect(html).not.toMatch(/href="[^"]*carla/);
@@ -531,7 +536,7 @@ describe('Disbigle', () => {
     const id = await article(
       'Self',
       'self',
-      `By @blog@${new URL(INSTANCE).host} (also @Blog@social.example), with @anna@fedi.example.`,
+      `By @blog@${new URL(INSTANCE).host} (also @Blog@social.example), with @anna@fedi.example and @carl@social.example.`,
     );
     await publish(id, false);
     // Just published: the article waits a couple of minutes for its translations.
@@ -539,7 +544,16 @@ describe('Disbigle', () => {
     expect(articleCalls()).toHaveLength(before);
     await announceNow();
     expect(articleCalls()).toHaveLength(before + 1);
-    expect(JSON.parse(articleCalls().at(-1)!.body).mentions).toEqual(['anna@fedi.example']);
+    expect(JSON.parse(articleCalls().at(-1)!.body).mentions).toEqual([
+      'anna@fedi.example',
+      'carl@social.example',
+    ]);
+    // Carl, left out of the post, is looked up; the handles are hidden from Cloudflare.
+    const page = await visitor.get(pathOf('self'));
+    expect(page.body).toContain(
+      `<a href="${INSTANCE}/@carl" rel="nofollow noopener"><!--email_off-->@carl@social.example<!--email_on--></a>`,
+    );
+    expect(page.body).toContain('<!--email_off-->@anna@fedi.example<!--email_on-->');
   });
 
   it('leaves out an article whose option is off', async () => {
