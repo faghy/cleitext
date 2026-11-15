@@ -82,6 +82,8 @@ export interface StoreSettings {
   pricesIncludeTax: boolean;
   phoneRequired: boolean;
   termsUrl: string;
+  /** Text under the ways to pay at checkout (1.20). */
+  checkoutNote?: string;
   /** Where the shop is: taxes until the customer gives an address. */
   baseCountry: string;
   /** The cart shows the shipping methods for a country and postcode (1.15). */
@@ -937,6 +939,7 @@ export function registerStorefront(
           ready: store.ready,
         }),
         termsUrl: store.termsUrl,
+        ...(store.checkoutNote ? { checkoutNote: store.checkoutNote } : {}),
         phoneRequired: store.phoneRequired,
         countries: await countriesOf(request.siteId, store.baseCountry),
         ...(notice ? { notice } : {}),

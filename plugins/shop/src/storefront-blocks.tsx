@@ -22,7 +22,7 @@ import { currentPrice } from './pricing';
 import { moneyFormatter, SHOP_CSS } from './pages';
 import { products, variations } from './schema';
 import { translator } from './strings';
-import { BRAND, CATEGORY, PRODUCT } from './sync';
+import { BRAND, CATEGORY, PRODUCT, safeExcerpt } from './sync';
 
 /**
  * Blocks of the storefront: a grid of products for any page, the cart link
@@ -47,6 +47,19 @@ const CART_JS = `(()=>{const els=document.querySelectorAll('[data-shop-count]');
 fetch('/cart/count',{credentials:'same-origin',headers:{accept:'application/json'}}).then(r=>r.ok?r.json():null).then(d=>{if(!d)return;
 for(const el of els){el.textContent=d.count>0?String(d.count):'';const a=el.closest('a');if(a&&d.label)a.setAttribute('aria-label',d.label);}}).catch(()=>{});})();`;
 export const CART_JS_PATH = `/shop-assets/cart-${Buffer.from(CART_JS).length.toString(36)}.js`;
+
+/** A short description as HTML: the shop's simple HTML, or plain text in paragraphs. */
+function excerptHtml(value: string): string {
+  const text = value.trim();
+  if (!text) return '';
+  if (/<[a-z]/i.test(text)) return safeExcerpt(text);
+  const escape = (v: string) =>
+    v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return text
+    .split(/\n{2,}/)
+    .map((p) => `<p>${escape(p).replace(/\n/g, '<br />')}</p>`)
+    .join('');
+}
 
 const Raw = ({ markup, className }: { markup: string; className?: string }) => (
   <div className={className} dangerouslySetInnerHTML={{ __html: markup }} />
@@ -406,7 +419,10 @@ export function registerStorefrontBlocks(
     srcset?: string;
   }
   ctx.blocks.register(
-    defineBlock<Record<string, never>, { buy: BuyBoxData | null; pictures: Picture[] } | null>({
+    defineBlock<
+      Record<string, never>,
+      { buy: BuyBoxData | null; pictures: Picture[]; excerpt?: string } | null
+    >({
       type: 'shop/summary',
       title: { en: 'Product summary', it: 'Riepilogo del prodotto' },
       icon: 'cart',
@@ -417,8 +433,13 @@ export function registerStorefrontBlocks(
         context.tag(productTag(id));
         const buy = await loadBuyBox(ctx, buyBoxSettings, context);
         const [row] = await ctx.db.transaction(context.siteId, (tx) =>
-          tx.select({ gallery: products.gallery }).from(products).where(eq(products.entryId, id)),
+          tx
+            .select({ gallery: products.gallery, excerpt: products.excerpt })
+            .from(products)
+            .where(eq(products.entryId, id)),
         );
+        // The short description under the price, when the shop shows it there (1.20).
+        const withExcerpt = (await ctx.settings.get(context.siteId)).summaryExcerpt === true;
         const pictures: Picture[] = [];
         const main = context.page.entry?.featuredImage;
         if (main) {
@@ -433,7 +454,7 @@ export function registerStorefrontBlocks(
         }
         for (const image of row?.gallery ?? [])
           pictures.push({ url: image.url, alt: image.caption });
-        return { buy, pictures };
+        return { buy, pictures, excerpt: withExcerpt ? (row?.excerpt ?? '') : '' };
       },
       css: () => SHOP_CSS + CATALOG_CSS + SUMMARY_CSS,
       render({ data, context }) {
@@ -477,10 +498,41 @@ export function registerStorefrontBlocks(
             )}
             <div className="shop-summary__info">
               <BuyBoxView data={data.buy} locale={context.locale} />
+              {data.excerpt ? (
+                <Raw className="shop-summary__excerpt" markup={excerptHtml(data.excerpt)} />
+              ) : null}
             </div>
           </div>
         );
       },
+    }),
+  );
+
+  // ---- Short description: the product's own, with its formatting (1.20) ---------------
+
+  ctx.blocks.register(
+    defineBlock<Record<string, never>, { html: string } | null>({
+      type: 'shop/excerpt',
+      title: { en: 'Short description', it: 'Descrizione breve' },
+      description: {
+        en: "The product's short description, with its formatting, for product templates.",
+        it: 'La descrizione breve del prodotto, con la sua formattazione, per i modelli di prodotto.',
+      },
+      icon: 'text',
+      attributes: [],
+      async load(_attrs, context) {
+        const id = context.entry?.id;
+        if (!id) return null;
+        context.tag(productTag(id));
+        const [row] = await ctx.db.transaction(context.siteId, (tx) =>
+          tx.select({ excerpt: products.excerpt }).from(products).where(eq(products.entryId, id)),
+        );
+        const html = excerptHtml(row?.excerpt || context.page.entry?.excerpt || '');
+        return html ? { html } : null;
+      },
+      css: () =>
+        `.shop-excerpt>:first-child{margin-top:0}.shop-excerpt>:last-child{margin-bottom:0}`,
+      render: ({ data }) => (data ? <Raw className="shop-excerpt" markup={data.html} /> : null),
     }),
   );
 

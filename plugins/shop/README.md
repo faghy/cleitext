@@ -198,6 +198,8 @@ customer's data include their orders and saved addresses. Erasing deletes the
 saved addresses and carts and anonymizes orders that never became a sale;
 sales are kept for tax and accounting records, without IP address and browser.
 
+**Short description and checkout note** (Cleishop 1.20): the **Short description** block shows a product's short description with its formatting anywhere in a product template; Settings → Cleishop → "Short description in the product summary" also puts it under the price. "Note under the payment" is a free text shown at checkout under the ways to pay (data use, returns…). Italy's e-invoice fields show for Italian shops only, the EU's withdrawal line for EU shops only (1.19.2).
+
 **Search and countries** (Cleishop 1.19): the catalog has a search field (`/shop?q=…`, also with the other filters), which finds products by the words of their title, code or short description and shows them with price and cart button; the **Product search** block searches there. The checkout's and the account's address forms start from the shop's country (Settings → Cleishop) and list only the countries the shipping zones reach, the shop's first; every country when "everywhere else" has a method (as WooCommerce's selling and shipping locations).
 
 **Pages imported from WooCommerce** (Cleishop 1.18): with the WordPress

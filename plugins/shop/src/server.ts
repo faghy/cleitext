@@ -222,6 +222,19 @@ export default definePlugin({
           default: false,
         },
         {
+          name: 'summaryExcerpt',
+          type: 'boolean',
+          label: {
+            en: 'Short description in the product summary',
+            it: 'Descrizione breve nel riepilogo del prodotto',
+          },
+          help: {
+            en: 'Under the price, with its formatting. The Short description block places it anywhere instead.',
+            it: 'Sotto il prezzo, con la sua formattazione. Il blocco Descrizione breve la mette dove vuoi.',
+          },
+          default: false,
+        },
+        {
           name: 'shippingInCart',
           type: 'boolean',
           label: { en: 'Shipping in the cart', it: 'Spedizione nel carrello' },
@@ -304,6 +317,17 @@ export default definePlugin({
             it: 'Il suo indirizzo: i clienti li accettano prima di ordinare. Vuoto: nessuna casella.',
           },
         },
+        {
+          name: 'checkoutNote',
+          type: 'text',
+          multiline: true,
+          maxLength: 1000,
+          label: { en: 'Note under the payment', it: 'Nota sotto il pagamento' },
+          help: {
+            en: 'Shown at checkout under the ways to pay, e.g. how personal data are used or the return policy.',
+            it: 'Mostrata alla cassa sotto i metodi di pagamento, per esempio come usate i dati personali o le condizioni di reso.',
+          },
+        },
       ],
       { title: { en: 'Cleishop', it: 'Cleishop' }, capability: CAPABILITY },
     );
@@ -341,6 +365,7 @@ export default definePlugin({
         pricesIncludeTax: values.pricesIncludeTax !== false,
         phoneRequired: values.phoneRequired !== false,
         termsUrl: str('termsUrl'),
+        checkoutNote: str('checkoutNote').trim(),
         baseCountry: str('baseCountry') || 'IT',
         shippingInCart: values.shippingInCart !== false,
         taxesEnabled: (await taxSettings(siteId)).enabled,

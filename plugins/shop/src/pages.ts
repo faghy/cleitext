@@ -562,6 +562,8 @@ export function checkoutPage(options: {
   includeTax: boolean;
   payments: PaymentOption[];
   termsUrl: string;
+  /** The shop's note under the ways to pay (1.20). */
+  checkoutNote?: string;
   phoneRequired: boolean;
   notice?: string;
   coupons: CouponView[];
@@ -671,6 +673,13 @@ export function checkoutPage(options: {
       )}
       ${errors.payment ? html`<span class="shop-error">${t(errors.payment)}</span>` : ''}
     </fieldset>
+    ${
+      options.checkoutNote
+        ? html`<p class="shop-meta shop-checkout-note">
+            ${options.checkoutNote.split('\n').map((line, i) => html`${i ? raw('<br />') : ''}${line}`)}
+          </p>`
+        : ''
+    }
     ${
       // The EU's right of withdrawal: shops based in the EU (1.19.2).
       EU.has(options.countries?.base || 'IT')

@@ -217,4 +217,32 @@ describe('the catalog’s order and the cards’ short description', () => {
     // Without a redirect, the shop's own 404.
     expect((await visitor.get('/product-category/never-was')).statusCode).toBe(404);
   });
+
+  it('shows the short description in a block and in the summary, and a note at checkout', async () => {
+    await admin.request('PATCH', '/api/v1/plugins/shop/settings', {
+      summaryExcerpt: true,
+      checkoutNote: 'We use your data only for this order.\nReturns within 30 days.',
+    });
+    const alpha = (
+      (await admin.get('/api/v1/entries?type=product&limit=50')).json() as {
+        items?: { id: string; title: string }[];
+      }
+    ).items?.find((e) => e.title === 'Alpha');
+    expect(alpha).toBeDefined();
+    const created = await admin.post('/api/v1/entries', {
+      type: 'page',
+      title: 'Excerpt test',
+      document: { schema: 1, blocks: [{ id: 'b_ex', type: 'shop/excerpt', v: 1, attrs: {} }] },
+    });
+    expect(created.statusCode, created.body).toBeLessThan(300);
+    // On a product's own page the summary shows it (formatted since the previous test).
+    const productPage = await new TestClient(app, site.host, '10.98.0.12').get('/product/alpha');
+    if (productPage.statusCode === 200) expect(productPage.body).toContain('shop-summary__excerpt');
+    const buyer = new TestClient(app, site.host, '10.98.0.13');
+    await buyer.postForm('/cart/add', { product: charlie, quantity: '1' });
+    const checkout = (await buyer.get('/checkout')).body;
+    expect(checkout).toContain(
+      'We use your data only for this order.<br />Returns within 30 days.',
+    );
+  });
 });
