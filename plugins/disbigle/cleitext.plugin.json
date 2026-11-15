@@ -1,7 +1,7 @@
 {
   "slug": "disbigle",
   "name": "Disbigle",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "apiVersion": "^1.74",
   "description": "Announces your new articles on the fediverse through your Disbigle account (or another Mastodon-compatible server): one post per article with its title, summary, link and tags, in every language it has. The people you mention as @user@server are notified and linked, and the replies from the fediverse appear as comments under the article.",
   "author": "Cleitext",

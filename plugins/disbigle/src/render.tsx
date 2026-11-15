@@ -30,8 +30,51 @@ const STRINGS = {
   },
 };
 
-export const strings = (locale: string) =>
-  locale.toLowerCase().startsWith('it') ? STRINGS.it : STRINGS.en;
+const MORE: Record<string, typeof STRINGS.en> = {
+  es: {
+    heading: 'Comentarios del fediverso',
+    cta: 'Comenta en el fediverso',
+    hint: 'Responde a la publicación con tu cuenta de Disbigle, Mastodon u otro servidor del fediverso: tu respuesta aparecerá aquí.',
+    one: '1 respuesta',
+    many: '{n} respuestas',
+    profile: 'Perfil de {name}',
+    open: 'Abrir la respuesta',
+  },
+  fr: {
+    heading: 'Commentaires du fédivers',
+    cta: 'Commenter sur le fédivers',
+    hint: 'Répondez à la publication avec votre compte Disbigle, Mastodon ou d’un autre serveur du fédivers : votre réponse apparaît ici.',
+    one: '1 réponse',
+    many: '{n} réponses',
+    profile: 'Profil de {name}',
+    open: 'Ouvrir la réponse',
+  },
+  de: {
+    heading: 'Kommentare aus dem Fediverse',
+    cta: 'Im Fediverse kommentieren',
+    hint: 'Antworte auf den Beitrag mit deinem Disbigle-, Mastodon- oder anderen Fediverse-Konto: deine Antwort erscheint hier.',
+    one: '1 Antwort',
+    many: '{n} Antworten',
+    profile: 'Profil von {name}',
+    open: 'Antwort öffnen',
+  },
+  zh: {
+    heading: '来自联邦宇宙的评论',
+    cta: '在联邦宇宙中评论',
+    hint: '用你的 Disbigle、Mastodon 或其他联邦宇宙账号回复这条帖子：你的回复会显示在这里。',
+    one: '1 条回复',
+    many: '{n} 条回复',
+    profile: '{name} 的主页',
+    open: '打开回复',
+  },
+};
+
+/** The section's texts in the page's language (the languages Disbigle speaks), English otherwise. */
+export const strings = (locale: string) => {
+  const language = locale.toLowerCase().split('-')[0]!;
+  if (language === 'it') return STRINGS.it;
+  return MORE[language] ?? STRINGS.en;
+};
 
 function date(iso: string, locale: string): string {
   const time = Date.parse(iso);

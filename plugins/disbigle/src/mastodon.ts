@@ -227,14 +227,26 @@ export async function publishArticle(
     throw new ServerError('The server did not give the address of the post.', 502);
   const host = new URL(instance).hostname.toLowerCase();
   const mentions: Mention[] = [];
-  if (Array.isArray(status.mentions))
-    for (const item of status.mentions as unknown[]) {
-      const mention = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
-      const acct = str(mention.acct).replace(/^@/, '').toLowerCase();
-      const profile = str(mention.url);
-      if (!acct || !/^https?:\/\//i.test(profile)) continue;
-      mentions.push({ acct: acct.includes('@') ? acct : `${acct}@${host}`, url: profile });
-    }
+  // The people mentioned: in the public post, and in the replies in other
+  // languages (Disbigle mentions there those who read another language).
+  const replies = Array.isArray(body.replies) ? (body.replies as unknown[]) : [];
+  const statuses = [
+    status,
+    ...replies.map((reply) => {
+      const r = reply && typeof reply === 'object' ? (reply as Record<string, unknown>) : {};
+      return (r.status && typeof r.status === 'object' ? r.status : {}) as Record<string, unknown>;
+    }),
+  ];
+  for (const one of statuses)
+    if (Array.isArray(one.mentions))
+      for (const item of one.mentions as unknown[]) {
+        const mention = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+        const acct = str(mention.acct).replace(/^@/, '').toLowerCase();
+        const profile = str(mention.url);
+        if (!acct || !/^https?:\/\//i.test(profile)) continue;
+        const full = acct.includes('@') ? acct : `${acct}@${host}`;
+        if (!mentions.some((m) => m.acct === full)) mentions.push({ acct: full, url: profile });
+      }
   return { id, url, mentions };
 }
 

@@ -117,6 +117,25 @@ describe('server calls', () => {
     expect(JSON.parse(requests[0]!.body!)).toEqual(payload);
   });
 
+  it('reads the mentions of the replies in other languages too', async () => {
+    const { http } = fake(() => ({
+      status: 200,
+      body: {
+        status: { id: '556', url: `${INSTANCE}/@blog/556`, mentions: [] },
+        replies: [
+          {
+            language: 'es',
+            status: { id: '557', mentions: [{ acct: 'carla', url: `${INSTANCE}/@carla` }] },
+          },
+        ],
+      },
+    }));
+    const status = await publishArticle(http, INSTANCE, { token: 'T', key: 'entry-2', payload });
+    expect(status.mentions).toEqual([
+      { acct: 'carla@app.disbigle.com', url: `${INSTANCE}/@carla` },
+    ]);
+  });
+
   it('gives the server’s error with its status', async () => {
     const { http } = fake(() => ({ status: 422, body: { error: 'Validation failed: too long' } }));
     const error = await publishArticle(http, INSTANCE, { token: 'T', key: 'k', payload }).catch(

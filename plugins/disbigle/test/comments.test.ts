@@ -140,3 +140,13 @@ describe('fediverse comments', () => {
     expect(initials('***')).toBe('?');
   });
 });
+
+describe('texts', () => {
+  it('speak the languages of Disbigle, English otherwise', async () => {
+    const { strings } = await import('../src/render');
+    expect(strings('es').cta).toBe('Comenta en el fediverso');
+    expect(strings('it-IT').cta).toBe('Commenta sul fediverso');
+    expect(strings('zh').cta).toBe('在联邦宇宙中评论');
+    expect(strings('pt').cta).toBe('Comment on the fediverse');
+  });
+});
