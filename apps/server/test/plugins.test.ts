@@ -645,6 +645,7 @@ describe('an active plugin', () => {
     expect((await visitor.get('/calendar')).headers['x-cache']).toBe('HIT');
     // Every value of a repeated parameter (plugin API 1.17).
     expect((await visitor.get('/calendar?tag=a&tag=b')).body).toContain('<p class="tags">a,b</p>');
+    expect((await visitor.get('/calendar?q=jazz')).body).toContain('<p class="hook-q">jazz</p>');
     // Signed in, it is not cached.
     expect((await admin.get('/calendar')).headers['x-cache']).toBe('BYPASS');
 

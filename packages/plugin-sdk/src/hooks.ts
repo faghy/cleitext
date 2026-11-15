@@ -272,6 +272,7 @@ export interface RenderHookContext {
    * The address's query parameters (plugin API 1.63; missing when there are
    * none and on older cores), e.g. the choices of a filter block, so that a
    * plugin gives such a page its own title, description and canonical address.
+   * Also on plugins' pages in the theme (a shop's `/shop?q=…`, core 0.107).
    */
   params?: Record<string, string>;
   /** Set on single entries. */

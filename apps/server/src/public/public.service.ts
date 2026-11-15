@@ -432,6 +432,7 @@ export class PublicService {
                   result.page,
                   status,
                   true,
+                  url.searchParams,
                 )
               : null;
             const body = rendered ? (rendered.html ?? '') : (result.body as string);
@@ -2854,9 +2855,15 @@ export class PublicService {
     page: PluginPageContent,
     status: number,
     cached = false,
+    /** The address's query: render hooks get it as `params`, as on the site's own pages (core 0.107). */
+    query?: URLSearchParams,
   ): Promise<PublicResponse> {
     return withContext(this.database.db, { siteId }, async (tx) => {
       const { scope } = await this.scope(tx, siteId, origin, path);
+      if (query)
+        scope.params = Object.fromEntries(
+          [...query].slice(0, 20).map(([k, v]) => [k.slice(0, 64), v.slice(0, 200)]),
+        );
       if (page.archive) {
         scope.pluginArchive = {
           ...page.archive,
@@ -3016,6 +3023,8 @@ export class PublicService {
       request.auth ?? null,
       result.page,
       result.status ?? 200,
+      false,
+      new URL(request.url, 'http://local').searchParams,
     );
     for (const [name, value] of Object.entries({ ...response.headers, ...result.headers }))
       void reply.header(name, value);

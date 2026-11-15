@@ -313,6 +313,9 @@ export default definePlugin({
     // agenda only, so the failures stay under the deactivation limit.
     ctx.hooks.filter('render.html', (html, context) => {
       if (context.path === '/agenda') throw new Error('broken filter');
+      // The address's query reaches the hook on plugins' pages too (core 0.107).
+      if (context.path === '/calendar' && context.params?.q)
+        return html.replace('</body>', `<p class="hook-q">${context.params.q}</p></body>`);
       return html;
     });
     ctx.hooks.on('entry.published', ({ entry }) => {
