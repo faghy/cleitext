@@ -475,7 +475,7 @@ export function wpbakeryToFresco(
   /** An element's id, classes and design options; `gap` is WPBakery's space under it. */
   const common = (attrs: Record<string, string>, gap = 35): Settings => ({
     ...(attrs.el_id ? { _element_id: attrs.el_id } : {}),
-    ...(attrs.el_class ? { _css_classes: attrs.el_class } : {}),
+    ...(classesOf(attrs) ? { _css_classes: classesOf(attrs) } : {}),
     ...cssOf(attrs, '', true, gap ? { margin: ['0', '0', `${gap}px`, '0'] } : {}),
   });
 
@@ -501,7 +501,8 @@ export function wpbakeryToFresco(
   /** A text: a heading when it is just one, otherwise the text with its paragraphs. */
   const textElement = (content: string, a: Record<string, string>): ElementorNode[] => {
     const html = vcAutop(content);
-    if (!html) return [];
+    // An empty text block still takes its 35px, as WordPress prints its empty wrapper.
+    if (!html) return [widget('spacer', { space: { size: 35, unit: 'px' } })];
     const heading = loneHeading(content.replace(/^(\s*<\/p>)+|(<p>\s*)+$/gi, ''));
     if (heading)
       return [
@@ -596,7 +597,8 @@ export function wpbakeryToFresco(
                   image_size: 'custom',
                   image_custom_dimension: { width: Number(crop[1]), height: Number(crop[2]) },
                 }
-              : { image_size: a.img_size || 'thumbnail' }),
+              : // Not given: WordPress's thumbnail; given empty: medium (as WPBakery prints them).
+                { image_size: a.img_size === undefined ? 'thumbnail' : a.img_size || 'medium' }),
             align: a.alignment === 'center' || a.alignment === 'right' ? a.alignment : 'left',
             ...(a.onclick === 'img_link_large' ||
             a.onclick === 'link_image' ||
@@ -607,7 +609,8 @@ export function wpbakeryToFresco(
                 : {}),
             ...(a.add_caption === 'yes' ? { caption_source: 'attachment' } : {}),
             ...(a.title ? { _title: a.title } : {}),
-            ...common(a),
+            // "3D shadow" draws its shadow 15px under the picture.
+            ...common(a, a.style === 'vc_box_shadow_3d' ? 50 : 35),
           }),
         ];
       }
@@ -638,13 +641,19 @@ export function wpbakeryToFresco(
                   ...(a.custom_background ? { background_color: a.custom_background } : {}),
                   ...(a.custom_text ? { button_text_color: a.custom_text } : {}),
                 }
-              : a.color
-                ? {
-                    background_color: named,
-                    button_text_color:
-                      a.color === 'white' || a.color === 'grey' ? '#2a2a2a' : '#ffffff',
-                  }
-                : {};
+              : {
+                  // WPBakery's own colours: grey when none is chosen.
+                  background_color: named,
+                  button_text_color:
+                    (a.color ?? 'grey') === 'white' || (a.color ?? 'grey') === 'grey'
+                      ? '#2a2a2a'
+                      : '#ffffff',
+                };
+        // WPBakery's sizes (padding) and shapes (rounded 5px, square, round).
+        const pad = { xs: [6, 10], sm: [9, 15], md: [14, 20], lg: [18, 25] }[a.size ?? 'md'] ?? [
+          14, 20,
+        ];
+        const radius = { square: 0, round: 999, rounded: 5 }[a.shape ?? 'rounded'] ?? 5;
         return [
           widget('button', {
             text: a.title ?? 'Text on the button',
@@ -656,11 +665,28 @@ export function wpbakeryToFresco(
                   ? a.align
                   : '',
             size: { xs: 'xs', sm: 'sm', md: 'md', lg: 'lg' }[a.size ?? ''] ?? 'sm',
+            text_padding: {
+              unit: 'px',
+              top: String(pad[0]),
+              right: String(pad[1]),
+              bottom: String(pad[0]),
+              left: String(pad[1]),
+              isLinked: false,
+            },
+            border_radius: {
+              unit: 'px',
+              top: String(radius),
+              right: String(radius),
+              bottom: String(radius),
+              left: String(radius),
+              isLinked: true,
+            },
             ...look,
             ...(a.add_icon === 'true' && a.i_icon_fontawesome
               ? {
                   selected_icon: faIcon(a.i_icon_fontawesome),
                   icon_align: a.i_align === 'right' ? 'right' : 'left',
+                  icon_indent: { size: 12, unit: 'px' },
                 }
               : {}),
             // WPBakery's buttons have 21.735px under them.
@@ -738,6 +764,8 @@ export function wpbakeryToFresco(
               ? { style: a.style }
               : {}),
             weight: { size: Number(a.border_width) || 1, unit: 'px' },
+            // WPBakery's separators have no space of their own above and below the line.
+            gap: { size: 0, unit: 'px' },
             ...(a.el_width ? { width: { unit: '%', size: Number(a.el_width) } } : {}),
             align:
               a.align === 'align_left' ? 'left' : a.align === 'align_right' ? 'right' : 'center',
@@ -759,12 +787,13 @@ export function wpbakeryToFresco(
         const vimeo = /vimeo\.com/.test(url);
         return url
           ? [
-              widget(
-                'video',
-                vimeo
+              widget('video', {
+                ...(vimeo
                   ? { video_type: 'vimeo', vimeo_url: url }
-                  : { video_type: 'youtube', youtube_url: url, ...common(a) },
-              ),
+                  : { video_type: 'youtube', youtube_url: url }),
+                // WPBakery's video wrapper keeps 76px under the player.
+                ...common(a, 76),
+              }),
             ]
           : [];
       }
@@ -783,7 +812,8 @@ export function wpbakeryToFresco(
               address: decodeURIComponent(query.replace(/\+/g, ' ')),
               height,
               zoom: { size: 15, unit: 'px' },
-              ...common(a),
+              // Maps have no space under them.
+              ...common(a, 0),
             }),
           ];
         return src
@@ -842,6 +872,17 @@ export function wpbakeryToFresco(
               size: { xs: 14, sm: 21, md: 28, lg: 42, xl: 56 }[a.size ?? 'md'] ?? 28,
               unit: 'px',
             },
+            // Its background: a filled or outlined circle or square (Fresco's stacked or framed view).
+            ...(a.background_style
+              ? {
+                  view: /outline/.test(a.background_style) ? 'framed' : 'stacked',
+                  shape: /rounded(?!-less)/.test(a.background_style) ? 'circle' : 'square',
+                  [/outline/.test(a.background_style) ? 'primary_color' : 'secondary_color']:
+                    a.background_color === 'custom'
+                      ? (a.custom_background_color ?? '#ebebeb')
+                      : (VC_COLORS[a.background_color ?? 'grey'] ?? '#ebebeb'),
+                }
+              : {}),
             ...(link ? { link } : {}),
             ...common(a),
           }),
@@ -885,6 +926,21 @@ export function wpbakeryToFresco(
       }
     }
   };
+
+  /**
+   * The element's own classes, with WPBakery's that themes' CSS names: its
+   * design class (`vc_custom_123…`) and, for columns, `vc_col-sm-N`.
+   */
+  const classesOf = (attrs: Record<string, string>, columnWidth?: number) =>
+    [
+      attrs.el_class ?? '',
+      /vc_custom_\d+/.exec(attrs.css ?? '')?.[0] ?? '',
+      columnWidth !== undefined
+        ? `vc_col-sm-${Math.max(1, Math.round((columnWidth / 100) * 12))}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
 
   /** Whether an element's design options give it a background (WPBakery's "has fill"). */
   const filled = (attrs: Record<string, string>) => {
@@ -948,7 +1004,13 @@ export function wpbakeryToFresco(
             }
           : {}),
         ...(node.attrs.el_id ? { _element_id: node.attrs.el_id } : {}),
-        ...(node.attrs.el_class ? { css_classes: node.attrs.el_class } : {}),
+        ...(classesOf(node.attrs, size) ? { css_classes: classesOf(node.attrs, size) } : {}),
+        // `vc_hidden-lg/md/sm/xs`: hidden on that device.
+        ...(/vc_hidden-(lg|md)\b/.test(node.attrs.offset ?? '')
+          ? { hide_desktop: 'hidden-desktop' }
+          : {}),
+        ...(/vc_hidden-sm\b/.test(node.attrs.offset ?? '') ? { hide_tablet: 'hidden-tablet' } : {}),
+        ...(/vc_hidden-xs\b/.test(node.attrs.offset ?? '') ? { hide_mobile: 'hidden-mobile' } : {}),
       },
       elements: [
         ...(node.content.trim()

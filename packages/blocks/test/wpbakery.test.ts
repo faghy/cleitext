@@ -211,4 +211,24 @@ describe('WPBakery → Fresco', () => {
     );
     expect(of(out, 'icon')[0]!.attrs.icon).toEqual({ set: 'solid', name: 'location-dot' });
   });
+
+  it('follows the rules measured on WordPress', () => {
+    const out = convert(
+      '[vc_row][vc_column width="1/2" offset="vc_hidden-xs" css=".vc_custom_7{padding-top: 10px !important;}"][vc_column_text][/vc_column_text][vc_btn title="Go" shape="square" size="lg"][vc_separator][vc_single_image image="1" img_size="" style="vc_box_shadow_3d"][vc_icon type="linecons" icon_linecons="vc_li vc_li-heart" background_style="rounded-outline"][/vc_column][vc_column width="1/2"][/vc_column][/vc_row]',
+    );
+    const column = out[0]!.children![0]!;
+    expect(column.attrs._css_classes).toContain('vc_custom_7');
+    expect(column.attrs._css_classes).toContain('vc_col-sm-6');
+    expect(column.attrs._hide_mobile).toBe(true);
+    // An empty text keeps its 35px.
+    expect(of([column], 'spacer')[0]!.attrs.space).toEqual({ size: 35, unit: 'px' });
+    expect(of(out, 'button')[0]!.attrs).toMatchObject({
+      background_color: '#ebebeb',
+      padding: { top: 18, right: 25 },
+    });
+    expect(of(out, 'divider')[0]!.attrs.gap).toEqual({ size: 0, unit: 'px' });
+    expect(of(out, 'image')[0]!.attrs).toMatchObject({ image_size: 'medium' });
+    expect(of(out, 'image')[0]!.attrs._margin).toMatchObject({ bottom: 50 });
+    expect(of(out, 'icon')[0]!.attrs).toMatchObject({ view: 'framed', shape: 'circle' });
+  });
 });
