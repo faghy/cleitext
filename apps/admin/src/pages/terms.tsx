@@ -174,7 +174,7 @@ export function TermsPage({ slug }: { slug: string }) {
                           {term.name}
                         </span>
                         {term.description && (
-                          <p className="text-xs text-slate-500">{term.description}</p>
+                          <p className="text-xs text-slate-500">{plainSummary(term.description)}</p>
                         )}
                         <div className="flex gap-3 text-xs">
                           <button
@@ -391,4 +391,25 @@ function TermForm({
       </div>
     </form>
   );
+}
+
+/**
+ * A term's description in the list: its text without the HTML (descriptions
+ * imported from WordPress often have headings and quotes), cut at a word
+ * after about 200 characters.
+ */
+function plainSummary(html: string): string {
+  const text = html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (text.length <= 200) return text;
+  const cut = text.slice(0, 200);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), 150)).trim()}…`;
 }

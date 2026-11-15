@@ -359,7 +359,8 @@ function MediaDetails({ media, onDeleted }: { media: MediaView; onDeleted: () =>
 
   return (
     <aside
-      className="w-80 shrink-0 space-y-3 rounded border border-slate-200 bg-white p-4 text-sm"
+      // It stays in view while the library scrolls (refs #34), scrolling on its own when taller.
+      className="sticky top-4 max-h-[calc(100vh-2rem)] w-80 shrink-0 space-y-3 overflow-y-auto rounded border border-slate-200 bg-white p-4 text-sm"
       aria-label={t('File details')}
     >
       {media.kind === 'image' && <FocalPointPicker media={media} />}
