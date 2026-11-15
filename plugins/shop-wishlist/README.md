@@ -11,3 +11,5 @@ A Cleishop add-on (official plugin, free): customers save products for later.
 - **Admin**: Plugins → Wishlist, with the number of lists and the most wished products.
 
 Needs Cleitext 0.100 or later and Cleishop 1.13.1 or later (its `shop` service, plugin API 1.73).
+
+**Lists in the admin** (1.1.0): Wishlist lists every list (a customer's or a visitor's, the products in it, its last change); choose some or all and delete them.

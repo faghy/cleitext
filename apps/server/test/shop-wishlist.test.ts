@@ -143,4 +143,20 @@ describe('Wishlist', () => {
     const stats = statsRes.json();
     expect(stats.top[0]).toMatchObject({ id: perfume, title: 'Rose Perfume', n: 1 });
   });
+
+  it('lists the lists in the admin and deletes the ones chosen', async () => {
+    const res = await admin.get('/api/v1/ext/shop-wishlist/lists');
+    expect(res.statusCode, res.body).toBe(200);
+    const rows = res.json() as { id: string; account: boolean; products: string[] }[];
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.some((r) => r.account && r.products.includes('Rose Perfume'))).toBe(true);
+    expect(
+      (await admin.post('/api/v1/ext/shop-wishlist/lists/delete', { ids: ['x'] })).statusCode,
+    ).toBe(400);
+    const deleted = await admin.post('/api/v1/ext/shop-wishlist/lists/delete', {
+      ids: rows.map((r) => r.id),
+    });
+    expect(deleted.json()).toEqual({ deleted: rows.length });
+    expect((await admin.get('/api/v1/ext/shop-wishlist/lists')).json()).toEqual([]);
+  });
 });

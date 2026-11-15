@@ -19,13 +19,134 @@ const CSS = `
 .wl-card h2{font-size:1rem;font-weight:600;margin:0}
 .wl-muted{color:var(--color-slate-500,#64748b);font-size:.875rem}
 .wl ol{margin:0;padding-left:1.3rem;font-size:.875rem}
+.wl-table{width:100%;border-collapse:collapse;font-size:.875rem}
+.wl-table th,.wl-table td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid var(--color-slate-200,#e2e8f0);vertical-align:top}
 `;
 
 interface Wishlists {
   wishlists: { userId?: number; items?: { sku?: string }[] }[];
 }
 
-function WishlistPage({ api }: AdminPageProps) {
+interface ListRow {
+  id: string;
+  account: boolean;
+  createdAt: string;
+  updatedAt: string;
+  products: string[];
+}
+
+/** The lists one by one (1.1.0): whose, what they hold, and deleting them. */
+function ListsCard({
+  api,
+  locale,
+  onChange,
+}: {
+  api: AdminPageProps['api'];
+  locale: string;
+  onChange: () => void;
+}) {
+  const { t } = useT();
+  const [rows, setRows] = useState<ListRow[] | null>(null);
+  const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const load = () =>
+    api<ListRow[]>('GET', '/lists')
+      .then(setRows)
+      .catch((e) => setError(errorMessage(e)));
+  useEffect(() => {
+    void load();
+  }, []);
+  const remove = async () => {
+    const ids = [...chosen];
+    if (!ids.length) return;
+    if (
+      !window.confirm(t('Delete the {n} chosen lists? This cannot be undone.', { n: ids.length }))
+    )
+      return;
+    setBusy(true);
+    setError('');
+    try {
+      await api('POST', '/lists/delete', { ids });
+      setChosen(new Set());
+      await load();
+      onChange();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!rows) return error ? <Alert>{error}</Alert> : null;
+  const all = rows.length > 0 && rows.every((r) => chosen.has(r.id));
+  return (
+    <section className="wl-card">
+      <h2>{t('Lists')}</h2>
+      {error && <Alert>{error}</Alert>}
+      {rows.length === 0 ? (
+        <p className="wl-muted">{t('Nothing saved yet.')}</p>
+      ) : (
+        <>
+          <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={all}
+                onChange={() => setChosen(all ? new Set() : new Set(rows.map((r) => r.id)))}
+              />
+              {t('Choose all')}
+            </label>
+            <Button variant="danger" disabled={busy || chosen.size === 0} onClick={remove}>
+              {t('Delete the chosen lists')}
+            </Button>
+          </div>
+          <table className="wl-table">
+            <thead>
+              <tr>
+                <th>
+                  <span className="sr-only">{t('Choose')}</span>
+                </th>
+                <th>{t('Whose')}</th>
+                <th>{t('Products')}</th>
+                <th>{t('Last change')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={t('Choose')}
+                      checked={chosen.has(r.id)}
+                      onChange={() =>
+                        setChosen((c) => {
+                          const next = new Set(c);
+                          if (next.has(r.id)) next.delete(r.id);
+                          else next.add(r.id);
+                          return next;
+                        })
+                      }
+                    />
+                  </td>
+                  <td>{r.account ? t('Customer with an account') : t('Visitor')}</td>
+                  <td>
+                    {r.products.length
+                      ? `${r.products.length}: ${r.products.slice(0, 4).join(', ')}${r.products.length > 4 ? '…' : ''}`
+                      : t('Empty')}
+                  </td>
+                  <td>{new Date(r.updatedAt).toLocaleString(locale)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </section>
+  );
+}
+
+function WishlistPage({ api, user }: AdminPageProps) {
   const { t } = useT();
   const [stats, setStats] = useState<{
     lists: number;
@@ -109,6 +230,7 @@ function WishlistPage({ api }: AdminPageProps) {
       <style>{CSS}</style>
       <h1>{t('Wishlist')}</h1>
       {error && <Alert>{error}</Alert>}
+      <ListsCard api={api} locale={user.locale} onChange={() => void load()} />
       {stats && (
         <section className="wl-card">
           <p>

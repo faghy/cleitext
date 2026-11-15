@@ -312,6 +312,68 @@ export default definePlugin({
       },
     });
 
+    // Admin (1.1.0): the lists themselves, newest first, and deleting them (e.g. tests).
+    ctx.routes.api({
+      method: 'GET',
+      path: '/lists',
+      capability: 'manage_wishlist',
+      handler: async (request) => {
+        const siteId = request.siteId;
+        const rows = await tx(siteId, (t) =>
+          t
+            .select({
+              id: lists.id,
+              account: sql<boolean>`${lists.userId} IS NOT NULL`,
+              createdAt: lists.createdAt,
+              updatedAt: lists.updatedAt,
+              products: sql<
+                string[]
+              >`coalesce(array_agg(${items.productId}::text) FILTER (WHERE ${items.productId} IS NOT NULL), '{}')`,
+            })
+            .from(lists)
+            .leftJoin(items, and(eq(items.listId, lists.id), eq(items.siteId, lists.siteId)))
+            .groupBy(lists.id, lists.userId, lists.createdAt, lists.updatedAt)
+            .orderBy(sql`${lists.updatedAt} DESC`)
+            .limit(500),
+        );
+        const ids = [...new Set(rows.flatMap((r) => r.products))].slice(0, 200);
+        const entries = ids.length
+          ? await ctx.content.find(siteId, { ids, status: 'any', limit: 200 })
+          : [];
+        const title = new Map(entries.map((e) => [e.id, e.title]));
+        return {
+          body: rows.map((r) => ({
+            id: r.id,
+            account: r.account,
+            createdAt: r.createdAt.toISOString(),
+            updatedAt: r.updatedAt.toISOString(),
+            products: r.products.map((id) => title.get(id) ?? '—'),
+          })),
+        };
+      },
+    });
+    ctx.routes.api({
+      method: 'POST',
+      path: '/lists/delete',
+      capability: 'manage_wishlist',
+      handler: async (request) => {
+        const ids = (request.body as { ids?: unknown } | null)?.ids;
+        if (
+          !Array.isArray(ids) ||
+          ids.length === 0 ||
+          ids.length > 500 ||
+          !ids.every((id) => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id))
+        )
+          return { status: 400, body: { message: 'ids: from 1 to 500 list ids.' } };
+        const chosen = ids as string[];
+        const deleted = await tx(request.siteId, async (t) => {
+          await t.delete(items).where(inArray(items.listId, chosen));
+          return t.delete(lists).where(inArray(lists.id, chosen)).returning({ id: lists.id });
+        });
+        return { body: { deleted: deleted.length } };
+      },
+    });
+
     // YITH WooCommerce Wishlist lists, from the WooCommerce Import export.
     ctx.routes.api({
       method: 'POST',

@@ -4,6 +4,18 @@ export const IT: Record<string, string> = {
   '{lists} lists, {saved} products saved.': '{lists} liste, {saved} prodotti salvati.',
   'Most wished': 'I più desiderati',
   'Nothing saved yet.': 'Ancora niente di salvato.',
+  Lists: 'Liste',
+  'Choose all': 'Scegli tutte',
+  Choose: 'Scegli',
+  'Delete the chosen lists': 'Elimina le liste scelte',
+  'Delete the {n} chosen lists? This cannot be undone.':
+    'Eliminare le {n} liste scelte? Non si può annullare.',
+  Whose: 'Di chi',
+  Products: 'Prodotti',
+  'Last change': 'Ultima modifica',
+  'Customer with an account': 'Cliente con account',
+  Visitor: 'Visitatore',
+  Empty: 'Vuota',
   'How it works': 'Come funziona',
   'A heart appears on every product card and page: customers save products, also without an account (their list joins the account when they sign in). The list is at /wishlist, with a link to share it. Add the «Wishlist link» block to the header to show the count.':
     'Su ogni scheda e pagina prodotto compare un cuore: i clienti salvano i prodotti, anche senza account (la loro lista si unisce all’account quando accedono). La lista è su /wishlist, con un link per condividerla. Aggiungi il blocco «Link alla lista desideri» nell’header per mostrare il conteggio.',
