@@ -106,6 +106,8 @@ textarea.fre-input{resize:vertical}
 .fre-checks{display:flex;flex-direction:column;gap:6px;margin:8px 0}
 .fre-checks label,.fre-checks{cursor:pointer}
 label.fre-checks{flex-direction:row;align-items:center;gap:8px}
+.fre-checks label.fre-linkinput__field{display:flex;flex-direction:column;gap:4px;cursor:default}
+.fre-linkinput__field small{color:var(--fre-muted,#6b7280);font-size:11px}
 .fre-media__preview{display:block;width:100%;min-height:110px;padding:0;border:1px dashed #cbd5e1;border-radius:8px;background:#f8fafc;cursor:pointer;overflow:hidden}
 .fre-media__preview img{display:block;width:100%;max-height:180px;object-fit:contain;background:#f1f5f9}
 .fre-media__empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:110px;color:var(--fre-muted)}

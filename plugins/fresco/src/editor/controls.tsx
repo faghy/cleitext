@@ -984,6 +984,24 @@ function LinkInput({
             />
             {t('Add nofollow')}
           </label>
+          <label className="fre-linkinput__field">
+            {t('Title')}
+            <input
+              className="fre-input"
+              value={link.title ?? ''}
+              onChange={(e) => onChange({ ...link, title: e.target.value || undefined })}
+            />
+          </label>
+          <label className="fre-linkinput__field">
+            {t('Custom attributes')}
+            <input
+              className="fre-input"
+              value={link.attributes ?? ''}
+              placeholder="key|value, data-id|42"
+              onChange={(e) => onChange({ ...link, attributes: e.target.value || undefined })}
+            />
+            <small>{t('Name and value separated by |, pairs separated by commas.')}</small>
+          </label>
         </div>
       )}
     </div>

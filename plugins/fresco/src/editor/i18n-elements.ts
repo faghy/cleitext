@@ -493,6 +493,8 @@ addMessages('it', {
   'Link options': 'Opzioni del link',
   'Open in a new tab': 'Apri in una nuova scheda',
   'Add nofollow': 'Aggiungi nofollow',
+  'Custom attributes': 'Attributi personalizzati',
+  'Name and value separated by |, pairs separated by commas.': 'Nome e valore separati da |, le coppie separate da virgole.',
   'Choose a video': 'Scegli un video',
   'Choose an image': 'Scegli un’immagine',
   Replace: 'Sostituisci',

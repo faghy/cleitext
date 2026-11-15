@@ -39,6 +39,10 @@ export interface LinkValue {
   url: string;
   newTab?: boolean;
   nofollow?: boolean;
+  /** The link's `title` (shown on hover). */
+  title?: string;
+  /** More attributes, `name|value` separated by commas (`data-track|menu, aria-label|SEO`). */
+  attributes?: string;
 }
 
 /** An icon: a set and a name (see core/icons.ts), or an SVG from the media library. */
