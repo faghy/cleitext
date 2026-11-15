@@ -670,22 +670,27 @@ export function wpbakeryToFresco(
       }
       case 'vc_gallery':
       case 'vc_images_carousel': {
+        // Custom links: one per image, in order (an empty one leaves its image unlinked).
+        const links =
+          a.onclick === 'custom_link'
+            ? vcEncoded(a.custom_links)
+                .split(/[,\n]/)
+                .map((l) => l.trim())
+            : [];
+        const newTab = /_blank/.test(a.custom_links_target ?? '') ? 'on' : '';
         const pictures = (a.images ?? '')
           .split(',')
-          .map((v) => image(v.trim()))
+          .map((v, i) => {
+            const picture = image(v.trim());
+            return picture && links[i]
+              ? { ...picture, link: { url: links[i], is_external: newTab } }
+              : picture;
+          })
           .filter((p): p is Settings => Boolean(p));
         if (!pictures.length) return [];
         // A gallery is a slideshow unless it is a grid (WPBakery's default is a slider).
         const carousel = node.tag === 'vc_images_carousel' || a.type !== 'image_grid';
         const slideshow = node.tag === 'vc_gallery';
-        const links = vcEncoded(a.custom_links)
-          .split(/[,\n]/)
-          .map((l) => l.trim())
-          .filter(Boolean);
-        if (a.onclick === 'custom_link' && links.length > 1)
-          ctx.warn(
-            `A WPBakery carousel linked each image to its own address: the images were kept, their links (${links.join(', ')}) were not.`,
-          );
         return [
           carousel
             ? widget('image-carousel', {
@@ -710,15 +715,6 @@ export function wpbakeryToFresco(
                       ? { navigation: 'dots' }
                       : {}),
                 ...(a.onclick === 'link_image' ? { link_to: 'file' } : {}),
-                ...(a.onclick === 'custom_link' && links.length === 1
-                  ? {
-                      link_to: 'custom',
-                      link: {
-                        url: links[0],
-                        is_external: /_blank/.test(a.custom_links_target ?? '') ? 'on' : '',
-                      },
-                    }
-                  : {}),
                 ...common(a),
               })
             : widget('image-gallery', {

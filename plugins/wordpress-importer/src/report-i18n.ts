@@ -295,8 +295,6 @@ export const REPORT_IT: Record<string, string> = {
     '{n} widget di Elementor "{type}" non hanno ancora un corrispondente in Fresco: il loro testo è stato conservato.',
   '{n} WPBakery element(s) "{type}" have no Fresco counterpart yet: their text, if any, was kept.':
     '{n} elementi WPBakery "{type}" non hanno ancora un equivalente in Fresco: il loro testo, se c\'era, è stato mantenuto.',
-  'A WPBakery carousel linked each image to its own address: the images were kept, their links ({links}) were not.':
-    'Un carosello di WPBakery collegava ogni immagine a un suo indirizzo: le immagini sono state mantenute, i loro link ({links}) no.',
   '{n} Divi module(s) "{type}" have no Fresco counterpart yet: their text was kept.':
     '{n} moduli di Divi "{type}" non hanno ancora un corrispondente in Fresco: il loro testo è stato conservato.',
   'a size written as CSS (clamp, calc) was approximated':

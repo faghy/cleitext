@@ -1937,7 +1937,12 @@ export function convertElements(input: ElementorNode[], ctx: ElementorContext): 
       case 'image-carousel':
       case 'image-gallery': {
         const images = list(Array.isArray(src.carousel) ? src.carousel : src.wp_gallery)
-          .map((image) => c.media(image))
+          .map((image) => {
+            const media = c.media(image);
+            // A link of the image's own (a WPBakery carousel's custom links).
+            const own = type === 'image-carousel' ? link(asSettings(image).link, ctx.origin) : null;
+            return media && own ? { ...media, link: own } : media;
+          })
           .filter(Boolean);
         out.images = images;
         if (type === 'image-carousel') {
