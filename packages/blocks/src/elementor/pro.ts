@@ -725,6 +725,22 @@ export function proWidget(
         }
         color(out, src, `title_color_${side}`, `${to}_color`);
       }
+      // Fresco's own flip box (2.12, free) when it can show the same: a flip or a fade,
+      // an icon (not a picture), no 3D depth. Otherwise Fresco Pro's.
+      if ((out.effect === 'flip' || out.effect === 'fade') && !out.front_image && !out.flip_3d) {
+        const free: Settings = { ...out };
+        if (free.button_link) {
+          free.link = free.button_link;
+          delete free.button_link;
+        }
+        for (const face of ['front', 'back'] as const) {
+          if (free[`${face}_color`] !== undefined) {
+            free[`${face}_title_color`] = free[`${face}_color`];
+            delete free[`${face}_color`];
+          }
+        }
+        return [c.node('fresco/flip-box', free)];
+      }
       return [c.node('fresco-pro/flip-box', out)];
     }
     case 'price-table': {

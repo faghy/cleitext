@@ -417,6 +417,58 @@ export default definePlugin({
     registerImportedLocations(ctx);
 
     // Imports (plugin API 1.28): site settings converted from another builder join the kit.
+    // Background videos of containers from YouTube or Vimeo (Fresco 2.12): declared to the
+    // privacy plugin for its cookie policy; they wait for consent on the page.
+    ctx.privacy?.declareTrackers(async (siteId) => {
+      const entries = await ctx.content.find(siteId, { limit: 200, withDocument: true });
+      const sources = new Set<string>();
+      for (const entry of entries) {
+        const text = JSON.stringify(entry.document ?? '');
+        for (const m of text.matchAll(/"background_video(?:_mobile)?":\{[^{}]*?"url":"([^"]*)"/g)) {
+          if (/youtu\.?be/i.test(m[1]!)) sources.add('youtube');
+          if (/vimeo\.com/i.test(m[1]!)) sources.add('vimeo');
+        }
+      }
+      return [
+        ...(sources.has('youtube')
+          ? [
+              {
+                id: 'fresco.youtube',
+                name: 'YouTube (background videos)',
+                provider: 'Google Ireland Ltd',
+                category: 'marketing' as const,
+                requiresConsent: true,
+                cookies: [],
+                purpose: {
+                  en: 'Background videos of our pages come from YouTube (in its privacy-enhanced mode), which receives the address of your device.',
+                  it: 'I video di sfondo delle nostre pagine arrivano da YouTube (nella modalità che tutela la privacy), che riceve l’indirizzo del tuo dispositivo.',
+                },
+                transfersOutsideEu: true,
+                privacyPolicyUrl: 'https://policies.google.com/privacy',
+              },
+            ]
+          : []),
+        ...(sources.has('vimeo')
+          ? [
+              {
+                id: 'fresco.vimeo',
+                name: 'Vimeo (background videos)',
+                provider: 'Vimeo.com, Inc.',
+                category: 'marketing' as const,
+                requiresConsent: true,
+                cookies: [],
+                purpose: {
+                  en: 'Background videos of our pages come from Vimeo (without tracking), which receives the address of your device.',
+                  it: 'I video di sfondo delle nostre pagine arrivano da Vimeo (senza tracciamento), che riceve l’indirizzo del tuo dispositivo.',
+                },
+                transfersOutsideEu: true,
+                privacyPolicyUrl: 'https://vimeo.com/privacy',
+              },
+            ]
+          : []),
+      ];
+    });
+
     ctx.hooks.filter('import.pluginData', async (result, { siteId, slug, data, idMap }) => {
       if (slug !== 'fresco') return result;
       const kit = (data as { kit?: unknown } | null)?.kit;

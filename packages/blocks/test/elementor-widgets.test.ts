@@ -847,3 +847,26 @@ describe('Elementor sites as WordPress showed them', () => {
     expect(convert('text-editor', { editor: photo }).block.attrs.content).toBe(photo);
   });
 });
+
+describe('flip boxes', () => {
+  it("become Fresco's free flip box when it shows the same, else Fresco Pro's", () => {
+    const free = widget('flip-box', {
+      title_text_a: 'Front',
+      description_text_a: 'Hello',
+      title_text_b: 'Back',
+      button_text: 'Go',
+      link: { url: '/go/' },
+      flip_effect: 'fade',
+      title_color_a: '#ff0000',
+    }).block;
+    expect(free.type).toBe('fresco/flip-box');
+    expect(free.attrs).toMatchObject({
+      front_title: 'Front',
+      back_title: 'Back',
+      effect: 'fade',
+      link: { url: '/go/' },
+      front_title_color: '#ff0000',
+    });
+    expect(widget('flip-box', { flip_effect: 'push' }).block.type).toBe('fresco-pro/flip-box');
+  });
+});
