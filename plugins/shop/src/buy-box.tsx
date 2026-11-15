@@ -1,6 +1,6 @@
 import { textIn } from './texts';
 import { defineBlock, type BlockLoadContext, type PluginContext } from '@cleitext/plugin-sdk';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { currentPrice, isOnSale } from './pricing';
 import {
   attributes,
@@ -59,6 +59,8 @@ export interface BuyBoxData {
   action: string;
   /** "Buy now" with the express buttons: where their script asks for the amount. */
   express?: string;
+  /** A product chosen by its code (1.21), on any page: its own field ids. */
+  chosen?: boolean;
 }
 
 function availabilityOf(
@@ -71,13 +73,37 @@ function availabilityOf(
   return 'instock';
 }
 
-/** What the buy box shows for the product of a page. */
+/**
+ * What the buy box shows for the product of a page, or for the product with
+ * the code `sku` in the page's language on any page (WooCommerce's
+ * `[add_to_cart]`, 1.21).
+ */
 export async function loadBuyBox(
   ctx: PluginContext,
   settings: (siteId: string) => Promise<BuyBoxSettings>,
   context: BlockLoadContext,
+  sku = '',
 ): Promise<BuyBoxData | null> {
-  const id = context.entry?.id;
+  const code = sku.trim();
+  // Any product change may give or take the code: chosen ones refresh with the catalog.
+  if (code) context.tag(CATALOG_TAG);
+  const id = code
+    ? (
+        await ctx.db.transaction(context.siteId, (tx) =>
+          tx
+            .select({ id: products.entryId })
+            .from(products)
+            .where(
+              and(
+                eq(products.locale, context.locale),
+                eq(products.sku, code),
+                eq(products.status, 'published'),
+              ),
+            )
+            .limit(1),
+        )
+      )[0]?.id
+    : context.entry?.id;
   if (!id) return null;
   context.tag(productTag(id));
   context.tag(PAYMENTS_TAG);
@@ -161,6 +187,7 @@ export async function loadBuyBox(
       ...(values.express && product.kind !== 'variable'
         ? { express: `${base}/checkout/express` }
         : {}),
+      ...(code ? { chosen: true } : {}),
     };
   });
 }
@@ -177,6 +204,8 @@ export function BuyBoxView({ data, locale }: { data: BuyBoxData | null; locale: 
       useGrouping: 'always',
     }).format(Number(value));
   const { product } = data;
+  // Several chosen products on a page: each form its own ids.
+  const suffix = data.chosen ? `-${product.entryId.slice(0, 8)}` : '';
   const variable = product.kind === 'variable';
   const min = data.prices.length ? Math.min(...data.prices) : null;
   const max = data.prices.length ? Math.max(...data.prices) : null;
@@ -217,8 +246,12 @@ export function BuyBoxView({ data, locale }: { data: BuyBoxData | null; locale: 
           <input type="hidden" name="product" value={product.entryId} />
           {data.options.map((option) => (
             <p key={option.key} className="shop-field">
-              <label htmlFor={`shop-opt-${option.key}`}>{option.name}</label>
-              <select id={`shop-opt-${option.key}`} name={`attribute_${option.key}`} required>
+              <label htmlFor={`shop-opt-${option.key}${suffix}`}>{option.name}</label>
+              <select
+                id={`shop-opt-${option.key}${suffix}`}
+                name={`attribute_${option.key}`}
+                required
+              >
                 <option value="">{t('Choose an option')}</option>
                 {option.values.map((value) => (
                   <option key={value.slug} value={value.slug}>
@@ -231,11 +264,11 @@ export function BuyBoxView({ data, locale }: { data: BuyBoxData | null; locale: 
           <p className="shop-buy__actions">
             {!product.soldIndividually && (
               <>
-                <label htmlFor="shop-qty" className="shop-sr">
+                <label htmlFor={`shop-qty${suffix}`} className="shop-sr">
                   {t('Quantity')}
                 </label>
                 <input
-                  id="shop-qty"
+                  id={`shop-qty${suffix}`}
                   type="number"
                   name="quantity"
                   defaultValue={1}
@@ -281,12 +314,25 @@ export function registerBuyBox(
     when: ({ html }) => html.includes('data-shop-express'),
   });
   ctx.blocks.register(
-    defineBlock<Record<string, never>, BuyBoxData | null>({
+    defineBlock<{ sku: string }, BuyBoxData | null>({
       type: 'shop/buy-box',
       title: { en: 'Add to cart', it: 'Aggiungi al carrello' },
+      description: {
+        en: 'Price and “Add to cart” of the page’s product, or of a product chosen by its code on any page.',
+        it: 'Prezzo e «Aggiungi al carrello» del prodotto della pagina, o di un prodotto scelto con il suo codice in qualsiasi pagina.',
+      },
       icon: 'cart',
-      attributes: [],
-      load: (_attrs, context) => loadBuyBox(ctx, settings, context),
+      attributes: [
+        {
+          name: 'sku',
+          type: 'text',
+          label: {
+            en: 'Product code (optional: the page’s product otherwise)',
+            it: 'Codice del prodotto (facoltativo: altrimenti il prodotto della pagina)',
+          },
+        },
+      ],
+      load: (attrs, context) => loadBuyBox(ctx, settings, context, attrs.sku ?? ''),
       css: () => SHOP_CSS,
       render: ({ data, context }) => <BuyBoxView data={data} locale={context.locale} />,
     }),

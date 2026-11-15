@@ -77,6 +77,8 @@ export const products = pgTable('products', {
   featured: boolean('featured').notNull().default(false),
   visibility: text('visibility').$type<Visibility>().notNull().default('visible'),
   totalSales: integer('total_sales').notNull().default(0),
+  /** Sales counted by the shop it was imported from (WooCommerce's total_sales, 0013). */
+  importedSales: integer('imported_sales').notNull().default(0),
   rating: numeric('rating', { precision: 3, scale: 2 }).notNull().default('0'),
   ratingCount: integer('rating_count').notNull().default(0),
   /** Translations share a group (the entry first translated): prices, codes, stock (0007). */

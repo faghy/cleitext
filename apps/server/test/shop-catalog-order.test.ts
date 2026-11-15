@@ -11,6 +11,7 @@ import { buildPlugin, installPlugin } from '@cleitext/cli';
 import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
+import { PluginHost } from '../src/plugins/plugin-host.service.js';
 import {
   ownerDatabase,
   seedSite,
@@ -44,6 +45,7 @@ async function product(title: string, position: number, excerpt: string, sku = '
   return id;
 }
 let charlie = '';
+let bravo = '';
 
 beforeAll(async () => {
   owner = ownerDatabase();
@@ -72,7 +74,7 @@ beforeAll(async () => {
   expect((await admin.post('/api/v1/plugins/shop/activate')).statusCode).toBe(200);
   charlie = await product('Charlie', 1, '<p>The <strong>third</strong> one.</p>', 'C-3');
   await product('Alpha', 3, 'The first one.', 'A-1');
-  await product('Bravo', 2, 'The second one.');
+  bravo = await product('Bravo', 2, 'The second one.');
 });
 
 afterAll(async () => {
@@ -244,5 +246,137 @@ describe('the catalog’s order and the cards’ short description', () => {
     expect(checkout).toContain(
       'We use your data only for this order.<br />Returns within 30 days.',
     );
+  });
+});
+
+/** A page with one block, published; its address. */
+async function pageWith(title: string, type: string, attrs: Record<string, unknown>) {
+  const created = await admin.post('/api/v1/entries', {
+    type: 'page',
+    title,
+    document: { schema: 1, blocks: [{ id: `b_${title.length}x`, type, v: 1, attrs }] },
+  });
+  expect(created.statusCode, created.body).toBeLessThan(300);
+  const { id } = created.json() as { id: string };
+  expect((await admin.post(`/api/v1/entries/${id}/publish`)).statusCode).toBe(200);
+  return `/${title.toLowerCase().replace(/\s+/g, '-')}`;
+}
+
+describe('Cleishop 1.21: WooCommerce’s catalog habits', () => {
+  it('follows the manual order, then the name, by default', async () => {
+    await admin.request('PATCH', '/api/v1/plugins/shop/settings', {
+      catalogSort: 'position',
+      perPage: 24,
+    });
+    await product('Echo', 2, '');
+    await product('Delta', 2, '');
+    const page = await new TestClient(app, site.host, '10.98.1.1').get('/shop');
+    expect(titles(page.body)).toEqual(['Charlie', 'Bravo', 'Delta', 'Echo', 'Alpha']);
+  });
+
+  it('closes its links right after their text, and loads more instead of pages when chosen', async () => {
+    await admin.request('PATCH', '/api/v1/plugins/shop/settings', { perPage: 2 });
+    const visitor = new TestClient(app, site.host, '10.98.1.2');
+    const numbered = await visitor.get('/shop?page=2');
+    expect(numbered.body).toContain('rel="next"');
+    expect(numbered.body).not.toMatch(/<\/a\s+>/);
+    expect(numbered.body).toContain('class="shop-pages"');
+
+    await admin.request('PATCH', '/api/v1/plugins/shop/settings', { catalogLoadMore: true });
+    const first = await visitor.get('/shop');
+    expect(titles(first.body)).toEqual(['Charlie', 'Bravo']);
+    expect(first.body).not.toContain('class="shop-pages"');
+    const more = /<a [^>]*href="([^"]+)" rel="next" data-shop-more="">Load more<\/a>/.exec(
+      first.body,
+    );
+    expect(more?.[1]).toBe('/shop?page=2');
+    const script = /<script src="([^"]+load-more\.js)" defer><\/script>/.exec(first.body)?.[1];
+    expect(script).toBeDefined();
+    expect((await visitor.get(script!)).statusCode).toBe(200);
+    // Without JavaScript the button is the next page.
+    expect(titles((await visitor.get(more![1]!)).body)).toEqual(['Delta', 'Echo']);
+    const last = await visitor.get('/shop?page=3');
+    expect(titles(last.body)).toEqual(['Alpha']);
+    expect(last.body).not.toContain('data-shop-more');
+    await admin.request('PATCH', '/api/v1/plugins/shop/settings', {
+      catalogLoadMore: false,
+      perPage: 24,
+    });
+  });
+
+  it('counts the sales imported from WooCommerce among the best sellers', async () => {
+    const host = app.get(PluginHost);
+    const result = (await host.applyFilter(
+      'import.pluginData',
+      null,
+      {
+        siteId: site.id,
+        slug: 'shop',
+        data: { products: [{ entry: bravo, product: { regularPrice: '10' }, totalSales: 37 }] },
+      },
+      site.id,
+    )) as { warnings: string[] } | null;
+    expect(result?.warnings.join(' ')).toContain('of 1 product(s) saved');
+    const visitor = new TestClient(app, site.host, '10.98.1.3');
+    expect(titles((await visitor.get('/shop?orderby=popularity')).body)[0]).toBe('Bravo');
+    const block = await pageWith('Best sellers', 'shop/products', { show: 'popular', limit: 1 });
+    expect(titles((await visitor.get(block)).body)).toEqual(['Bravo']);
+  });
+
+  it('shows only the subcategories of a category that asks for it', async () => {
+    const term = async (name: string, parentId?: string, fields?: Record<string, unknown>) => {
+      const res = await admin.post('/api/v1/taxonomies/product-category/terms', {
+        name,
+        ...(parentId ? { parentId } : {}),
+        ...(fields ? { fields } : {}),
+      });
+      expect(res.statusCode, res.body).toBe(201);
+      return (res.json() as { id: string }).id;
+    };
+    const home = await term('Home', undefined, { display: 'subcategories' });
+    const lamps = await term('Lamps', home);
+    await term('Empty shelf', home);
+    const assigned = await admin.request('PATCH', `/api/v1/entries/${charlie}`, {
+      terms: { 'product-category': [lamps] },
+    });
+    expect(assigned.statusCode, assigned.body).toBe(200);
+    await admin.post(`/api/v1/entries/${charlie}/publish`);
+    const visitor = new TestClient(app, site.host, '10.98.1.5');
+    const page = await visitor.get('/product-category/home');
+    expect(page.statusCode, page.body).toBe(200);
+    expect(page.body).toContain(
+      '<a href="/product-category/home/lamps">Lamps <span class="shop-count">(1)</span></a>',
+    );
+    expect(page.body).not.toContain('Empty shelf');
+    expect(titles(page.body)).toEqual([]);
+    expect(page.body).not.toContain('class="shop-filters"');
+    // The subcategory itself lists its products.
+    expect(titles((await visitor.get('/product-category/home/lamps')).body)).toEqual(['Charlie']);
+  });
+
+  it('shows no products for a category or brand that does not exist', async () => {
+    const visitor = new TestClient(app, site.host, '10.98.1.6');
+    const missing = await pageWith('Missing category', 'shop/products', { category: 'nope' });
+    const body = (await visitor.get(missing)).body;
+    expect(body).not.toContain('class="shop-card"');
+    const brand = await pageWith('Missing brand', 'shop/products', { brand: 'nope' });
+    expect((await visitor.get(brand)).body).not.toContain('class="shop-card"');
+    const lamps = await pageWith('Lamps grid', 'shop/products', { category: 'lamps' });
+    expect(titles((await visitor.get(lamps)).body)).toEqual(['Charlie']);
+  });
+
+  it('gives a product chosen by its code a buy box on any page', async () => {
+    const visitor = new TestClient(app, site.host, '10.98.1.7');
+    const url = await pageWith('Buy alpha', 'shop/buy-box', { sku: 'A-1' });
+    const page = await visitor.get(url);
+    expect(page.statusCode, page.body).toBe(200);
+    expect(page.body).toMatch(/class="shop-buy" data-product="[0-9a-f-]{36}"/);
+    expect(page.body).toContain('action="/cart/add"');
+    const id = /class="shop-buy" data-product="([0-9a-f-]{36})"/.exec(page.body)![1];
+    const added = await visitor.postForm('/cart/add', { product: id!, quantity: '1' });
+    expect(added.statusCode).toBeLessThan(400);
+    expect((await visitor.get('/cart')).body).toContain('Alpha');
+    const none = await pageWith('Buy nothing', 'shop/buy-box', { sku: 'ZZ-0' });
+    expect((await visitor.get(none)).body).not.toContain('class="shop-buy"');
   });
 });

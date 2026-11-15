@@ -388,6 +388,7 @@ export async function copyProduct(tx: PluginTransaction, from: string, to: strin
     'imageUrl',
     'createdAt',
     'totalSales',
+    'importedSales',
     'rating',
     'ratingCount',
     // A duplicate is another product, not a version of this one.

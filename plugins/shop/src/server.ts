@@ -25,6 +25,7 @@ import { registerPublicApi } from './public-api';
 import { registerStorefront, type StoreSettings } from './storefront';
 import { COUNTRIES } from './address';
 import { registerAccount } from './account';
+import { registerOrderTracking } from './order-tracking';
 import { registerCatalog } from './catalog-routes';
 import { registerWooImport } from './import-woocommerce';
 import { productsFromShortcode } from './import-shortcodes';
@@ -104,7 +105,23 @@ export default definePlugin({
       name: { en: 'Product categories', it: 'Categorie prodotto' },
       hierarchical: true,
       types: [PRODUCT],
-      fields: [{ name: 'image', type: 'media', label: { en: 'Image', it: 'Immagine' } }],
+      fields: [
+        { name: 'image', type: 'media', label: { en: 'Image', it: 'Immagine' } },
+        // WooCommerce's "Display type" (1.21): the category page may list its subcategories only.
+        {
+          name: 'display',
+          type: 'select',
+          label: { en: 'Display type', it: 'Tipo di visualizzazione' },
+          options: [
+            { value: 'products', label: { en: 'Products', it: 'Prodotti' } },
+            {
+              value: 'subcategories',
+              label: { en: 'Subcategories only', it: 'Solo le sottocategorie' },
+            },
+          ],
+          default: 'products',
+        },
+      ],
     });
     ctx.content.registerTaxonomy({
       slug: BRAND,
@@ -202,6 +219,19 @@ export default definePlugin({
             },
           ],
           default: 'latest',
+        },
+        {
+          name: 'catalogLoadMore',
+          type: 'boolean',
+          label: {
+            en: '“Load more” button instead of numbered pages',
+            it: 'Pulsante «Carica altri» invece delle pagine numerate',
+          },
+          help: {
+            en: 'In the shop, categories and brands: the next products appear under the others.',
+            it: 'Nel negozio, nelle categorie e nei marchi: i prodotti successivi compaiono sotto gli altri.',
+          },
+          default: false,
         },
         {
           name: 'cardExcerpt',
@@ -444,6 +474,7 @@ export default definePlugin({
         perPage: perPage >= 1 && perPage <= 100 ? perPage : 24,
         defaultSort:
           values.catalogSort === 'position' ? ('position' as const) : ('latest' as const),
+        loadMore: values.catalogLoadMore === true,
         excerpt:
           values.cardExcerpt === true
             ? values.cardExcerptHtml === true
@@ -460,6 +491,8 @@ export default definePlugin({
       (blocks, { tag, attrs }) => blocks ?? productsFromShortcode(tag, attrs),
     );
     registerAccount(ctx, store);
+    // Order tracking by number and billing email (1.21), as a page and a block.
+    registerOrderTracking(ctx);
     registerStorefrontBlocks(ctx, currency, buyBoxSettings);
     // The cart and the checkout as blocks, for page builders.
     registerCartBlocks(ctx);

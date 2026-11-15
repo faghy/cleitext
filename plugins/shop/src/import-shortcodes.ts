@@ -19,8 +19,9 @@ const truthy = (value: string | undefined) => value === 'true' || value === '1' 
  * (`import.shortcode`) → Cleishop's Products block: which products
  * (latest, featured, on sale, best sellers, top rated), how many, the
  * category, and chosen products by their codes (`skus`; the WordPress
- * importer writes the codes of `ids`). `add_to_cart` shows its product.
- * Null for other shortcodes.
+ * importer writes the codes of `ids`). `add_to_cart` and `product` become
+ * the buy box of their product (1.21), `woocommerce_order_tracking` the
+ * order tracking form. Null for other shortcodes.
  */
 export function productsFromShortcode(
   tag: string,
@@ -29,8 +30,9 @@ export function productsFromShortcode(
   const name = tag.toLowerCase();
   if (name === 'add_to_cart' || name === 'product') {
     const sku = (attrs.sku ?? '').trim();
-    return sku ? [block({ show: 'latest', skus: sku, limit: 1 })] : null;
+    return sku ? [block({ sku }, 'shop/buy-box')] : null;
   }
+  if (name === 'woocommerce_order_tracking') return [block({}, 'shop/order-tracking')];
   if (!(name in GRIDS)) return null;
   // `[products]` chooses with its own attributes.
   let show = GRIDS[name]!;
@@ -61,9 +63,9 @@ export function productsFromShortcode(
   ];
 }
 
-const block = (attrs: Record<string, unknown>): CxdBlock => ({
+const block = (attrs: Record<string, unknown>, type = 'shop/products'): CxdBlock => ({
   id: `b_${randomBytes(8).toString('hex')}`,
-  type: 'shop/products',
+  type,
   v: 1,
   attrs,
 });

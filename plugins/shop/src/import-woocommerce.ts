@@ -62,17 +62,23 @@ export function registerWooImport(ctx: PluginContext): void {
         if (!entry || entry.type !== PRODUCT) continue;
         await syncProduct(ctx, siteId, entry);
         await saveProduct(ctx, siteId, id, parsed.data);
-        // The short description with its formatting (the entry's is plain text).
+        // The short description with its formatting (the entry's is plain text),
+        // and WooCommerce's sales for best sellers (1.21).
+        const extra: { excerpt?: string; importedSales?: number } = {};
         if (typeof raw.excerpt === 'string' && /</.test(raw.excerpt)) {
           const formatted = safeExcerpt(raw.excerpt);
-          if (formatted.trim())
-            await ctx.db.transaction(siteId, (tx) =>
-              tx
-                .update(shopProducts)
-                .set({ excerpt: formatted })
-                .where(and(eq(shopProducts.siteId, siteId), eq(shopProducts.entryId, id))),
-            );
+          if (formatted.trim()) extra.excerpt = formatted;
         }
+        const sales = Number(raw.totalSales);
+        if (raw.totalSales != null && Number.isFinite(sales) && sales >= 0)
+          extra.importedSales = Math.min(2_000_000_000, Math.floor(sales));
+        if (Object.keys(extra).length)
+          await ctx.db.transaction(siteId, (tx) =>
+            tx
+              .update(shopProducts)
+              .set(extra)
+              .where(and(eq(shopProducts.siteId, siteId), eq(shopProducts.entryId, id))),
+          );
         saved++;
       } catch (error) {
         warnings.push(

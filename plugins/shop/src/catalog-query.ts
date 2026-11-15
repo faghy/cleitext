@@ -145,9 +145,11 @@ export async function queryCatalog(
   const order: SQL[] = {
     default:
       query.defaultSort === 'position'
-        ? [asc(products.position), desc(products.featured), desc(products.createdAt)]
+        ? // WooCommerce's default: the manual order, then the name (menu_order, title).
+          [asc(products.position), asc(products.title)]
         : [desc(products.featured), desc(products.createdAt)],
-    popularity: [desc(products.totalSales)],
+    // Sales in Cleishop plus those imported from WooCommerce (1.21).
+    popularity: [sql`(${products.totalSales} + ${products.importedSales}) DESC`],
     rating: [desc(products.rating), desc(products.ratingCount)],
     date: [desc(products.createdAt)],
     price: [sql`${priceMin} ASC NULLS LAST`],

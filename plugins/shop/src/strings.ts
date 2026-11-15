@@ -234,6 +234,15 @@ const IT: Record<string, string> = {
   'The visitor’s cart appears here.': 'Qui compare il carrello del visitatore.',
   'The checkout for the visitor’s cart appears here.':
     'Qui compare la cassa per il carrello del visitatore.',
+  'Load more': 'Carica altri',
+  'Order tracking': 'Traccia l’ordine',
+  'To track your order enter its number and the email address you used at checkout.':
+    'Per seguire il tuo ordine inserisci il suo numero e l’indirizzo email usato alla cassa.',
+  'Billing email': 'Email di fatturazione',
+  Track: 'Traccia',
+  'Sorry, the order could not be found. Check the number and the email and try again.':
+    'Spiacenti, l’ordine non è stato trovato. Controlla il numero e l’email e riprova.',
+  'Track another order': 'Traccia un altro ordine',
 };
 
 export type Translate = (text: string, values?: Record<string, string | number>) => string;

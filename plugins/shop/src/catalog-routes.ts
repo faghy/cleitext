@@ -88,6 +88,8 @@ export function registerCatalog(
     perPage: number;
     defaultSort?: 'latest' | 'position';
     excerpt?: false | 'text' | 'html';
+    /** A "Load more" button instead of the numbered pages (1.21). */
+    loadMore?: boolean;
   }>,
 ): void {
   const render = async (
@@ -172,6 +174,27 @@ export function registerCatalog(
       addAction: `${prefix}/cart/add`,
       ...(store.excerpt ? { excerpt: store.excerpt } : {}),
     };
+    // "Display type: Subcategories" (1.21): the subcategories with products, as tiles.
+    const tiles =
+      term && scope?.taxonomy === CATEGORY && term.fields?.display === 'subcategories'
+        ? await Promise.all(
+            result.categories.flatMap((c) => {
+              const child = categories.find((x) => x.id === c.id);
+              if (!child) return [];
+              const media = typeof child.fields?.image === 'string' ? child.fields.image : null;
+              return [
+                (async () => ({
+                  name: child.name,
+                  url: child.url.replace(/^https?:\/\/[^/]+/, ''),
+                  imageUrl: media
+                    ? ((await ctx.media.get(request.siteId, media).catch(() => null))?.url ?? null)
+                    : null,
+                  count: c.count,
+                }))(),
+              ];
+            }),
+          )
+        : [];
     const title = term ? term.name : t('Shop');
     return {
       // Product entries refresh `type:product`, their prices and stock CATALOG_TAG; terms the whole site.
@@ -221,6 +244,8 @@ export function registerCatalog(
           ),
           cards,
           css: SHOP_CSS + CATALOG_CSS,
+          ...(tiles.length ? { tiles } : {}),
+          ...(store.loadMore ? { loadMore: { script: ctx.assets.url('load-more.js') } } : {}),
         }),
       },
     };
