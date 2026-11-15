@@ -6,7 +6,7 @@
 import type { PluginContext, PluginEntry } from '@cleitext/plugin-sdk';
 import { commentsFromContext } from './comments';
 import { DEFAULT_CONFIG, FIELD_GROUP, hostOf, normalizeConfig } from './config';
-import { publishArticle, ServerError, statusContext, type Http } from './mastodon';
+import { instanceDomain, publishArticle, ServerError, statusContext, type Http } from './mastodon';
 import { buildPayload, documentText, type ArticleVersion } from './payload';
 import type {
   Announcement,
@@ -27,6 +27,8 @@ export const KEY = {
   index: 'announced',
   post: (entryId: string) => `post:${entryId}`,
   comments: (statusId: string) => `comments:${statusId}`,
+  /** The domain of the connected server's handles (`disbigle.com`), read once. */
+  domain: 'domain',
 } as const;
 
 export const SECRET = { clientSecret: 'client-secret', token: 'access-token' } as const;
@@ -42,6 +44,12 @@ export const MAX_ATTEMPTS = 6;
 const LOG_SIZE = 50;
 const INDEX_SIZE = 500;
 const DAY = 24 * 60 * 60 * 1000;
+/**
+ * How long the translation group stays still before it is announced: the
+ * translations of an article often come out a few seconds or minutes after
+ * it, and one post carries every language.
+ */
+export const SETTLE_MS = 2 * 60 * 1000;
 
 /** Categories every site has, not worth a hashtag. */
 const DEFAULT_CATEGORIES = new Set(['uncategorized', 'senza-categoria', 'non-classificato']);
@@ -53,7 +61,7 @@ export interface IndexItem {
 }
 
 export type AnnounceResult =
-  'announced' | 'already' | 'failed' | 'skipped' | 'not-connected' | 'busy';
+  'announced' | 'already' | 'failed' | 'skipped' | 'not-connected' | 'busy' | 'waiting';
 
 export class Disbigle {
   constructor(
@@ -208,8 +216,20 @@ export class Disbigle {
     )
       return 'skipped';
 
-    const versions = await this.versions(siteId, entry, group, connection.siteUrl);
-    const payload = buildPayload(versions, await this.tagNames(siteId, entry));
+    const found = await this.publishedVersions(siteId, entry, group);
+    // Wait until the group stays still (its translations published too), unless asked by hand.
+    const latest = Math.max(
+      ...found.map((e) => (e.publishedAt ? Date.parse(e.publishedAt) : 0)),
+      0,
+    );
+    if (!options.manual && now.getTime() - latest < SETTLE_MS) return 'waiting';
+    const versions = this.versions(found, entry, connection.siteUrl);
+    const built = buildPayload(versions, await this.tagNames(siteId, entry));
+    // The connected account never mentions itself (by any of its addresses).
+    const self = await this.ownAccts(siteId, connection);
+    const payload = built
+      ? { ...built, mentions: built.mentions.filter((m) => !self.has(m.toLowerCase())) }
+      : built;
     const attempts = (previous?.attempts ?? 0) + 1;
     const base: Announcement = {
       state: 'pending',
@@ -319,20 +339,43 @@ export class Disbigle {
     return record.state === 'pending' && now.getTime() - Date.parse(record.at) < PENDING_TTL;
   }
 
-  /** The published versions of the article, the one being published first, with full addresses. */
-  private async versions(
-    siteId: string,
-    entry: PluginEntry,
-    group: string[],
-    siteUrl: string,
-  ): Promise<ArticleVersion[]> {
-    const found = await this.ctx.content.find(siteId, {
+  /** The published versions of the article's translation group. */
+  private publishedVersions(siteId: string, entry: PluginEntry, group: string[]) {
+    return this.ctx.content.find(siteId, {
       ids: [entry.id, ...group],
       type: 'article',
       status: 'published',
       withDocument: true,
       limit: 50,
     });
+  }
+
+  /**
+   * The addresses of the connected account (`user@host`): its server's, its
+   * profile's and the domain its handles use (e.g. `disbigle@disbigle.com`
+   * for an account of app.disbigle.com), read from the server once.
+   */
+  private async ownAccts(siteId: string, connection: Connection): Promise<Set<string>> {
+    const user = connection.acct.split('@')[0]!.toLowerCase();
+    const hosts = new Set<string>([new URL(connection.instance).hostname.toLowerCase()]);
+    const [, accountHost] = connection.acct.toLowerCase().split('@');
+    if (accountHost) hosts.add(accountHost);
+    try {
+      hosts.add(new URL(connection.accountUrl).hostname.toLowerCase());
+    } catch {
+      // No profile address.
+    }
+    let domain = await this.ctx.storage.get<string>(siteId, KEY.domain);
+    if (domain === null || domain === undefined) {
+      domain = (await instanceDomain(this.http, connection.instance).catch(() => null)) ?? '';
+      await this.ctx.storage.set(siteId, KEY.domain, domain);
+    }
+    if (domain) hosts.add(domain.toLowerCase());
+    return new Set([...hosts].map((host) => `${user}@${host}`));
+  }
+
+  /** The published versions, the one being published first, with full addresses. */
+  private versions(found: PluginEntry[], entry: PluginEntry, siteUrl: string): ArticleVersion[] {
     const ordered = [
       ...found.filter((e) => e.id === entry.id),
       ...found.filter((e) => e.id !== entry.id),

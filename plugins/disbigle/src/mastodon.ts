@@ -250,6 +250,25 @@ export async function publishArticle(
   return { id, url, mentions };
 }
 
+/**
+ * The domain of the server's handles (`GET /api/v1/instance`: `uri`, or v2's
+ * `domain`), e.g. `disbigle.com` for app.disbigle.com; null when not given.
+ */
+export async function instanceDomain(http: Http, instance: string): Promise<string | null> {
+  const body = await call(http, {
+    url: `${instance}/api/v1/instance`,
+    method: 'GET',
+    headers: { accept: 'application/json' },
+    timeoutMs: 3000,
+  });
+  const raw = str(body.uri) || str(body.domain);
+  const host = raw
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/.*$/, '')
+    .toLowerCase();
+  return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(host) ? host : null;
+}
+
 /** `GET /api/v1/statuses/:id/context`, without a token: what anyone may read. */
 export async function statusContext(
   http: Http,

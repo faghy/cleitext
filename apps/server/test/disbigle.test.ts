@@ -16,6 +16,9 @@ import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, inject, it, vi } from 'vitest';
 import { PluginServicesProvider } from '../src/plugins/plugin-services.service.js';
+import { PluginHost } from '../src/plugins/plugin-host.service.js';
+import { sql } from 'drizzle-orm';
+import { withSiteContext } from '@cleitext/db';
 import {
   ownerDatabase,
   seedSite,
@@ -151,6 +154,9 @@ function server(call: Call): { status: number; body: unknown } {
       },
     };
   }
+  // The server's web domain differs from its address (as on Disbigle).
+  if (method === 'GET' && url.pathname === '/api/v1/instance')
+    return { status: 200, body: { uri: 'social.example', title: 'Social' } };
   const context = url.pathname.match(/^\/api\/v1\/statuses\/(\d+)\/context$/);
   if (method === 'GET' && context)
     return { status: 200, body: { ancestors: [], descendants: replies(context[1]!) } };
@@ -195,10 +201,30 @@ async function article(
   return created.json().id as string;
 }
 
-const publish = async (id: string) => {
+let clock = Date.now();
+/**
+ * Publishes, then lets the translation group "settle" (Disbigle 1.0.2 waits a
+ * couple of minutes for the translations): its publication is moved back
+ * three minutes and the plugin's scheduled announcements run.
+ */
+const publish = async (id: string, settle = true) => {
   const published = await admin.post(`/api/v1/entries/${id}/publish`);
   expect(published.statusCode, published.body).toBe(200);
+  if (settle) await announceNow();
   return published.json() as { slug: string; locale: string };
+};
+const announceNow = async () => {
+  await withSiteContext(owner.db, site.id, async (tx) => {
+    await tx.execute(
+      sql`update entries set published_at = published_at - interval '3 minutes' where published_at > now() - interval '3 minutes'`,
+    );
+    // The connection is older than the (moved back) publication.
+    await tx.execute(
+      sql`update settings set value = jsonb_set(value, '{connectedAt}', to_jsonb((now() - interval '1 hour')::text)) where namespace = 'plugin:disbigle' and key = 'storage:connection'`,
+    );
+  });
+  clock += 2 * 60_000;
+  await app.get(PluginHost).runSchedules(clock);
 };
 const pathOf = (slug: string, prefix = '') => `${prefix}/${new Date().getFullYear()}/${slug}`;
 
@@ -276,6 +302,12 @@ describe('Disbigle', () => {
     const id = await article('Prima del collegamento', 'prima', 'Niente da annunciare.');
     await publish(id);
     expect(articleCalls()).toHaveLength(0);
+    // Well before the connection (the helper dates the connection an hour back).
+    await withSiteContext(owner.db, site.id, (tx) =>
+      tx.execute(
+        sql`update entries set published_at = now() - interval '2 hours' where id = ${id}`,
+      ),
+    );
   });
 
   it('connects through the server’s sign-in with PKCE and a state used once', async () => {
@@ -492,6 +524,22 @@ describe('Disbigle', () => {
       .slice(-2)
       .map((c) => c.headers['idempotency-key']);
     expect(keys).toEqual([id, id]);
+  });
+
+  it('waits for the translations, and never mentions its own account', async () => {
+    const before = articleCalls().length;
+    const id = await article(
+      'Self',
+      'self',
+      `By @blog@${new URL(INSTANCE).host} (also @Blog@social.example), with @anna@fedi.example.`,
+    );
+    await publish(id, false);
+    // Just published: the article waits a couple of minutes for its translations.
+    await app.get(PluginHost).runSchedules((clock += 2 * 60_000));
+    expect(articleCalls()).toHaveLength(before);
+    await announceNow();
+    expect(articleCalls()).toHaveLength(before + 1);
+    expect(JSON.parse(articleCalls().at(-1)!.body).mentions).toEqual(['anna@fedi.example']);
   });
 
   it('leaves out an article whose option is off', async () => {

@@ -97,13 +97,16 @@ export default definePlugin({
       }
     });
 
-    // Scheduled entries, failed attempts that may work now, and new replies.
-    ctx.schedule.every('announce-and-replies', 5, async (siteId) => {
+    // Articles whose translations had time to come out, scheduled entries and retries: every minute.
+    ctx.schedule.every('announce', 1, async (siteId) => {
       try {
         await disbigle.announcePending(siteId);
       } catch (error) {
         ctx.log.warn('The scheduled announcements failed', { siteId, error: String(error) });
       }
+    });
+    // New replies.
+    ctx.schedule.every('replies', 5, async (siteId) => {
       try {
         await disbigle.refreshComments(siteId);
       } catch (error) {
