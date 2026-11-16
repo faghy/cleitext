@@ -1353,6 +1353,12 @@ export interface MailMessage {
   bcc?: string | string[];
   /** Files (plugin API 1.41), never read from disk or an address. */
   attachments?: MailAttachment[];
+  /**
+   * A notice (plugin API 1.75), e.g. a new form submission or order for the
+   * staff: not sent to people who turned notifications off in their profile.
+   * Leave it out for what a person asked for (receipts, confirmations).
+   */
+  notification?: boolean;
 }
 
 export interface MailApi {

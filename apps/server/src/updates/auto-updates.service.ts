@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { superAdmins, users, withContext, type DatabaseClient } from '@cleitext/db';
+import { mutedEmails, superAdmins, users, withContext, type DatabaseClient } from '@cleitext/db';
 import type {
   AutoUpdateItem,
   AutoUpdateResult,
@@ -258,6 +258,12 @@ export class AutoUpdatesService implements OnApplicationBootstrap, OnApplication
         );
         if (person) people.push(person);
       }
+      // Not those who turned their notifications off.
+      const muted = await mutedEmails(
+        this.database.db,
+        people.map((p) => p.email),
+      );
+      const recipients = people.filter((p) => !muted.has(p.email.toLowerCase()));
       const failed = results.filter((r) => !r.ok);
       const lines = results.map((r) =>
         r.ok
@@ -274,7 +280,7 @@ export class AutoUpdatesService implements OnApplicationBootstrap, OnApplication
         '',
         'Updates → Automatic updates in the admin shows the history and the choices.',
       ].join('\n');
-      for (const person of people) await this.mail.send({ to: person.email, subject, text });
+      for (const person of recipients) await this.mail.send({ to: person.email, subject, text });
     } catch (error) {
       this.logger.error(error);
     }

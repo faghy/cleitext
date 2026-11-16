@@ -318,6 +318,8 @@ export const updateProfileRequestSchema = z.object({
   /** The sign-in name besides the email; '' removes it. */
   username: z.union([z.literal(''), usernameSchema]).optional(),
   locale: localeSchema.optional(),
+  /** Notification emails on or off; account emails always go. */
+  notifications: z.boolean().optional(),
   /** Shown in author boxes and on the author page (RF-THM-11). */
   bio: z.string().trim().max(2000).optional(),
   website: z
@@ -348,6 +350,8 @@ export interface ProfileAboutView {
   bio: string;
   website: string;
   slug: string;
+  /** Notification emails (updates, comments, plugins' notices) on. */
+  notifications: boolean;
 }
 export type UpdateProfileRequest = z.input<typeof updateProfileRequestSchema>;
 

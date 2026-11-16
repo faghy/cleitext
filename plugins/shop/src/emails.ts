@@ -416,7 +416,8 @@ export async function sendOrderEmail(
       html: message.html,
       siteId,
       ...(attachments.length ? { attachments } : {}),
-      ...(EMAILS[id].to === 'shop' ? { replyTo: detail.order.email } : {}),
+      // The shop's own notices: not to staff who turned notifications off.
+      ...(EMAILS[id].to === 'shop' ? { replyTo: detail.order.email, notification: true } : {}),
     });
   }
   return true;

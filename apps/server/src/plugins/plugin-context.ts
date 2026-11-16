@@ -152,6 +152,8 @@ export interface PluginServices {
   invalidate(siteId: string, tags: string[]): Promise<void>;
   /** A message checked by `pluginMail` (plugin API 1.41). */
   sendMail(message: MailMessage, siteId?: string): Promise<void>;
+  /** Addresses (lower case) of people who turned notification emails off (plugin API 1.75). */
+  mutedEmails(emails: string[]): Promise<Set<string>>;
   mediaItem(siteId: string, id: string): Promise<PluginMedia | null>;
   /** Library addresses of imported files by their old paths (plugin API 1.61). */
   importedMediaUrls(siteId: string, paths: readonly string[]): Promise<Record<string, string>>;
@@ -622,8 +624,28 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
     mail: {
       async send(message) {
         require('mail:send');
-        const { siteId, ...rest } = message;
-        return services().sendMail(pluginMail(rest), siteId);
+        const { siteId, notification, ...rest } = message;
+        const built = pluginMail(rest);
+        // A notice (plugin API 1.75): not to people who turned notifications off.
+        if (notification === true) {
+          const list = (value: string | string[] | undefined) =>
+            (Array.isArray(value) ? value : value ? value.split(',') : []).map((a) => a.trim());
+          const muted = await services().mutedEmails([
+            ...list(built.to),
+            ...list(built.cc),
+            ...list(built.bcc),
+          ]);
+          if (muted.size > 0) {
+            const keep = (value: string | string[] | undefined) =>
+              list(value).filter((a) => !muted.has(a.toLowerCase()));
+            const to = keep(built.to);
+            if (to.length === 0) return;
+            built.to = to.join(', ');
+            if (built.cc) built.cc = keep(built.cc);
+            if (built.bcc) built.bcc = keep(built.bcc);
+          }
+        }
+        return services().sendMail(built, siteId);
       },
     },
 

@@ -797,6 +797,7 @@ export default definePlugin({
           .send({
             siteId,
             to: recipient,
+            notification: true,
             ...(message.replyTo ? { replyTo: message.replyTo } : {}),
             subject: message.subject,
             text: message.text,

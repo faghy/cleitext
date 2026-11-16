@@ -3,6 +3,7 @@ import {
   comments,
   contentTypes,
   entries,
+  mutedEmails,
   roles,
   siteMembers,
   sites,
@@ -703,7 +704,7 @@ export class CommentsService {
         ? await tx
             .select({ email: users.email, locale: users.locale })
             .from(users)
-            .where(eq(users.id, entry.authorId))
+            .where(and(eq(users.id, entry.authorId), eq(users.notifications, true)))
         : [];
       const moderators =
         settings.commentNotifyModerators && row.status === 'pending' && from === null
@@ -715,6 +716,7 @@ export class CommentsService {
               .where(
                 and(
                   eq(users.status, 'active'),
+                  eq(users.notifications, true),
                   sql`'moderate_comments' = ANY (${roles.capabilities})`,
                 ),
               )
@@ -775,7 +777,11 @@ export class CommentsService {
       info.parent?.notifyReplies &&
       info.parent.authorEmail &&
       info.parent.authorEmail !== row.authorEmail &&
-      (from === null || from === 'pending')
+      (from === null || from === 'pending') &&
+      // A person with an account who turned the notifications off.
+      !(await mutedEmails(this.database.db, [info.parent.authorEmail])).has(
+        info.parent.authorEmail.toLowerCase(),
+      )
     ) {
       await this.mail.send(
         {

@@ -11,6 +11,7 @@ import {
   inTransaction,
   media,
   menus,
+  mutedEmails,
   pluginSites,
   revisions,
   roles,
@@ -1461,6 +1462,11 @@ export class PluginServicesProvider implements PluginServices {
 
   sendMail(message: MailMessage, siteId?: string): Promise<void> {
     return this.mail.send(message, siteId);
+  }
+
+  /** The addresses (lower case) of people who turned their notification emails off. */
+  mutedEmails(emails: string[]): Promise<Set<string>> {
+    return mutedEmails(this.database.db, emails);
   }
 }
 

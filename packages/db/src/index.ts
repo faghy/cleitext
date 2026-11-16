@@ -6,6 +6,7 @@ export { takenMediaNames } from './media-names.js';
 export {
   createDatabase,
   findLogin,
+  mutedEmails,
   isInstalled,
   listMySites,
   ping,

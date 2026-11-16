@@ -165,6 +165,7 @@ describe('the classic form', () => {
     expect(mails[0]).toEqual({
       siteId: 's',
       to: 'hotel@example.com',
+      notification: true,
       replyTo: 'ada@example.com',
       subject: '[Contact us] Ada',
       text: 'Ada <ada@example.com>\nPhone: 123\nPage: /prenota\n\nHello!',

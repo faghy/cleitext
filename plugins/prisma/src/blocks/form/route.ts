@@ -287,6 +287,7 @@ async function deliver(
     ctx.mail.send({
       siteId,
       to: address,
+      notification: true,
       subject: mail.subject,
       text: mail.text,
       html: mail.html,

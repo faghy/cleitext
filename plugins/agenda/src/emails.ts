@@ -199,6 +199,7 @@ export function mailer(ctx: PluginContext) {
       const body = lines.join('\n');
       await send(siteId, {
         to,
+        notification: true,
         ...(appointment.email ? { replyTo: appointment.email } : {}),
         subject: `[${site.name}] ${titles[kind]}: ${v.service}, ${when.date} ${when.time}`,
         text: body,

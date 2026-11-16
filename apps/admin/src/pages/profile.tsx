@@ -24,6 +24,7 @@ export function ProfilePage() {
         <div className="space-y-6">
           <AvatarCard />
           <PasswordCard />
+          <NotificationsCard />
         </div>
       </div>
       <UserFieldsCard path="/profile/fields" />
@@ -51,7 +52,14 @@ function AboutForm({ initial }: { initial: ProfileAboutView }) {
   const queryClient = useQueryClient();
   const [values, setValues] = useState(initial);
   const save = useMutation({
-    mutationFn: () => api('PATCH', '/profile', values),
+    // The notifications have their own card: not sent from here.
+    mutationFn: () =>
+      api('PATCH', '/profile', {
+        username: values.username,
+        bio: values.bio,
+        website: values.website,
+        slug: values.slug,
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['profile', 'about'] }),
   });
   return (
@@ -95,6 +103,46 @@ function AboutForm({ initial }: { initial: ProfileAboutView }) {
           {t('Save')}
         </Button>
       </form>
+    </Card>
+  );
+}
+
+/** Notification emails on or off; account emails always go. */
+function NotificationsCard() {
+  const { t } = useT();
+  const queryClient = useQueryClient();
+  const about = useQuery({
+    queryKey: ['profile', 'about'],
+    queryFn: () => api<ProfileAboutView>('GET', '/profile/about'),
+  });
+  const save = useMutation({
+    mutationFn: (notifications: boolean) => api('PATCH', '/profile', { notifications }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['profile', 'about'] }),
+  });
+  if (!about.data) return null;
+  const on = save.isPending ? save.variables : about.data.notifications;
+  return (
+    <Card title={t('Notifications')}>
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={on}
+          disabled={save.isPending}
+          onChange={(e) => save.mutate(e.target.checked)}
+        />
+        <span>
+          <span className="block font-medium text-slate-800">
+            {t('Receive notification emails')}
+          </span>
+          <span className="block text-xs text-slate-500">
+            {t(
+              'Automatic updates, comments and the notices of plugins. Emails about your account (password reset, sign-in codes, confirmations) always arrive.',
+            )}
+          </span>
+        </span>
+      </label>
+      {save.error && <Alert>{errorMessage(save.error)}</Alert>}
     </Card>
   );
 }

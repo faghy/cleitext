@@ -406,6 +406,22 @@ export interface LoginRecord {
 }
 
 /**
+ * Of these addresses, the ones (lower case) of people who turned their
+ * notification emails off, across sites (no context needed).
+ */
+export async function mutedEmails(db: Database, emails: string[]): Promise<Set<string>> {
+  const list = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  if (list.length === 0) return new Set();
+  const rows = await db.execute<{ cleitext_muted_emails: string }>(
+    sql`select cleitext_muted_emails from cleitext_muted_emails(ARRAY[${sql.join(
+      list.map((e) => sql`${e}`),
+      sql`, `,
+    )}]::text[])`,
+  );
+  return new Set(rows.map((r) => r.cleitext_muted_emails));
+}
+
+/**
  * Looks up login data by email or username (a name without "@"), across
  * sites (no context needed).
  */

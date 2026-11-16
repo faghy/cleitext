@@ -528,6 +528,10 @@ export const itGeneral: Messages = {
   'Allow comments': 'Permetti i commenti',
   '{count} comments': '{count} commenti',
   'About you': 'Informazioni su di te',
+  Notifications: 'Notifiche',
+  'Receive notification emails': 'Ricevi le email di notifica',
+  'Automatic updates, comments and the notices of plugins. Emails about your account (password reset, sign-in codes, confirmations) always arrive.':
+    'Aggiornamenti automatici, commenti e avvisi dei plugin. Le email sul tuo account (reimpostazione della password, codici di accesso, conferme) arrivano sempre.',
   'Biographical info': 'Biografia',
   'Shown in author boxes and on your author page.':
     'Appare nel box autore e nella tua pagina autore.',

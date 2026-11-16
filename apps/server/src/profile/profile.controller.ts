@@ -141,6 +141,7 @@ export class ProfileController {
             bio: users.bio,
             website: users.website,
             slug: users.slug,
+            notifications: users.notifications,
           })
           .from(users)
           .where(eq(users.id, auth.userId)),
@@ -150,6 +151,7 @@ export class ProfileController {
       bio: user?.bio ?? '',
       website: user?.website ?? '',
       slug: user?.slug ?? '',
+      notifications: user?.notifications ?? true,
     };
   }
 
@@ -173,6 +175,7 @@ export class ProfileController {
             ...(input.bio !== undefined ? { bio: input.bio } : {}),
             ...(input.website !== undefined ? { website: input.website || null } : {}),
             ...(input.slug ? { slug: input.slug } : {}),
+            ...(input.notifications !== undefined ? { notifications: input.notifications } : {}),
           })
           .where(eq(users.id, auth.userId))
           .returning(),

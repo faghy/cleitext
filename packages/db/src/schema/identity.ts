@@ -43,6 +43,8 @@ export const users = pgTable(
     slug: citext('slug').unique(),
     /** When the person confirmed the address; null while a sign-up waits for it. */
     emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
+    /** Notification emails (updates, comments, plugins' notices); account emails always go. */
+    notifications: boolean('notifications').notNull().default(true),
     createdAt: createdAt(),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   },
