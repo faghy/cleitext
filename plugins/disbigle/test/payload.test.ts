@@ -27,12 +27,21 @@ describe('languages', () => {
     expect(languageOf('pt-BR')).toBeNull();
   });
 
+  it('orders the languages English, Italian, Spanish, Chinese, French, German', () => {
+    const payload = buildPayload(
+      ['de', 'fr', 'zh', 'es', 'it', 'en'].map((l) => version(l)),
+      [],
+    )!;
+    expect(Object.keys(payload.translations)).toEqual(['en', 'it', 'es', 'zh', 'fr', 'de']);
+  });
+
   it('puts every language once, English as the main one when present', () => {
     const payload = buildPayload(
       [version('it'), version('pt'), version('en'), version('it-CH'), version('de')],
       [],
     )!;
-    expect(Object.keys(payload.translations)).toEqual(['it', 'en', 'de']);
+    // Always in the same order, whatever the version published first.
+    expect(Object.keys(payload.translations)).toEqual(['en', 'it', 'de']);
     expect(payload.language).toBe('en');
     expect(payload.translations.it).toEqual({
       title: 'Title it',

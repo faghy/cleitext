@@ -6,6 +6,8 @@ import type { CxdBlock, CxdDocument, CxdInline } from '@cleitext/plugin-sdk';
 
 /** The languages Disbigle writes announcements in. */
 export const LANGUAGES = ['en', 'it', 'es', 'fr', 'de', 'zh'] as const;
+/** The order of the languages in the post (its links to the other versions). */
+export const LINK_ORDER = ['en', 'it', 'es', 'zh', 'fr', 'de'] as const;
 export type Language = (typeof LANGUAGES)[number];
 
 export const SUMMARY_LENGTH = 300;
@@ -167,8 +169,12 @@ export function buildPayload(
   }
   const languages = Object.keys(translations) as Language[];
   if (languages.length === 0) return null;
+  // Always in the same order: English, Italian, Spanish, Chinese, French, German.
+  const ordered: Partial<Record<Language, ArticleTranslation>> = {};
+  for (const language of LINK_ORDER)
+    if (translations[language]) ordered[language] = translations[language];
   return {
-    translations,
+    translations: ordered,
     language: translations.en ? 'en' : languages[0]!,
     mentions: findMentions(used.flatMap((v) => [v.title, plainText(v.excerpt ?? ''), v.text])),
     tags: cleanTags(tagNames),
