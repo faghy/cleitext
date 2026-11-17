@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { parseLemonSqueezy, renewalUrl, verifyLemonSqueezy } from './providers';
+import { cleishopEvents, parseLemonSqueezy, renewalUrl, verifyLemonSqueezy } from './providers';
 
 const order = (event: string, extra: Record<string, unknown> = {}) => ({
   meta: { event_name: event, custom_data: extra },
@@ -76,5 +76,84 @@ describe('Lemon Squeezy', () => {
       'https://shop.test/checkout/buy/abc?checkout%5Bcustom%5D%5Blicense%5D=L1',
     );
     expect(renewalUrl(null, 'L1')).toBeNull();
+  });
+});
+
+describe('Cleishop orders (1.5)', () => {
+  const detail = {
+    order: {
+      id: 'o1',
+      email: 'Anna@Example.com',
+      currency: 'EUR',
+      billing: { firstName: 'Anna', lastName: 'Rossi' },
+    },
+    items: [
+      {
+        id: 'i1',
+        kind: 'product',
+        productId: 'p1',
+        variationId: 'v10',
+        quantity: 1,
+        subtotal: '59.00',
+        total: '49.00',
+        ref: '',
+      },
+      {
+        id: 'i2',
+        kind: 'product',
+        productId: 'p2',
+        variationId: null,
+        quantity: 1,
+        subtotal: '29.00',
+        total: '29.00',
+        ref: '7BD438D8-3685-493B-9BDB-E3458E0C4C67',
+      },
+      {
+        id: 'i3',
+        kind: 'shipping',
+        productId: null,
+        variationId: null,
+        quantity: 1,
+        subtotal: '0',
+        total: '0',
+      },
+    ],
+  };
+
+  it('sells or renews the lines of a paid order, by product or variation', () => {
+    const events = cleishopEvents(detail, 'processing');
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      kind: 'paid',
+      provider: 'cleishop',
+      orderRef: 'o1:i1',
+      variantId: 'v10',
+      email: 'anna@example.com',
+      name: 'Anna Rossi',
+      licenseId: null,
+      subtotalCents: 5900,
+      discountCents: 1000,
+      totalCents: null,
+    });
+    expect(events[1]).toMatchObject({
+      variantId: 'p2',
+      licenseId: '7bd438d8-3685-493b-9bdb-e3458e0c4c67',
+    });
+  });
+
+  it('revokes on refunds and cancellations, and waits for other statuses', () => {
+    expect(cleishopEvents(detail, 'refunded').map((e) => e.kind)).toEqual(['refunded', 'refunded']);
+    expect(cleishopEvents(detail, 'cancelled')).toHaveLength(2);
+    expect(cleishopEvents(detail, 'on-hold')).toEqual([]);
+    expect(cleishopEvents(detail, 'pending')).toEqual([]);
+  });
+
+  it('gives Cleishop’s renewal link the license as the line’s ref', () => {
+    expect(renewalUrl('https://cleitext.com/cart/add?product=abc', 'lic-1')).toBe(
+      'https://cleitext.com/cart/add?product=abc&ref=lic-1',
+    );
+    expect(renewalUrl('https://shop.lemonsqueezy.com/buy/x', 'lic-1')).toContain(
+      'checkout%5Bcustom%5D%5Blicense%5D=lic-1',
+    );
   });
 });

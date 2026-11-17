@@ -162,6 +162,11 @@ export interface CartItem {
   product: string;
   variation: string | null;
   quantity: number;
+  /**
+   * What the line is for, set by a plugin's add-to-cart link (1.22), e.g. the
+   * license a renewal extends: kept on the order line. Letters, digits, `_` and `-`.
+   */
+  ref?: string;
 }
 
 export const carts = pgTable('carts', {
@@ -260,6 +265,8 @@ export const orderItems = pgTable('order_items', {
   tax: amount('tax').notNull().default('0'),
   taxRate: numeric('tax_rate', { precision: 6, scale: 3 }).notNull().default('0'),
   stockReduced: integer('stock_reduced').notNull().default(0),
+  /** The cart line's `ref` (1.22): what a plugin's link said the line is for. */
+  ref: text('ref').notNull().default(''),
 });
 
 export const orderNotes = pgTable('order_notes', {

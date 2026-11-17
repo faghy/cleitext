@@ -31,6 +31,8 @@ const PREFIX = /^\/[a-z]{2}(?:-[a-z]{2,4})?$/i;
 export const safePrefix = (prefix: string) => (PREFIX.test(prefix) ? prefix : '');
 
 export interface CartLinkOptions {
+  /** What the line is for (1.22), kept on the order line: see `CartItem.ref`. */
+  ref?: string;
   /** 1 by default, at most `LINK_MAX_QUANTITY`. */
   quantity?: number;
   /** Where the visitor goes after: the cart (default) or back to the product. */
@@ -51,6 +53,7 @@ export function cartAddUrl(
   const quantity = linkQuantity(options.quantity);
   if (quantity !== 1) params.set('quantity', String(quantity));
   if (options.to === 'product') params.set('to', 'product');
+  if (options.ref && /^[A-Za-z0-9_-]{1,64}$/.test(options.ref)) params.set('ref', options.ref);
   return `${safePrefix(prefix)}/cart/add?${params}`;
 }
 
@@ -63,6 +66,8 @@ export function linkQuantity(raw: unknown): number {
 export interface CartLink {
   productId: string;
   quantity: number;
+  /** What the line is for (1.22); '' when the link has none. */
+  ref: string;
   to: 'cart' | 'product';
 }
 
@@ -76,6 +81,7 @@ export function readCartLink(query: Record<string, string | undefined>): CartLin
   return {
     productId: productId.toLowerCase(),
     quantity: linkQuantity(query.quantity),
+    ref: /^[A-Za-z0-9_-]{1,64}$/.test(query.ref ?? '') ? query.ref! : '',
     to: query.to === 'product' ? 'product' : 'cart',
   };
 }

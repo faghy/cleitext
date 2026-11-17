@@ -28,10 +28,18 @@ describe('add-to-cart links', () => {
   });
 
   it('reads the link, and WooCommerce’s add-to-cart', () => {
-    expect(readCartLink({ product: ID })).toEqual({ productId: ID, quantity: 1, to: 'cart' });
+    expect(readCartLink({ product: ID })).toEqual({
+      productId: ID,
+      quantity: 1,
+      ref: '',
+      to: 'cart',
+    });
     expect(readCartLink({ 'add-to-cart': ID.toUpperCase(), quantity: '4', to: 'product' })).toEqual(
-      { productId: ID, quantity: 4, to: 'product' },
+      { productId: ID, quantity: 4, ref: '', to: 'product' },
     );
+    // What a plugin's link says the line is for (1.22): kept only when it is a plain name.
+    expect(readCartLink({ product: ID, ref: 'renew_abc-123' })?.ref).toBe('renew_abc-123');
+    expect(readCartLink({ product: ID, ref: '<script>' })?.ref).toBe('');
     expect(readCartLink({ product: ID, to: 'https://evil.example' })?.to).toBe('cart');
     expect(readCartLink({ product: '123' })).toBeNull();
     expect(readCartLink({})).toBeNull();

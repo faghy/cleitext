@@ -14,6 +14,7 @@ import { computeTotals } from './totals';
 
 const line = (over: Partial<CartLine>): CartLine => ({
   key: 'p1:',
+  ref: '',
   productId: 'p1',
   variationId: null,
   quantity: 2,

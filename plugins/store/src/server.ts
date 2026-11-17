@@ -42,7 +42,14 @@ import { decideActivation, discounted, sealKey } from './licensing';
 import { findRelease, packageLocation } from './packages';
 import { registerPartners } from './partners-admin';
 import { registerPortal } from './portal';
-import { parseLemonSqueezy, renewalUrl, verifyLemonSqueezy, type OrderEvent } from './providers';
+import {
+  cleishopEvents,
+  parseLemonSqueezy,
+  renewalUrl,
+  verifyLemonSqueezy,
+  type OrderEvent,
+  type ShopOrder,
+} from './providers';
 import {
   activations,
   downloads,
@@ -243,6 +250,9 @@ async function handleOrder(ctx: PluginContext, siteId: string, order: OrderEvent
       ctx.log.warn('Renewal without a license id', { order: order.orderRef });
       return { body: { ok: true, ignored: true } };
     }
+    // Once per order line: payments and status changes can tell the same order twice.
+    const once = `renewed:${order.provider}:${order.orderRef}`.slice(0, 100);
+    if (await ctx.storage.get(siteId, once)) return { body: { ok: true, duplicate: true } };
     const renewed = await ctx.db.transaction(siteId, async (tx) => {
       const [license] = await tx.select().from(licenses).where(eq(licenses.id, order.licenseId!));
       if (!license || license.updatesUntil === null) return null;
@@ -254,7 +264,10 @@ async function handleOrder(ctx: PluginContext, siteId: string, order: OrderEvent
         .returning();
       return updated ?? null;
     });
-    if (renewed) announceSale(ctx, siteId, order, product, renewed.email, 'renewal');
+    if (renewed) {
+      await ctx.storage.set(siteId, once, { licenseId: renewed.id, at: new Date().toISOString() });
+      announceSale(ctx, siteId, order, product, renewed.email, 'renewal');
+    }
     return { body: { ok: true, renewed: renewed !== null } };
   }
 
@@ -297,6 +310,87 @@ async function handleOrder(ctx: PluginContext, siteId: string, order: OrderEvent
   return { body: { ok: true, license: license.id } };
 }
 
+// ---- Renewal reminders (1.5) -----------------------------------------------------------
+
+/** Days before the end of the updates when the reminders go out. */
+export const REMINDER_DAYS = [30, 7] as const;
+
+/** Which reminder a license is due (30 or 7 days before), or null. */
+export function reminderDue(updatesUntil: Date | null, now: Date, sent: number[]): number | null {
+  if (!updatesUntil) return null;
+  const days = (updatesUntil.getTime() - now.getTime()) / 86_400_000;
+  if (days < 0) return null;
+  for (const day of [...REMINDER_DAYS].reverse()) {
+    if (days <= day) return sent.includes(day) ? null : day;
+  }
+  return null;
+}
+
+/**
+ * Emails a reminder with the renewal link to each active license whose
+ * updates end in 30 days and in 7 days, once each (products with a
+ * renewal link only). Renewed licenses start again.
+ */
+async function sendReminders(ctx: PluginContext, siteId: string, now = new Date()) {
+  const soon = new Date(now.getTime() + (REMINDER_DAYS[0] + 1) * 86_400_000);
+  const rows = await ctx.db.transaction(siteId, (tx) =>
+    tx
+      .select()
+      .from(licenses)
+      .where(
+        and(
+          eq(licenses.status, 'active'),
+          gte(licenses.updatesUntil, now),
+          lt(licenses.updatesUntil, soon),
+        ),
+      ),
+  );
+  for (const license of rows) {
+    const product = await productOf(ctx, siteId, license.productSlug);
+    const link = renewalUrl(product?.renewUrl ?? null, license.id);
+    if (!product || !link || !license.updatesUntil) continue;
+    // What was sent, for this end date: a renewal moves it, and reminders start again.
+    const key = `reminded:${license.id}`;
+    const stored = await ctx.storage.get<{ until: string; days: number[] }>(siteId, key);
+    const until = license.updatesUntil.toISOString();
+    const sent = stored?.until === until ? stored.days : [];
+    const due = reminderDue(license.updatesUntil, now, sent);
+    if (due === null) continue;
+    const date = until.slice(0, 10);
+    await ctx.mail
+      .send({
+        siteId,
+        to: license.email,
+        ...(license.ownerEmail ? { cc: license.ownerEmail } : {}),
+        subject: `${product.name}: renew the updates / rinnova gli aggiornamenti`,
+        text: [
+          `The updates of your ${product.name} license (…${license.keyHint}) end on ${date}.`,
+          `Renew them for another year with one click: ${link}`,
+          'Your sites keep working anyway: only new versions need the renewal.',
+          '',
+          '---',
+          '',
+          `Gli aggiornamenti della tua licenza ${product.name} (…${license.keyHint}) finiscono il ${date}.`,
+          `Rinnovali per un altro anno con un clic: ${link}`,
+          'I tuoi siti continuano a funzionare comunque: il rinnovo serve solo per le nuove versioni.',
+        ].join('\n'),
+      })
+      .then(() => ctx.storage.set(siteId, key, { until, days: [...sent, due] }))
+      .catch((error: unknown) =>
+        ctx.log.error('Renewal reminder not sent', { license: license.id, error: String(error) }),
+      );
+  }
+}
+
+// ---- Cleishop (1.5): licenses sold by the site's own shop ----------------------------
+
+declare module '@cleitext/plugin-sdk' {
+  interface Actions {
+    /** Cleishop: an order changed status (from the admin, or a payment). */
+    'shop.order.status': { orderId: string; number: number; from: string; to: string };
+  }
+}
+
 /** A license sold or renewed, as a paid conversion (plugin API 1.58). */
 function announceSale(
   ctx: PluginContext,
@@ -330,6 +424,26 @@ export default definePlugin({
     ctx.access.defineCapability('manage_store', {
       label: { en: 'Manage the store and licenses', it: 'Gestire lo store e le licenze' },
       roles: ['administrator'],
+    });
+
+    // Reminders before the updates end, with the renewal link (1.5): twice a day.
+    ctx.schedule?.every('renewal-reminders', 720, (siteId) => sendReminders(ctx, siteId));
+
+    // Licenses sold by the site's own Cleishop (1.5), next to Lemon Squeezy's.
+    ctx.hooks.on('shop.order.status', async ({ orderId, to }, { siteId }) => {
+      const shop = await ctx.services?.use<{
+        order(siteId: string, id: string): Promise<ShopOrder | null>;
+      }>(siteId, 'shop');
+      const detail = shop ? await shop.order(siteId, orderId) : null;
+      if (!detail) return;
+      for (const event of cleishopEvents(detail, to)) {
+        await handleOrder(ctx, siteId, event).catch((error: unknown) =>
+          ctx.log.error('Cleishop order not handled', {
+            order: event.orderRef,
+            error: String(error),
+          }),
+        );
+      }
     });
 
     ctx.settings.define(
@@ -993,6 +1107,8 @@ export default definePlugin({
       const productSlug = text(body.productSlug, 40);
       const seats = Math.round(Number(body.seats));
       const kind = body.kind === 'renewal' ? 'renewal' : 'new';
+      // Lemon Squeezy's variants, or Cleishop's products and variations (1.5).
+      const provider = body.provider === 'cleishop' ? 'cleishop' : 'lemonsqueezy';
       if (!/^[\w-]{1,60}$/.test(variantId) || !(seats >= 0 && seats <= 10_000)) {
         return fail(400, 'A variant id and the sites per license (0 for no limit) are needed.');
       }
@@ -1002,7 +1118,7 @@ export default definePlugin({
       await ctx.db.transaction(request.siteId, (tx) =>
         tx
           .insert(variants)
-          .values({ siteId: request.siteId, provider: 'lemonsqueezy', variantId, ...values })
+          .values({ siteId: request.siteId, provider, variantId, ...values })
           .onConflictDoUpdate({
             target: [variants.siteId, variants.provider, variants.variantId],
             set: values,

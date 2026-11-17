@@ -100,8 +100,9 @@ const T = {
     saveProduct: 'Save product',
     variants: 'Lemon Squeezy variants',
     variantsHint:
-      'What each variant sells: a new license for some sites (0: no limit), or a renewal of the updates. Renewals find the license through the custom data the renewal link carries.',
+      'What each variant sells: a new license for some sites (0: no limit), or a renewal of the updates. For Cleishop, the id is the product’s (or its variation’s): a paid order (processing or completed) makes the license, a refunded or cancelled one revokes it. Renewals find the license through the renewal link (for Cleishop, the product’s “Renewal link” is its add-to-cart address, /cart/add?product=…).',
     variantId: 'Variant id',
+    provider: 'Sold by',
     product: 'Product',
     seats: 'Sites',
     kind: 'Kind',
@@ -178,8 +179,9 @@ const T = {
     saveProduct: 'Salva il prodotto',
     variants: 'Varianti di Lemon Squeezy',
     variantsHint:
-      'Cosa vende ogni variante: una nuova licenza per un certo numero di siti (0: senza limite), o il rinnovo degli aggiornamenti. I rinnovi trovano la licenza dai dati personalizzati del link di rinnovo.',
+      'Cosa vende ogni variante: una nuova licenza per un certo numero di siti (0: senza limite), o il rinnovo degli aggiornamenti. Per Cleishop l’id è quello del prodotto (o della sua variante): un ordine pagato (in lavorazione o completato) crea la licenza, uno rimborsato o annullato la revoca. I rinnovi trovano la licenza dal link di rinnovo (per Cleishop il «Link di rinnovo» del prodotto è il suo indirizzo di aggiunta al carrello, /cart/add?product=…).',
     variantId: 'Id della variante',
+    provider: 'Venduto con',
     product: 'Prodotto',
     seats: 'Siti',
     kind: 'Tipo',
@@ -569,7 +571,13 @@ function StorePage({ api, user }: AdminPageProps) {
       }),
     onSuccess: refresh,
   });
-  const [variant, setVariant] = useState({ variantId: '', productSlug: '', seats: 1, kind: 'new' });
+  const [variant, setVariant] = useState({
+    provider: 'cleishop',
+    variantId: '',
+    productSlug: '',
+    seats: 1,
+    kind: 'new',
+  });
   const saveVariant = useMutation({
     mutationFn: () => api('PUT', '/admin/variants', variant),
     onSuccess: refresh,
@@ -870,7 +878,8 @@ function StorePage({ api, user }: AdminPageProps) {
         <ul className="mb-4 space-y-1 text-sm">
           {data?.variants.map((v) => (
             <li key={`${v.provider}:${v.variantId}`} className="flex flex-wrap items-center gap-2">
-              <code>{v.variantId}</code> → {v.productSlug} ·{' '}
+              {v.provider === 'cleishop' ? 'Cleishop' : 'Lemon Squeezy'} <code>{v.variantId}</code>{' '}
+              → {v.productSlug} ·{' '}
               {v.kind === 'renewal'
                 ? t.renewal
                 : `${t.newLicense}, ${v.seats || '∞'} ${t.seats.toLowerCase()}`}
@@ -880,7 +889,18 @@ function StorePage({ api, user }: AdminPageProps) {
             </li>
           ))}
         </ul>
-        <form className="grid gap-3 md:grid-cols-4" onSubmit={submit(() => saveVariant.mutate())}>
+        <form className="grid gap-3 md:grid-cols-5" onSubmit={submit(() => saveVariant.mutate())}>
+          <label className="space-y-1 text-sm">
+            <span className="block font-medium">{t.provider}</span>
+            <select
+              className={`${input} w-full`}
+              value={variant.provider}
+              onChange={(e) => setVariant({ ...variant, provider: e.target.value })}
+            >
+              <option value="cleishop">Cleishop</option>
+              <option value="lemonsqueezy">Lemon Squeezy</option>
+            </select>
+          </label>
           <TextField
             label={t.variantId}
             value={variant.variantId}

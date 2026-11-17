@@ -466,12 +466,17 @@ export function registerStorefront(
       if (product.kind !== 'simple') return { choose: true as const };
       const items = addItem(
         await loadCart(tx, token),
-        { product: product.entryId, variation: null, quantity: link.quantity },
+        {
+          product: product.entryId,
+          variation: null,
+          quantity: link.quantity,
+          ...(link.ref ? { ref: link.ref } : {}),
+        },
         product.soldIndividually,
       );
       const priced = await priceCart(tx, items, request.locale);
       const line = priced.lines.find(
-        (l) => l.key === itemKey({ product: product.entryId, variation: null }),
+        (l) => l.key === itemKey({ product: product.entryId, variation: null, ref: link.ref }),
       );
       if (!line)
         return {

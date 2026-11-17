@@ -91,9 +91,77 @@ export function renewalUrl(base: string | null, licenseId: string): string | nul
   if (!base) return null;
   try {
     const url = new URL(base);
-    url.searchParams.set('checkout[custom][license]', licenseId);
+    // Cleishop's add-to-cart link (1.5): the line keeps the license as its `ref`.
+    if (/\/cart\/add\/?$/.test(url.pathname)) url.searchParams.set('ref', licenseId);
+    else url.searchParams.set('checkout[custom][license]', licenseId);
     return url.href;
   } catch {
     return null;
   }
+}
+
+/** What the store reads of a Cleishop order (its `shop` service). */
+export interface ShopOrder {
+  order: {
+    id: string;
+    email: string;
+    currency: string;
+    billing: { firstName?: string; lastName?: string; company?: string } | null;
+  };
+  items: {
+    id: string;
+    kind: string;
+    productId: string | null;
+    variationId: string | null;
+    quantity: number;
+    subtotal: string;
+    total: string;
+    ref?: string;
+  }[];
+}
+
+const LICENSE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const cents = (amount: string) => Math.round(Number(amount) * 100);
+
+/**
+ * The store's events of a Cleishop order: a paid order (processing or
+ * completed) sells or renews the licenses of its lines; a refunded or
+ * cancelled one revokes those it sold. Lines are matched to products by the
+ * variants with provider `cleishop` (Cleishop's product or variation id); a
+ * renewal finds its license in the line's `ref` (Cleishop 1.22), which the
+ * renewal link carries.
+ */
+export function cleishopEvents(detail: ShopOrder, to: string): OrderEvent[] {
+  const kind =
+    to === 'processing' || to === 'completed'
+      ? 'paid'
+      : to === 'refunded' || to === 'cancelled'
+        ? 'refunded'
+        : null;
+  if (!kind) return [];
+  const billing = detail.order.billing ?? {};
+  const name =
+    [billing.firstName, billing.lastName].filter(Boolean).join(' ') || billing.company || '';
+  return detail.items
+    .filter((item) => item.kind === 'product' && (item.variationId || item.productId))
+    .map((item) => {
+      const subtotal = cents(item.subtotal);
+      return {
+        kind,
+        provider: 'cleishop',
+        orderRef: `${detail.order.id}:${item.id}`,
+        variantId: (item.variationId ?? item.productId)!,
+        quantity: item.quantity,
+        email: detail.order.email.toLowerCase(),
+        name,
+        licenseId: item.ref && LICENSE_ID.test(item.ref) ? item.ref.toLowerCase() : null,
+        partner: null,
+        subtotalCents: subtotal,
+        discountCents: Math.max(0, subtotal - cents(item.total)),
+        currency: detail.order.currency,
+        // Cleishop announces the sale itself: not counted twice.
+        totalCents: null,
+        referrals: {},
+      };
+    });
 }

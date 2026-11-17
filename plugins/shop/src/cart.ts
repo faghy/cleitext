@@ -110,9 +110,7 @@ export async function adoptCart(
 
 /** Adds an item, or more of one already there; one only for products sold individually. */
 export function addItem(items: CartItem[], item: CartItem, soldIndividually: boolean): CartItem[] {
-  const index = items.findIndex(
-    (i) => i.product === item.product && i.variation === item.variation,
-  );
+  const index = items.findIndex((i) => itemKey(i) === itemKey(item));
   if (index < 0)
     return [
       ...items,
@@ -130,11 +128,17 @@ export function addItem(items: CartItem[], item: CartItem, soldIndividually: boo
   );
 }
 
-export const itemKey = (item: Pick<CartItem, 'product' | 'variation'>) =>
-  `${item.product}:${item.variation ?? ''}`;
+export const itemKey = (item: Pick<CartItem, 'product' | 'variation' | 'ref'>) =>
+  `${item.product}:${item.variation ?? ''}${item.ref ? `:${item.ref}` : ''}`;
+
+/** A line's `ref` (1.22): letters, digits, `_` and `-`, at most 64; '' when it is not one. */
+export const lineRef = (raw: unknown): string =>
+  typeof raw === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(raw) ? raw : '';
 
 export interface CartLine {
   key: string;
+  /** What a plugin's link said the line is for (1.22); '' for most lines. */
+  ref: string;
   productId: string;
   variationId: string | null;
   quantity: number;
@@ -237,6 +241,7 @@ function lineOf(
     : Math.max(1, Math.min(item.quantity, MAX_QUANTITY));
   return {
     key: itemKey(item),
+    ref: lineRef(item.ref),
     productId: product.entryId,
     variationId: variation?.id ?? null,
     quantity,

@@ -203,6 +203,7 @@ export async function placeOrder(
       sku: line.sku,
       attributes: line.attributes,
       quantity: line.quantity,
+      ref: line.ref ?? '',
       subtotal: decimal(computed.subtotalNet),
       subtotalTax: decimal(computed.subtotalGross - computed.subtotalNet),
       total: decimal(computed.net),
