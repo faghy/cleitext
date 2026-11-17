@@ -58,6 +58,7 @@ export function FrImage({
   size = 'large',
   className,
   alt,
+  title,
   sizes = '(max-width: 1024px) 100vw, 1024px',
 }: {
   value: unknown;
@@ -65,6 +66,8 @@ export function FrImage({
   size?: string;
   className?: string;
   alt?: string;
+  /** The image's `title` (shown on hover). */
+  title?: string;
   sizes?: string;
 }) {
   if (!isMedia(value)) return null;
@@ -85,6 +88,7 @@ export function FrImage({
         width={variant?.width ?? item.width ?? undefined}
         height={variant?.height ?? item.height ?? undefined}
         alt={alt ?? value.alt ?? item.alt ?? ''}
+        {...(title ? { title } : {})}
         loading="lazy"
         decoding="async"
       />
@@ -96,6 +100,7 @@ export function FrImage({
       className={className}
       src={value.url}
       alt={alt ?? value.alt ?? ''}
+      {...(title ? { title } : {})}
       loading="lazy"
       decoding="async"
     />

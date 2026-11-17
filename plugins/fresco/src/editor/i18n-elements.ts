@@ -493,6 +493,12 @@ addMessages('it', {
   'Link options': 'Opzioni del link',
   'Open in a new tab': 'Apri in una nuova scheda',
   'Add nofollow': 'Aggiungi nofollow',
+  'Alternative text (alt)': 'Testo alternativo (alt)',
+  'What the image shows, for search engines and screen readers. Empty: the description in the media library.':
+    'Cosa mostra l’immagine, per i motori di ricerca e i lettori di schermo. Vuoto: la descrizione nella libreria media.',
+  'Image title': 'Titolo dell’immagine',
+  'The image’s title attribute, shown on hover.':
+    'L’attributo title dell’immagine, mostrato al passaggio del mouse.',
   'Custom attributes': 'Attributi personalizzati',
   'Name and value separated by |, pairs separated by commas.':
     'Nome e valore separati da |, le coppie separate da virgole.',

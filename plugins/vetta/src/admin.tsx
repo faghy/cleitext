@@ -101,7 +101,11 @@ function SettingsPage(props: AdminPageProps) {
   const [tab, setTab] = useState<Tab>('modules');
   const saved = useQuery({
     queryKey: ['vetta', 'config'],
-    queryFn: () => props.api<{ config: Config; origin: string }>('GET', '/config'),
+    queryFn: () =>
+      props.api<{ config: Config; origin: string; replaced?: Record<string, string> }>(
+        'GET',
+        '/config',
+      ),
   });
   const types = useQuery({
     queryKey: ['content-types'],
@@ -204,6 +208,17 @@ function SettingsPage(props: AdminPageProps) {
         </nav>
         <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
           <TabIntro tab={tab} tr={tr} origin={origin} config={config} />
+          <ReplacedNote
+            replaced={saved.data?.replaced ?? {}}
+            only={
+              tab === 'modules'
+                ? null
+                : tab === 'files'
+                  ? 'llms'
+                  : (TABS.find((x) => x.id === tab)?.module ?? null)
+            }
+            tr={tr}
+          />
           {fields.length > 0 && (
             <FieldsForm
               fields={fields}
@@ -399,6 +414,67 @@ interface LogRow {
   createdAt: string;
 }
 
+/** The server's IndexNow answers, in the admin's language. */
+const INDEXNOW_IT: Record<string, string> = {
+  'IndexNow is off.': 'IndexNow è spento.',
+  'The site address is not known yet: open a page of the site, then try again.':
+    'L’indirizzo del sito non è ancora noto: apri una pagina del sito, poi riprova.',
+  'No address of this site.': 'Nessun indirizzo di questo sito.',
+  'Submitted.': 'Inviato.',
+  'Received: the key is being checked.': 'Ricevuto: la chiave è in verifica.',
+  'Bad request.': 'Richiesta non valida.',
+  'The key was not accepted: check that the key address opens.':
+    'La chiave non è stata accettata: controlla che l’indirizzo della chiave si apra.',
+  'Addresses of another site, or a key that does not match.':
+    'Indirizzi di un altro sito, o una chiave che non corrisponde.',
+  'Too many requests: try again later.': 'Troppe richieste: riprova più tardi.',
+};
+
+function indexNowMessage(message: string, tr: (en: string, it: string) => string): string {
+  return INDEXNOW_IT[message] ? tr(message, INDEXNOW_IT[message]) : message;
+}
+
+const MODULE_NAMES: Record<string, [string, string]> = {
+  schema: ['Structured data (schema.org)', 'Dati strutturati (schema.org)'],
+  llms: ['llms.txt', 'llms.txt'],
+  sitemap: ['Sitemap', 'Sitemap'],
+  breadcrumbs: ['Breadcrumbs', 'Briciole di pane'],
+  social: ['Social networks', 'Social network'],
+  robotsTxt: ['robots.txt', 'robots.txt'],
+};
+
+const PLUGIN_NAMES: Record<string, string> = { 'json-seo': 'J-Son SEO', 'llms-seo': 'LLMS SEO' };
+
+/** The modules another active plugin does instead: Vetta leaves them out. */
+function ReplacedNote({
+  replaced,
+  only,
+  tr,
+}: {
+  replaced: Record<string, string>;
+  only: string | null;
+  tr: (en: string, it: string) => string;
+}) {
+  const list = Object.entries(replaced).filter(([m]) => only === null || m === only);
+  if (list.length === 0) return null;
+  return (
+    <div className="rounded border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+      {list.map(([module, plugin]) => {
+        const [en, it] = MODULE_NAMES[module] ?? [module, module];
+        const name = PLUGIN_NAMES[plugin] ?? plugin;
+        return (
+          <span key={module} className="block">
+            {tr(
+              `${en}: done by the plugin “${name}”, so Vetta leaves it out, even when switched on.`,
+              `${it}: se ne occupa il plugin «${name}», quindi Vetta lo lascia fuori, anche se acceso.`,
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function IndexNowBox(props: AdminPageProps & { tr: (en: string, it: string) => string }) {
   const { tr } = props;
   const queryClient = useQueryClient();
@@ -434,7 +510,7 @@ function IndexNowBox(props: AdminPageProps & { tr: (en: string, it: string) => s
       {send.error && <Alert>{errorMessage(send.error)}</Alert>}
       {send.data && (
         <Alert kind={send.data.status >= 200 && send.data.status < 300 ? 'success' : 'error'}>
-          {send.data.message}
+          {indexNowMessage(send.data.message, tr)}
         </Alert>
       )}
       <h3 className="mt-4 mb-1 text-sm font-semibold">{tr('Last sent', 'Ultimi invii')}</h3>
@@ -453,7 +529,8 @@ function IndexNowBox(props: AdminPageProps & { tr: (en: string, it: string) => s
             </span>{' '}
             {new Date(row.createdAt).toLocaleString()} ·{' '}
             {row.manual ? tr('by hand', 'a mano') : tr('automatic', 'automatico')} ·{' '}
-            {row.urls.join(', ')} <span className="text-slate-500">{row.message}</span>
+            {row.urls.join(', ')}{' '}
+            <span className="text-slate-500">{indexNowMessage(row.message, tr)}</span>
           </li>
         ))}
       </ul>

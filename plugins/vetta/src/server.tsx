@@ -14,6 +14,7 @@ import {
   keywordsOf,
   lines,
   moduleOn,
+  MODULES,
   sanitizeConfig,
   searchTitle,
   taxonomyValue,
@@ -153,6 +154,61 @@ function mergeTerms(
   return out;
 }
 
+/**
+ * Vetta's modules another active plugin does instead (extension point
+ * `vetta.replaces`: `{ modules(siteId) → module names }`), e.g. the
+ * structured data of a dedicated plugin: Vetta leaves them out, never both.
+ */
+const replacedCache = new Map<string, { at: number; map: Record<string, string> }>();
+async function replacedModules(
+  ctx: PluginContext,
+  siteId: string,
+): Promise<Record<string, string>> {
+  const hit = replacedCache.get(siteId);
+  if (hit && Date.now() - hit.at < 30_000) return hit.map;
+  const map: Record<string, string> = {};
+  try {
+    const offers =
+      (await ctx.services?.all<{ modules: (siteId: string) => unknown }>(
+        siteId,
+        'vetta.replaces',
+      )) ?? [];
+    for (const { plugin, service } of offers) {
+      const modules = await service.modules(siteId);
+      if (!Array.isArray(modules)) continue;
+      for (const m of modules)
+        if (typeof m === 'string' && (MODULES as readonly string[]).includes(m) && !map[m])
+          map[m] = plugin;
+    }
+  } catch (error) {
+    ctx.log.warn('Cannot ask which modules other plugins replace', { error: String(error) });
+  }
+  replacedCache.set(siteId, { at: Date.now(), map });
+  return map;
+}
+
+/** What IndexNow accepts as a key: letters, digits and dashes, 8 to 128. */
+const INDEXNOW_KEY = /^[A-Za-z0-9-]{8,128}$/;
+
+/**
+ * The site's IndexNow key: a missing or invalid one (never saved, or written
+ * by hand with other characters) is replaced by a new one, kept in the settings.
+ */
+async function indexNowKey(
+  ctx: PluginContext,
+  siteId: string,
+  config: Record<string, unknown>,
+): Promise<string | null> {
+  const key = text(config, 'indexnow_key');
+  if (INDEXNOW_KEY.test(key)) return key;
+  if (!moduleOn(config, 'indexNow')) return null;
+  const fresh = randomBytes(16).toString('hex');
+  const stored = ((await ctx.storage.get(siteId, 'config')) ?? {}) as Record<string, unknown>;
+  await ctx.storage.set(siteId, 'config', { ...stored, indexnow_key: fresh });
+  configs.delete(siteId);
+  return fresh;
+}
+
 /** Sends addresses to the search engines that share IndexNow (Bing, Yandex, Seznam…). */
 async function indexNow(
   ctx: PluginContext,
@@ -161,9 +217,14 @@ async function indexNow(
   manual: boolean,
 ): Promise<{ status: number; message: string }> {
   const config = await configFor(ctx, siteId);
-  const key = text(config, 'indexnow_key');
+  const key = await indexNowKey(ctx, siteId, config);
+  if (!key) return { status: 0, message: 'IndexNow is off.' };
   const origin = await originOf(ctx, siteId);
-  if (!key || !origin) return { status: 0, message: 'No key or no site address yet.' };
+  if (!origin)
+    return {
+      status: 0,
+      message: 'The site address is not known yet: open a page of the site, then try again.',
+    };
   const list = [
     ...new Set(
       urls
@@ -397,7 +458,11 @@ export default definePlugin({
           ...(seo.title?.includes('sitedesc') ? { sitedesc: await tagline(context.locale) } : {}),
         });
 
-        if (moduleOn(config, 'schema') && next.canonical !== null) {
+        if (
+          moduleOn(config, 'schema') &&
+          next.canonical !== null &&
+          !(await replacedModules(ctx, context.siteId)).schema
+        ) {
           const crumbs =
             entry && moduleOn(config, 'breadcrumbs')
               ? await trail(ctx, context.siteId, config, {
@@ -559,7 +624,7 @@ export default definePlugin({
       path: '/llms.txt',
       async handler(request) {
         const config = await configFor(ctx, request.siteId);
-        if (!moduleOn(config, 'llms'))
+        if (!moduleOn(config, 'llms') || (await replacedModules(ctx, request.siteId)).llms)
           return { status: 404, body: 'Not Found', contentType: 'text/plain; charset=utf-8' };
         await rememberOrigin(ctx, request.siteId, request.origin);
         const site = await ctx.site(request.siteId);
@@ -620,7 +685,7 @@ export default definePlugin({
     async function keyFile(request: { siteId: string; params: Record<string, string> }) {
       const config = await configFor(ctx, request.siteId);
       const key = text(config, 'indexnow_key');
-      return key && request.params.key === key && moduleOn(config, 'indexNow')
+      return INDEXNOW_KEY.test(key) && request.params.key === key && moduleOn(config, 'indexNow')
         ? {
             body: key,
             contentType: 'text/plain; charset=utf-8',
@@ -631,12 +696,7 @@ export default definePlugin({
 
     ctx.hooks.on('entry.published', async ({ entry }, { siteId }) => {
       const config = await configFor(ctx, siteId);
-      if (
-        !moduleOn(config, 'indexNow') ||
-        value(config, 'indexnow_auto') === false ||
-        !text(config, 'indexnow_key')
-      )
-        return;
+      if (!moduleOn(config, 'indexNow') || value(config, 'indexnow_auto') === false) return;
       if (typeValue(config, entry.type, 'indexnow') === false) return;
       const full = await ctx.content.get(siteId, entry.id);
       if (!full || entrySeo(full.fields).noindex) return;
@@ -770,7 +830,16 @@ export default definePlugin({
       capability: 'manage_vetta',
       async handler(request) {
         await rememberOrigin(ctx, request.siteId, request.origin);
-        return { body: { config: await configFor(ctx, request.siteId), origin: request.origin } };
+        // The settings show a valid IndexNow key, made now when missing.
+        await indexNowKey(ctx, request.siteId, await configFor(ctx, request.siteId));
+        replacedCache.delete(request.siteId);
+        return {
+          body: {
+            config: await configFor(ctx, request.siteId),
+            origin: request.origin,
+            replaced: await replacedModules(ctx, request.siteId),
+          },
+        };
       },
     });
 
@@ -781,7 +850,7 @@ export default definePlugin({
       async handler(request) {
         const next = sanitizeConfig((request.body as { config?: unknown } | null)?.config);
         // IndexNow needs a key: one is made when the module is on and none is set.
-        if (!text(next, 'indexnow_key') && next.module_indexNow !== false)
+        if (!INDEXNOW_KEY.test(text(next, 'indexnow_key')) && next.module_indexNow !== false)
           next.indexnow_key = randomBytes(16).toString('hex');
         await ctx.storage.set(request.siteId, 'config', next);
         configs.delete(request.siteId);

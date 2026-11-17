@@ -271,6 +271,26 @@ describe('Vetta SEO', () => {
     expect((await visitor.get(`/${key}.txt`)).statusCode).toBe(404);
   });
 
+  it('replaces an IndexNow key IndexNow would refuse, and makes one when none was saved', async () => {
+    const saved = await admin.request('PUT', '/api/v1/ext/vetta/config', {
+      config: { module_indexNow: true, indexnow_key: '????????????????' },
+    });
+    expect(saved.json().config.indexnow_key).toMatch(/^[0-9a-f]{32}$/);
+    // Turned off and on without saving a key: the settings show a new one.
+    await admin.request('PUT', '/api/v1/ext/vetta/config', {
+      config: { module_indexNow: false, indexnow_key: '' },
+    });
+    const off = (await admin.get('/api/v1/ext/vetta/config')).json().config;
+    expect(off.indexnow_key ?? '').toBe('');
+    await admin.request('PUT', '/api/v1/ext/vetta/config', {
+      config: { module_indexNow: true, indexnow_key: 'own-key-1234' },
+    });
+    const own = (await admin.get('/api/v1/ext/vetta/config')).json().config;
+    expect(own.indexnow_key).toBe('own-key-1234');
+    expect((await visitor.get('/own-key-1234.txt')).body).toBe('own-key-1234');
+    await admin.request('PUT', '/api/v1/ext/vetta/config', { config: { module_indexNow: false } });
+  });
+
   it('gives categories and tags their own search title, description, robots and canonical', async () => {
     const screen = (await admin.get('/api/v1/field-screens/term')).json() as {
       groups: { id: string; fields: { name: string; type: string }[] }[];

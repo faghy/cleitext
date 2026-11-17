@@ -263,6 +263,12 @@ export const image: ElementDefinition = {
       options: IMAGE_SIZES,
       noCss: true,
     }),
+    content.text('alt_text', 'Alternative text (alt)', 'Image', {
+      help: 'What the image shows, for search engines and screen readers. Empty: the description in the media library.',
+    }),
+    content.text('image_title', 'Image title', 'Image', {
+      help: 'The image’s title attribute, shown on hover.',
+    }),
     content.choose('align', 'Alignment', 'Image', {
       responsive: true,
       options: ALIGN,
@@ -359,6 +365,12 @@ export const image: ElementDefinition = {
         context={context}
         size={String(settings.image_size ?? 'large')}
         className={`fr-image__img${hover}`}
+        {...(plainText(settings.alt_text).trim()
+          ? { alt: plainText(settings.alt_text).trim() }
+          : {})}
+        {...(plainText(settings.image_title).trim()
+          ? { title: plainText(settings.image_title).trim() }
+          : {})}
       />
     ) : context.editing ? (
       <span className="fr-placeholder fr-placeholder--image" />
