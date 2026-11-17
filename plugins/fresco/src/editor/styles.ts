@@ -127,6 +127,7 @@ label.fre-checks{flex-direction:row;align-items:center;gap:8px}
 .fre-modal__head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--fre-line)}
 .fre-modal__head .fre-input{max-width:260px}
 .fre-modal__grid{flex:1 1 auto;min-height:0;overflow:auto;padding:14px}
+.fre-modal__more{text-align:center;margin:14px 0 0}
 .fre-modal__box>.fre-help{margin:0;padding:6px 14px}
 .fre-modal__foot{display:flex;justify-content:flex-end;padding:10px 14px;border-top:1px solid var(--fre-line)}
 .fre-thumb{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;aspect-ratio:1;padding:6px;border:2px solid transparent;border-radius:8px;background:#f8fafc;cursor:pointer;overflow:hidden}

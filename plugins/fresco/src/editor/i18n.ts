@@ -51,6 +51,7 @@ addMessages('it', {
   'Submit for review': 'Invia per revisione',
   Save: 'Salva',
   Title: 'Titolo',
+  'Load more': 'Carica altri',
   'Add title': 'Aggiungi titolo',
   Elements: 'Elementi',
   'Edit {element}': 'Modifica {element}',

@@ -66,6 +66,9 @@ export function VirtualGrid<T>({
   gap = 10,
   className,
   render,
+  resetKey,
+  onEnd,
+  footer,
 }: {
   items: readonly T[];
   minCell: number;
@@ -73,6 +76,12 @@ export function VirtualGrid<T>({
   gap?: number;
   className?: string;
   render: (item: T, index: number) => ReactNode;
+  /** When it changes the list starts from the top (by default: a new `items`). */
+  resetKey?: unknown;
+  /** Called when the visitor scrolls near the end (to load more). */
+  onEnd?: () => void;
+  /** Shown under the cells (e.g. a «Load more» button). */
+  footer?: ReactNode;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -91,11 +100,11 @@ export function VirtualGrid<T>({
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-  // A new list (a search) starts from the top.
+  // A new list (a search) starts from the top; more of the same list does not.
   useLayoutEffect(() => {
     if (box.current) box.current.scrollTop = 0;
     setScrollTop(0);
-  }, [items]);
+  }, [resetKey === undefined ? items : resetKey]);
   const view = gridWindow({
     width: size.width,
     height: size.height,
@@ -109,7 +118,11 @@ export function VirtualGrid<T>({
     <div
       ref={box}
       className={`fre-vgrid${className ? ` ${className}` : ''}`}
-      onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+      onScroll={(e) => {
+        const el = e.currentTarget;
+        setScrollTop(el.scrollTop);
+        if (onEnd && el.scrollTop + el.clientHeight >= el.scrollHeight - view.rowHeight) onEnd();
+      }}
     >
       <div style={{ position: 'relative', height: view.total }}>
         <div
@@ -127,6 +140,7 @@ export function VirtualGrid<T>({
           {items.slice(view.start, view.end).map((item, i) => render(item, view.start + i))}
         </div>
       </div>
+      {footer}
     </div>
   );
 }

@@ -2,7 +2,7 @@
  * The controls of the panel. Each edits one setting (or, for groups, a few
  * prefixed ones) of the selected element, for the device being edited.
  */
-import { t, type EditorMedia } from '@cleitext/admin-sdk';
+import { api, getLanguage, t, type EditorMedia } from '@cleitext/admin-sdk';
 import {
   useCallback,
   useEffect,
@@ -1139,6 +1139,61 @@ function GalleryInput({
   );
 }
 
+/**
+ * A page of the media library, newest first: the core's list (60 at a time,
+ * with the address of the next page); editors without it get the first 60.
+ */
+async function listMediaPage(
+  env: ControlEnv,
+  query: { kind?: 'image'; search?: string; cursor?: string },
+): Promise<{ items: EditorMedia[]; next: string | null }> {
+  try {
+    const params = new URLSearchParams({ limit: '60' });
+    if (query.kind) params.set('kind', query.kind);
+    if (query.search) params.set('q', query.search);
+    if (query.cursor) params.set('cursor', query.cursor);
+    const page = await api<MediaPage>('GET', `/media?${params}`);
+    const locale = getLanguage();
+    return {
+      items: page.items.map((m) => ({
+        id: m.id,
+        url: m.url,
+        alt: m.alt[locale] ?? Object.values(m.alt)[0] ?? '',
+        mime: m.mime,
+        ...(m.width ? { width: m.width } : {}),
+        ...(m.height ? { height: m.height } : {}),
+        thumbnailUrl:
+          m.variants.find((v) => v.variant === 'thumb' && v.format === 'webp')?.url ?? m.url,
+      })),
+      next: page.nextCursor,
+    };
+  } catch (error) {
+    if (query.cursor) throw error;
+    // The editor's own list (the first 60), as before.
+    return {
+      items: await env.media.list({
+        ...(query.kind ? { kind: query.kind } : {}),
+        ...(query.search ? { search: query.search } : {}),
+      }),
+      next: null,
+    };
+  }
+}
+
+/** The core's media list (`GET /media`), as much of it as the picker needs. */
+interface MediaPage {
+  items: {
+    id: string;
+    url: string;
+    mime: string;
+    width?: number | null;
+    height?: number | null;
+    alt: Record<string, string>;
+    variants: { variant: string; format: string; url: string }[];
+  }[];
+  nextCursor: string | null;
+}
+
 export function MediaPicker({
   env,
   kind,
@@ -1157,19 +1212,39 @@ export function MediaPicker({
   const [chosen, setChosen] = useState<EditorMedia[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The library page by page (60 at a time): «Load more», or scrolling to the end.
+  const [next, setNext] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(() => {
-      env.media
-        .list({ ...(kind ? { kind } : {}), ...(search ? { search } : {}) })
-        .then((list) => !cancelled && setItems(list))
+      listMediaPage(env, { ...(kind ? { kind } : {}), ...(search ? { search } : {}) })
+        .then((page) => {
+          if (cancelled) return;
+          setItems(page.items);
+          setNext(page.next);
+        })
         .catch((e: unknown) => !cancelled && setError(String(e)));
     }, 200);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [env.media, kind, search]);
+  }, [env, kind, search]);
+  const loadMore = () => {
+    if (!next || loadingMore) return;
+    setLoadingMore(true);
+    listMediaPage(env, { ...(kind ? { kind } : {}), ...(search ? { search } : {}), cursor: next })
+      .then((page) => {
+        setItems((list) => {
+          const seen = new Set((list ?? []).map((m) => m.id));
+          return [...(list ?? []), ...page.items.filter((m) => !seen.has(m.id))];
+        });
+        setNext(page.next);
+      })
+      .catch((e: unknown) => setError(String(e)))
+      .finally(() => setLoadingMore(false));
+  };
   const toggle = (item: EditorMedia) => {
     if (!multiple) return onPick([item]);
     setChosen((list) =>
@@ -1229,6 +1304,22 @@ export function MediaPicker({
           <VirtualGrid
             className="fre-modal__grid"
             items={items}
+            resetKey={`${kind ?? ''}|${search}`}
+            onEnd={loadMore}
+            footer={
+              next ? (
+                <p className="fre-modal__more">
+                  <button
+                    type="button"
+                    className="fre-button"
+                    disabled={loadingMore}
+                    onClick={loadMore}
+                  >
+                    {loadingMore ? t('Loading…') : t('Load more')}
+                  </button>
+                </p>
+              ) : null
+            }
             minCell={120}
             rowHeight={(cell) => cell}
             render={(item) => (
