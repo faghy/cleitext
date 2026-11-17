@@ -1,4 +1,4 @@
-import { emailAttachments } from './extensions';
+import { emailAttachments, orderSections, type OrderSection } from './extensions';
 import type { PaymentInstructions } from './pages';
 import type { PluginContext } from '@cleitext/plugin-sdk';
 import { z } from 'zod';
@@ -195,6 +195,8 @@ export function renderEmail(
   detail: OrderDetail,
   context: EmailContext,
   custom: EmailSettings[EmailId] | undefined,
+  /** Add-ons' sections for the customer (shop.order-sections, 1.23), after the order. */
+  sections: OrderSection[] = [],
 ): { subject: string; html: string; text: string } {
   const { order, items } = detail;
   const locale = order.locale;
@@ -335,6 +337,7 @@ export function renderEmail(
 ${noteBox}${bank}
 <h2 style="font-size:16px;margin:24px 0 8px">${escape(t('Order {number}', { number: order.number }))} · ${escape(date)}</h2>
 <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px">${rows}${totalRows}</table>
+${sections.map((s) => `<h2 style="font-size:16px;margin:24px 0 8px">${escape(s.title)}</h2>${s.html}`).join('')}
 ${order.customerNote ? box(`<strong>${escape(t('Customer note'))}</strong><br>${escape(order.customerNote)}`) : ''}
 <table role="presentation" style="width:100%;margin-top:20px;font-size:14px"><tr>
 <td style="vertical-align:top;padding-right:10px"><strong>${escape(t('Billing address'))}</strong><br>${address(addressLines(order.billing, locale))}<br>${escape(order.billing.phone)}<br>${escape(order.email)}${invoice.length ? `<br>${invoice.map(escape).join('<br>')}` : ''}</td>
@@ -362,6 +365,7 @@ ${order.customerNote ? box(`<strong>${escape(t('Customer note'))}</strong><br>${
         `- ${item.name}${item.attributes.length ? ` (${item.attributes.map((a) => `${a.name}: ${a.value}`).join(', ')})` : ''} × ${item.quantity}: ${amount(listed(item))}`,
     ),
     ...totals.map(([label, value]) => `${label}: ${value}`),
+    ...sections.flatMap((s) => ['', s.title, s.text]),
     '',
     `${t('Billing address')}:`,
     ...addressLines(order.billing, locale),
@@ -405,7 +409,16 @@ export async function sendOrderEmail(
   if (custom && custom.enabled === false) return false;
   const to = EMAILS[id].to === 'shop' ? recipients.shop : [detail.order.email];
   if (to.length === 0) return false;
-  const message = renderEmail(id, detail, context, custom);
+  const sections =
+    EMAILS[id].to === 'shop'
+      ? []
+      : await orderSections(ctx, siteId, {
+          orderId: detail.order.id,
+          place: 'email',
+          email: id,
+          locale: detail.order.locale,
+        });
+  const message = renderEmail(id, detail, context, custom, sections);
   // Files of add-ons (e.g. the invoice in PDF), shop.email-attachments (1.14).
   const attachments = await emailAttachments(ctx, siteId, { orderId: detail.order.id, email: id });
   for (const address of to) {

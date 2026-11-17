@@ -70,7 +70,7 @@ import {
   stripeLocale,
 } from './stripe-element';
 import { NEWSLETTER_FIELD, newsletterCheckbox, newsletterSubscribe } from './newsletter-optin';
-import { taxService } from './extensions';
+import { orderSections, sectionsHtml, taxService } from './extensions';
 import { translator, type Translate } from './strings';
 
 /** The checkout's id for the site's bot protection (`ctx.forms`, plugin API 1.38). */
@@ -1345,24 +1345,32 @@ export function registerStorefront(
           page: { title: t('Order received'), html: `<p>${t('This order does not exist.')}</p>` },
         };
       const store = inLanguage(await settings(request.siteId), request.locale);
+      // Add-ons' sections (e.g. license keys), shop.order-sections (1.23).
+      const sections = await orderSections(ctx, request.siteId, {
+        orderId: found.order.id,
+        place: 'page',
+        locale: found.order.locale,
+      });
       return {
         page: {
           title: t('Order received'),
-          html: receivedPage({
-            order: found.order,
-            items: found.items,
-            t: translator(found.order.locale),
-            locale: found.order.locale,
-            payment: paymentInstructions(store, found.order),
-            ...(['pending', 'failed'].includes(found.order.status) &&
-            ['stripe', 'paypal'].includes(found.order.paymentMethod)
-              ? {
-                  unpaid: {
-                    payUrl: `${prefixOf(request)}/checkout/pay/${found.order.number}?key=${encodeURIComponent(found.order.key)}`,
-                  },
-                }
-              : {}),
-          }),
+          html:
+            sectionsHtml(sections, escape) +
+            receivedPage({
+              order: found.order,
+              items: found.items,
+              t: translator(found.order.locale),
+              locale: found.order.locale,
+              payment: paymentInstructions(store, found.order),
+              ...(['pending', 'failed'].includes(found.order.status) &&
+              ['stripe', 'paypal'].includes(found.order.paymentMethod)
+                ? {
+                    unpaid: {
+                      payUrl: `${prefixOf(request)}/checkout/pay/${found.order.number}?key=${encodeURIComponent(found.order.key)}`,
+                    },
+                  }
+                : {}),
+            }),
         },
       };
     },

@@ -1,5 +1,5 @@
 import { shippingCountries } from './quote';
-import { orderDocuments } from './extensions';
+import { orderDocuments, orderSections, sectionsHtml } from './extensions';
 import type {
   PluginContext,
   PluginTransaction,
@@ -198,6 +198,12 @@ export function registerAccount(
         orderId: found.order.id,
         audience: 'customer',
       });
+      // Add-ons' sections (e.g. license keys), shop.order-sections (1.23).
+      const sections = await orderSections(ctx, request.siteId, {
+        orderId: found.order.id,
+        place: 'account',
+        locale: request.locale,
+      });
       const documentsHtml = documents.length
         ? `<ul class="shop-documents">${documents
             .map((d) => `<li><a href="${escapeAttr(d.url)}">${escapeAttr(d.label)}</a></li>`)
@@ -209,6 +215,7 @@ export function registerAccount(
           title: t('Order {number}', { number: found.order.number }),
           html:
             documentsHtml +
+            sectionsHtml(sections, escapeAttr) +
             receivedPage({
               order: found.order,
               items: found.items,

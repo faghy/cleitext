@@ -288,6 +288,7 @@ Cleishop's add-ons (WooCommerce Import, Wishlist, PDF Invoices…) use its `shop
 
 - `shop.email-attachments`: `attachments(siteId, { orderId, email })` returns files attached to an order email (at most 10);
 - `shop.order-documents`: `documents(siteId, { orderId, audience })` returns links (`{ label, url }`) shown with the order, in the customer's account (`customer`) or in the admin (`admin`).
+- `shop.order-sections` (1.23): `sections(siteId, { orderId, place, email, locale })` returns sections (`{ title, html, text }`) shown to the customer with the order: in its emails (`place: 'email'`, with the email's id), on the order-received page (`page`) and in the account (`account`), e.g. the license keys bought. The HTML is the add-on's own (inline styles, as emails need); `text` is for the plain-text email.
 
 - `shop.taxes` (1.16): `quote(siteId, request)` works out the taxes of the cart and the checkout instead of the shop's rates (e.g. AvaTax): the request has the address, the lines (amounts in cents after the discounts), the shipping and the fees; the answer, the tax per line, for the shipping and each fee, and the summary by jurisdiction, which the order keeps. `null` leaves the address to the rates. When it throws, the cart says the taxes are missing and the checkout refuses the order with its message: no order is placed without its taxes.
 

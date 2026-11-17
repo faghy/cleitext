@@ -8,6 +8,11 @@
  * - `shop.order-documents`: `documents(siteId, { orderId, audience })` →
  *   links shown with the order, to the customer (`customer`, in their
  *   account) or in the admin (`admin`), e.g. «Invoice (PDF)».
+ * - `shop.order-sections` (1.23): `sections(siteId, { orderId, place, email, locale })`
+ *   → sections shown to the customer with the order: in its emails (`email`,
+ *   with the email's id), on the order-received page (`page`) and in their
+ *   account (`account`), e.g. the license keys bought. Each section has a
+ *   title, HTML (inline styles, for emails) and the same as plain text.
  */
 import type { MailAttachment, PluginContext } from '@cleitext/plugin-sdk';
 
@@ -36,6 +41,55 @@ export async function emailAttachments(
   }
   return out.slice(0, 10);
 }
+
+export interface OrderSection {
+  title: string;
+  html: string;
+  text: string;
+}
+
+export async function orderSections(
+  ctx: PluginContext,
+  siteId: string,
+  input: {
+    orderId: string;
+    place: 'email' | 'page' | 'account';
+    email?: string;
+    locale: string;
+  },
+): Promise<OrderSection[]> {
+  const out: OrderSection[] = [];
+  for (const { plugin, service } of (await ctx.services?.all(siteId, 'shop.order-sections')) ??
+    []) {
+    try {
+      const sections =
+        (await (service.sections as (s: string, i: typeof input) => Promise<OrderSection[] | null>)(
+          siteId,
+          input,
+        )) ?? [];
+      out.push(
+        ...sections.filter(
+          (s) =>
+            s &&
+            typeof s.title === 'string' &&
+            typeof s.html === 'string' &&
+            typeof s.text === 'string',
+        ),
+      );
+    } catch (error) {
+      ctx.log.warn(`shop.order-sections of ${plugin}: ${String(error)}`);
+    }
+  }
+  return out.slice(0, 10);
+}
+
+/** Sections as HTML for the pages (the add-on's own markup, under a heading). */
+export const sectionsHtml = (sections: OrderSection[], escape: (s: string) => string) =>
+  sections
+    .map(
+      (s) => `<section class="shop-order-section"><h2>${escape(s.title)}</h2>${s.html}</section>`,
+    )
+    .join('');
 
 export async function orderDocuments(
   ctx: PluginContext,
