@@ -22,6 +22,10 @@ export interface MediaView {
   /** Alternative text per language. */
   alt: Record<string, string>;
   caption: Record<string, string>;
+  /** Title per language, rendered as the image's `title` attribute. */
+  title: Record<string, string>;
+  /** Longer description per language (shown by themes that want it). */
+  description: Record<string, string>;
   uploadedBy: { id: string; displayName: string } | null;
   createdAt: string;
   /** Resized WebP/AVIF variants; filled in shortly after upload. */
@@ -47,17 +51,21 @@ export interface MediaListResponse {
 
 export const listMediaQuerySchema = z.object({
   kind: z.enum(['image', 'video', 'audio', 'document']).optional(),
-  /** Searches the file name, alternative texts and captions. */
+  /** Searches the file name, alternative texts, titles and captions. */
   q: z.string().trim().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(40),
   cursor: z.string().max(200).optional(),
 });
 
-const perLocale = z.record(z.string().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/), z.string().max(1_000));
+const localeKey = z.string().regex(/^[a-z]{2,3}(-[A-Z]{2})?$/);
+const perLocale = z.record(localeKey, z.string().max(1_000));
 
 export const updateMediaRequestSchema = z.object({
   alt: perLocale.optional(),
   caption: perLocale.optional(),
+  title: perLocale.optional(),
+  /** Descriptions can be longer than the other texts. */
+  description: z.record(localeKey, z.string().max(10_000)).optional(),
   focalPoint: z
     .object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) })
     .nullable()

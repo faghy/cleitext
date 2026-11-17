@@ -822,6 +822,7 @@ function Editor({ initial }: { initial: EntryView }) {
                 values={summary}
                 errors={fieldErrors}
                 locale={userLocale}
+                entryLocale={entry.locale}
                 readOnly={readOnly}
                 onChange={changeSummary}
               />
@@ -960,6 +961,7 @@ function SummaryPanel({
   values,
   errors,
   locale,
+  entryLocale,
   readOnly,
   onChange,
 }: {
@@ -967,9 +969,15 @@ function SummaryPanel({
   values: FieldValues;
   errors: Record<string, string>;
   locale: string;
+  /** The entry's language: the featured image's texts are edited in it. */
+  entryLocale: string;
   readOnly: boolean;
   onChange: (values: FieldValues) => void;
 }) {
+  const featuredId =
+    supports.includes('featured_image') && typeof values.featuredMediaId === 'string'
+      ? values.featuredMediaId
+      : null;
   const fields: FieldDefinition[] = [
     ...(supports.includes('featured_image')
       ? [
@@ -1008,8 +1016,130 @@ function SummaryPanel({
         disabled={readOnly}
         onChange={onChange}
       />
+      {featuredId && (
+        <FeaturedImageTexts
+          key={`${featuredId}:${entryLocale}`}
+          id={featuredId}
+          locale={entryLocale}
+          readOnly={readOnly}
+        />
+      )}
     </div>
   );
+}
+
+/**
+ * Alternative text, title, caption and description of the featured image in
+ * the entry's language (issue #40), saved on the media item like the Media
+ * page does, without leaving the editor.
+ */
+function FeaturedImageTexts({
+  id,
+  locale,
+  readOnly,
+}: {
+  id: string;
+  locale: string;
+  readOnly: boolean;
+}) {
+  const { t } = useT();
+  const me = useMe();
+  const queryClient = useQueryClient();
+  // The same query as the media field above: they share the cache.
+  const media = useQuery({
+    queryKey: ['media', id],
+    queryFn: () => api<MediaView>('GET', `/media/${id}`),
+  }).data;
+  const [texts, setTexts] = useState<Record<MediaText, string> | null>(null);
+  const shown = texts ?? (media ? mediaTexts(media, locale) : null);
+  const save = useMutation({
+    mutationFn: (values: Record<MediaText, string>) =>
+      api<MediaView>('PATCH', `/media/${id}`, {
+        ...(media?.kind === 'image' ? { alt: { [locale]: values.alt } } : {}),
+        title: { [locale]: values.title },
+        caption: { [locale]: values.caption },
+        description: { [locale]: values.description },
+      }),
+    onSuccess: async (view) => {
+      queryClient.setQueryData(['media', id], view);
+      setTexts(null);
+      await queryClient.invalidateQueries({ queryKey: ['media'] });
+    },
+  });
+  if (!media || !shown) return null;
+  const language = me.site.locales.find((l) => l.code === locale)?.name ?? locale;
+  const changed =
+    texts !== null &&
+    (Object.keys(texts) as MediaText[]).some((k) => texts[k] !== mediaTexts(media, locale)[k]);
+  const input =
+    'w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-sky-600 focus:outline-none focus:ring-1 focus:ring-sky-600 disabled:bg-slate-50';
+  const field = (name: MediaText, label: string, multiline = false) => (
+    <label key={name} className="block space-y-0.5">
+      <span className="block text-xs font-medium text-slate-700">{label}</span>
+      {multiline ? (
+        <textarea
+          rows={2}
+          maxLength={10000}
+          value={shown[name]}
+          disabled={readOnly}
+          onChange={(e) => setTexts({ ...shown, [name]: e.target.value })}
+          className={input}
+        />
+      ) : (
+        <input
+          value={shown[name]}
+          maxLength={1000}
+          disabled={readOnly}
+          onChange={(e) => setTexts({ ...shown, [name]: e.target.value })}
+          className={input}
+        />
+      )}
+    </label>
+  );
+  return (
+    <form
+      className="mt-3 space-y-2 rounded border border-slate-200 bg-slate-50/50 p-2"
+      aria-label={t('Featured image texts')}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (texts) save.mutate(texts);
+      }}
+    >
+      {media.kind === 'image' && (
+        <img src={thumbnailOf(media)} alt="" className="max-h-40 w-full rounded object-contain" />
+      )}
+      <p className="text-xs text-slate-500">
+        {t('Texts of the image in {language}, saved in the media library.', { language })}
+      </p>
+      {media.kind === 'image' && field('alt', t('Alt text'))}
+      {field('title', t('Title'))}
+      {field('caption', t('Caption'))}
+      {field('description', t('Description'), true)}
+      {save.error && <Alert>{errorMessage(save.error)}</Alert>}
+      {save.isSuccess && !changed && <p className="text-xs text-emerald-700">{t('Saved.')}</p>}
+      {!readOnly && (
+        <Button type="submit" variant="secondary" disabled={!changed || save.isPending}>
+          {t('Save image texts')}
+        </Button>
+      )}
+    </form>
+  );
+}
+
+type MediaText = 'alt' | 'title' | 'caption' | 'description';
+
+function mediaTexts(media: MediaView, locale: string): Record<MediaText, string> {
+  return {
+    alt: media.alt[locale] ?? '',
+    title: media.title?.[locale] ?? '',
+    caption: media.caption[locale] ?? '',
+    description: media.description?.[locale] ?? '',
+  };
+}
+
+/** The smallest resized copy of an image, the original otherwise. */
+function thumbnailOf(media: MediaView): string {
+  return media.variants.find((v) => v.format === 'webp')?.url ?? media.url;
 }
 
 /** Custom fields of the content type and the field groups shown in the sidebar. */

@@ -563,10 +563,12 @@ export async function importDocument(
         // under WordPress's name exactly, case included (core 0.87).
         { date: mediaDate(item), keepName: doc.source.kind === 'wordpress' },
       );
-      if (item.alt || item.caption) {
+      if (item.alt || item.caption || item.title || item.description) {
         await options.media.update(siteId, auth, view.id, {
           ...(item.alt ? { alt: item.alt } : {}),
           ...(item.caption ? { caption: item.caption } : {}),
+          ...(item.title ? { title: item.title } : {}),
+          ...(item.description ? { description: item.description } : {}),
         });
       }
       mapUrls(item, { id: view.id, url: view.url });

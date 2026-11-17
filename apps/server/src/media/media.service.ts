@@ -188,6 +188,7 @@ export class MediaService {
             ilike(media.filename, pattern),
             sql`exists (select 1 from jsonb_each_text(${media.alt}) where value ilike ${pattern})`,
             sql`exists (select 1 from jsonb_each_text(${media.caption}) where value ilike ${pattern})`,
+            sql`exists (select 1 from jsonb_each_text(${media.title}) where value ilike ${pattern})`,
           )!,
         );
       }
@@ -242,7 +243,7 @@ export class MediaService {
     });
   }
 
-  /** Alternative text and caption, per language (RF-MED-04). */
+  /** Alternative text, caption, title and description, per language (RF-MED-04). */
   async update(
     siteId: string,
     auth: AuthContext,
@@ -250,6 +251,8 @@ export class MediaService {
     input: {
       alt?: Record<string, string> | undefined;
       caption?: Record<string, string> | undefined;
+      title?: Record<string, string> | undefined;
+      description?: Record<string, string> | undefined;
       focalPoint?: { x: number; y: number } | null | undefined;
     },
   ): Promise<MediaView> {
@@ -261,11 +264,15 @@ export class MediaService {
         .set({
           ...(input.alt ? { alt: { ...(row.alt as object), ...input.alt } } : {}),
           ...(input.caption ? { caption: { ...(row.caption as object), ...input.caption } } : {}),
+          ...(input.title ? { title: { ...(row.title as object), ...input.title } } : {}),
+          ...(input.description
+            ? { description: { ...(row.description as object), ...input.description } }
+            : {}),
           ...(input.focalPoint !== undefined ? { focalPoint: input.focalPoint } : {}),
         })
         .where(eq(media.id, id));
     });
-    // Alternative texts are rendered in pages: refresh them.
+    // Alternative texts and titles are rendered in pages: refresh them.
     await this.cache.invalidate(siteId, ['site']);
     return this.get(siteId, auth, id);
   }
@@ -470,6 +477,8 @@ export class MediaService {
       height: row.height,
       alt: row.alt as Record<string, string>,
       caption: row.caption as Record<string, string>,
+      title: (row.title as Record<string, string> | null) ?? {},
+      description: (row.description as Record<string, string> | null) ?? {},
       focalPoint: (row.focalPoint as { x: number; y: number } | null) ?? null,
       uploadedBy: row.uploadedBy
         ? { id: row.uploadedBy, displayName: uploaderName ?? 'Former member' }

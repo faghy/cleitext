@@ -442,6 +442,14 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
     if (!url) continue;
     const ref = `att:${id}`;
     const alt = meta(item, '_wp_attachment_image_alt');
+    // WordPress's attachment title and description (post_title, post_content), core 0.114.
+    // WordPress names an upload after its file ("harbour" for harbour.jpg): not a title then.
+    const rawTitle = decode(text(item.title)).trim().slice(0, 1_000);
+    const stem = (url.split('/').pop() ?? '').replace(/\.[a-z0-9]+$/i, '');
+    const sameAsFile = (t: string) =>
+      t.toLowerCase().replace(/[\s_-]+/g, '-') === stem.toLowerCase().replace(/[\s_-]+/g, '-');
+    const mediaTitle = rawTitle && !sameAsFile(rawTitle) ? rawTitle : '';
+    const description = stripTags(text(item['content:encoded'])).slice(0, 10_000);
     // The name and folder of the file on WordPress's disk, every address it had (1.33.1).
     const files = attachmentFiles({
       url,
@@ -458,6 +466,8 @@ export function wxrToDocument(xml: string, options: WxrOptions): WxrResult {
       ...(text(item['excerpt:encoded'])
         ? { caption: { [locale]: stripTags(text(item['excerpt:encoded'])) } }
         : {}),
+      ...(mediaTitle ? { title: { [locale]: mediaTitle } } : {}),
+      ...(description ? { description: { [locale]: description } } : {}),
       urls: files.urls.filter((u) => u.length <= 2_000),
       // Stored in the same year and month folder as on WordPress (core 0.85).
       ...withDate(files.date),

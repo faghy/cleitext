@@ -194,17 +194,17 @@ The names are the same as in WordPress for familiarity. All roles can be customi
 
 ### 4.5 Media
 
-| ID        | Requirement                                                                                                                         | Priority             |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| RF-MED-01 | Multiple upload with drag & drop, progress bar and configurable size limit.                                                         | MVP                  |
-| RF-MED-02 | Type whitelist, verified via magic bytes. The default is images (jpg, png, gif, webp, avif), pdf, office documents, mp4 and mp3.    | MVP                  |
-| RF-MED-03 | Generation of image variants (AVIF/WebP plus fallback) in the background.                                                           | MVP                  |
-| RF-MED-04 | Media library in grid and list view, with search, filters by type and date, and detail view with alt text and caption per language. | MVP                  |
-| RF-MED-05 | Focal point for responsive cropping.                                                                                                | 1.0                  |
-| RF-MED-06 | Cropping and rotation from the admin.                                                                                               | Later                |
-| RF-MED-07 | Disk and S3-compatible storage drivers.                                                                                             | MVP (disk), 1.0 (S3) |
-| RF-MED-08 | Duplicate detection (checksum) and display of where a media item is used.                                                           | 1.0                  |
-| RF-MED-09 | SVG: disabled by default, or can be enabled with sanitization.                                                                      | 1.0                  |
+| ID        | Requirement                                                                                                                                                                                                        | Priority             |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
+| RF-MED-01 | Multiple upload with drag & drop, progress bar and configurable size limit.                                                                                                                                        | MVP                  |
+| RF-MED-02 | Type whitelist, verified via magic bytes. The default is images (jpg, png, gif, webp, avif), pdf, office documents, mp4 and mp3.                                                                                   | MVP                  |
+| RF-MED-03 | Generation of image variants (AVIF/WebP plus fallback) in the background.                                                                                                                                          | MVP                  |
+| RF-MED-04 | Media library in grid and list view, with search, filters by type and date, and detail view with alt text, title, caption and description per language (also editable from the entry editor's featured image box). | MVP                  |
+| RF-MED-05 | Focal point for responsive cropping.                                                                                                                                                                               | 1.0                  |
+| RF-MED-06 | Cropping and rotation from the admin.                                                                                                                                                                              | Later                |
+| RF-MED-07 | Disk and S3-compatible storage drivers.                                                                                                                                                                            | MVP (disk), 1.0 (S3) |
+| RF-MED-08 | Duplicate detection (checksum) and display of where a media item is used.                                                                                                                                          | 1.0                  |
+| RF-MED-09 | SVG: disabled by default, or can be enabled with sanitization.                                                                                                                                                     | 1.0                  |
 
 ### 4.6 Taxonomies
 

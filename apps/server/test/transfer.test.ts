@@ -560,6 +560,9 @@ describe('Cleitext export and import', () => {
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain(`/media/${clone.id}/`);
     expect(page.body).not.toContain(`/media/${wordpress.id}/`);
+    // WordPress's default attachment title, the file's name, is not kept as a title (#40).
+    expect((document.media ?? []).some((m) => m.title?.en === 'harbour')).toBe(false);
+    expect(page.body).not.toContain('title="harbour"');
     expect((await visitor.get('/about/team')).statusCode).toBe(200);
     // Redirects and comments travel too.
     expect((await visitor.get('/2024/05/a-morning-at-the-harbour')).statusCode).toBe(301);

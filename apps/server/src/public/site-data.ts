@@ -250,7 +250,7 @@ export async function loadPublished(
   }));
 }
 
-/** Media (with variants) by id, with the alternative text of the language. */
+/** Media (with variants) by id, with the alternative text and title of the language. */
 export async function loadMedia(
   tx: SiteTransaction,
   ids: string[],
@@ -266,6 +266,7 @@ export async function loadMedia(
     .where(inArray(mediaVariants.mediaId, unique));
   for (const row of rows) {
     const alt = (row.alt as Record<string, string>)[locale] ?? '';
+    const title = ((row.title as Record<string, string> | null) ?? {})[locale]?.trim() ?? '';
     result.set(row.id, {
       id: row.id,
       url: `/media/${row.storageKey}`,
@@ -273,6 +274,7 @@ export async function loadMedia(
       width: row.width,
       height: row.height,
       alt,
+      title,
       focalPoint: (row.focalPoint as { x: number; y: number } | null) ?? null,
       variants: variants
         .filter((v) => v.mediaId === row.id)

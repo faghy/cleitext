@@ -232,6 +232,68 @@ describe('duplicates, usage and focal point', () => {
     expect(page.body).toContain('object-position:25% 80%');
   });
 
+  it('keeps a title and a description per language and renders the title (#40)', async () => {
+    const image = (
+      await author.upload('/api/v1/media', 'titled.png', await png(48, 32), 'image/png')
+    ).json();
+    expect(image).toMatchObject({ title: {}, description: {} });
+    const updated = await author.request('PATCH', `/api/v1/media/${image.id}`, {
+      title: { en: 'Harbour at dawn', it: "Porto all'alba" },
+      description: { en: 'Fishing boats in the old harbour.' },
+    });
+    expect(updated.statusCode).toBe(200);
+    // Another language later keeps the ones already set.
+    await author.request('PATCH', `/api/v1/media/${image.id}`, {
+      description: { it: 'Barche nel porto vecchio.' },
+    });
+    const view = (await author.get(`/api/v1/media/${image.id}`)).json();
+    expect(view.title).toEqual({ en: 'Harbour at dawn', it: "Porto all'alba" });
+    expect(view.description).toEqual({
+      en: 'Fishing boats in the old harbour.',
+      it: 'Barche nel porto vecchio.',
+    });
+    expect(
+      (await author.request('PATCH', `/api/v1/media/${image.id}`, { title: { 'x!': 'no' } }))
+        .statusCode,
+    ).toBe(400);
+    // The search looks at titles too.
+    const found = (await author.get('/api/v1/media?q=harbour%20at')).json();
+    expect(found.items.map((m: { id: string }) => m.id)).toEqual([image.id]);
+
+    const entry = (
+      await author.post('/api/v1/entries', {
+        type: 'article',
+        title: 'Titled image',
+        featuredMediaId: image.id,
+        document: {
+          schema: 1,
+          blocks: [{ id: 'i', type: 'core/image', v: 1, attrs: { id: image.id, url: image.url } }],
+        },
+      })
+    ).json();
+    await author.post(`/api/v1/entries/${entry.id}/publish`);
+    const page = await author.get(`/${new Date().getUTCFullYear()}/${entry.slug}`);
+    expect(page.body).toContain('title="Harbour at dawn"');
+    // Images without a title get no attribute.
+    const plain = (
+      await author.upload('/api/v1/media', 'untitled.png', await png(36, 24), 'image/png')
+    ).json();
+    const other = (
+      await author.post('/api/v1/entries', {
+        type: 'article',
+        title: 'Untitled image',
+        document: {
+          schema: 1,
+          blocks: [{ id: 'i', type: 'core/image', v: 1, attrs: { id: plain.id, url: plain.url } }],
+        },
+      })
+    ).json();
+    await author.post(`/api/v1/entries/${other.id}/publish`);
+    const plainPage = await author.get(`/${new Date().getUTCFullYear()}/${other.slug}`);
+    expect(plainPage.body).toMatch(new RegExp(`<img src="${plain.url}"`));
+    expect(plainPage.body).not.toMatch(/<img[^>]*\btitle="/);
+  });
+
   it('refuses SVG unless enabled', async () => {
     const svg = Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',

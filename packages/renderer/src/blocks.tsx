@@ -598,6 +598,7 @@ function ImageBlock({ block }: { block: CxdBlock }): ReactNode {
       media={media}
       src={src}
       alt={alt}
+      title={str(block.attrs.title)}
       eager={eager}
       width={block.attrs.width}
       height={block.attrs.height}
@@ -635,10 +636,13 @@ export function ResponsiveImage({
   height,
   sizes = '(max-width: 800px) 100vw, 800px',
   objectPosition,
+  title,
 }: {
   media: RenderMedia | undefined;
   src: string;
   alt: string;
+  /** The `title` attribute; the media item's title in the page's language when left out. */
+  title?: string | undefined;
   eager: boolean;
   width?: unknown;
   height?: unknown;
@@ -657,10 +661,12 @@ export function ResponsiveImage({
     style.objectPosition = `${Math.round(media.focalPoint.x * 100)}% ${Math.round(media.focalPoint.y * 100)}%`;
   }
   const loading = eager ? undefined : 'lazy';
+  const tooltip = title || media?.title || undefined;
   const img = (
     <img
       src={src}
       alt={alt}
+      title={tooltip}
       width={media?.width ?? undefined}
       height={media?.height ?? undefined}
       loading={loading}

@@ -273,6 +273,8 @@ export async function exportSite(
         filename: m.filename,
         alt: m.alt as Record<string, string>,
         caption: m.caption as Record<string, string>,
+        title: m.title as Record<string, string>,
+        description: m.description as Record<string, string>,
         date: m.createdAt.toISOString(),
       })),
       entries: entryRows.flatMap((e) => {

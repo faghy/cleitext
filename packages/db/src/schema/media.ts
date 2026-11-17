@@ -38,6 +38,10 @@ export const media = pgTable(
     checksum: text('checksum').notNull(),
     alt: jsonb('alt').notNull().default({}),
     caption: jsonb('caption').notNull().default({}),
+    /** Title per language (WordPress's attachment title), the image's `title` attribute (0039). */
+    title: jsonb('title').notNull().default({}),
+    /** Description per language (WordPress's attachment description, 0039). */
+    description: jsonb('description').notNull().default({}),
     focalPoint: jsonb('focal_point'),
     uploadedBy: uuid('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: createdAt(),

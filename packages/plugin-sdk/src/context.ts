@@ -607,6 +607,12 @@ export interface PluginMedia {
   height: number | null;
   /** Alternative text by language. */
   alt: Record<string, string>;
+  /** Title by language (plugin API 1.77). */
+  title?: Record<string, string>;
+  /** Caption by language (plugin API 1.77). */
+  caption?: Record<string, string>;
+  /** Description by language (plugin API 1.77). */
+  description?: Record<string, string>;
 }
 
 export interface MediaApi {
@@ -1055,6 +1061,8 @@ export interface BlockMedia {
   width: number | null;
   height: number | null;
   alt: string;
+  /** Title in the page's language, empty when unset (plugin API 1.77). */
+  title?: string;
   variants: { variant: string; format: string; url: string; width: number; height: number }[];
   focalPoint?: { x: number; y: number } | null;
 }

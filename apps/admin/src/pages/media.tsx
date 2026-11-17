@@ -340,11 +340,15 @@ function MediaDetails({ media, onDeleted }: { media: MediaView; onDeleted: () =>
   const queryClient = useQueryClient();
   const [alt, setAlt] = useState<Record<string, string>>(media.alt);
   const [caption, setCaption] = useState<Record<string, string>>(media.caption);
+  const [title, setTitle] = useState<Record<string, string>>(media.title);
+  const [description, setDescription] = useState<Record<string, string>>(media.description);
 
   const save = useMutation({
     mutationFn: () =>
       api<MediaView>('PATCH', `/media/${media.id}`, {
         caption,
+        title,
+        description,
         ...(media.kind === 'image' ? { alt } : {}),
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['media'] }),
@@ -402,10 +406,28 @@ function MediaDetails({ media, onDeleted }: { media: MediaView; onDeleted: () =>
               />
             )}
             <TextField
+              label={t('Title ({language})', { language: locale.name })}
+              value={title[locale.code] ?? ''}
+              maxLength={1000}
+              onChange={(e) => setTitle({ ...title, [locale.code]: e.target.value })}
+            />
+            <TextField
               label={t('Caption ({language})', { language: locale.name })}
               value={caption[locale.code] ?? ''}
               onChange={(e) => setCaption({ ...caption, [locale.code]: e.target.value })}
             />
+            <label className="block space-y-1">
+              <span className="block text-sm font-medium text-slate-800">
+                {t('Description ({language})', { language: locale.name })}
+              </span>
+              <textarea
+                rows={3}
+                maxLength={10000}
+                value={description[locale.code] ?? ''}
+                onChange={(e) => setDescription({ ...description, [locale.code]: e.target.value })}
+                className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-sky-600 focus:outline-none focus:ring-1 focus:ring-sky-600"
+              />
+            </label>
           </Fragment>
         ))}
         {save.isSuccess && <Alert kind="success">{t('Saved.')}</Alert>}

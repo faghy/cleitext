@@ -10,6 +10,8 @@ export interface RenderMedia {
   width: number | null;
   height: number | null;
   alt: string;
+  /** Title in the page's language (core 0.114), the image's `title` attribute; empty when unset. */
+  title?: string;
   variants: { variant: string; format: string; url: string; width: number; height: number }[];
   /** Kept in view when CSS crops the image (object-fit: cover). */
   focalPoint?: { x: number; y: number } | null;

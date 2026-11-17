@@ -1225,6 +1225,9 @@ export class PluginServicesProvider implements PluginServices {
           width: row.width,
           height: row.height,
           alt: (row.alt as Record<string, string>) ?? {},
+          title: (row.title as Record<string, string>) ?? {},
+          caption: (row.caption as Record<string, string>) ?? {},
+          description: (row.description as Record<string, string>) ?? {},
         }
       : null;
   }

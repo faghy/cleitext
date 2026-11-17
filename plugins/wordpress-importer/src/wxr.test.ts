@@ -468,3 +468,25 @@ describe('attachment files (1.33.1)', () => {
     ]);
   });
 });
+
+describe('attachment texts', () => {
+  it("maps WordPress's attachment title and description (core #40)", () => {
+    const xml = `<?xml version="1.0"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:wp="http://wordpress.org/export/1.2/">
+<channel><title>Site</title><link>https://site.example</link><wp:wxr_version>1.2</wp:wxr_version><wp:base_blog_url>https://site.example</wp:base_blog_url>
+<item><title>Lighthouse &amp; rocks</title><wp:post_id>7</wp:post_id><wp:post_type>attachment</wp:post_type><wp:status>inherit</wp:status><wp:attachment_url>https://site.example/wp-content/uploads/2024/01/light.jpg</wp:attachment_url><content:encoded><![CDATA[<p>The <b>old</b> lighthouse.</p>]]></content:encoded><excerpt:encoded><![CDATA[]]></excerpt:encoded></item>
+<item><title>IMG_2041</title><wp:post_id>9</wp:post_id><wp:post_type>attachment</wp:post_type><wp:status>inherit</wp:status><wp:attachment_url>https://site.example/wp-content/uploads/2024/01/IMG_2041.jpg</wp:attachment_url></item>
+<item><title></title><wp:post_id>8</wp:post_id><wp:post_type>attachment</wp:post_type><wp:status>inherit</wp:status><wp:attachment_url>https://site.example/wp-content/uploads/2024/01/plain.jpg</wp:attachment_url></item>
+</channel></rss>`;
+    const { document } = wxrToDocument(xml, { locale: 'it' });
+    const [light, camera, plain] = document.media ?? [];
+    // WordPress's default title, the file's name: not kept.
+    expect(camera).not.toHaveProperty('title');
+    expect(light).toMatchObject({
+      title: { it: 'Lighthouse & rocks' },
+      description: { it: 'The old lighthouse.' },
+    });
+    expect(plain).not.toHaveProperty('title');
+    expect(plain).not.toHaveProperty('description');
+  });
+});

@@ -59,6 +59,10 @@ export const transferMediaSchema = z.object({
   filename: z.string().min(1).max(255),
   alt: z.record(z.string(), z.string().max(1_000)).optional(),
   caption: z.record(z.string(), z.string().max(1_000)).optional(),
+  /** Title per language (WordPress's attachment title). */
+  title: z.record(z.string(), z.string().max(1_000)).optional(),
+  /** Description per language (WordPress's attachment description). */
+  description: z.record(z.string(), z.string().max(10_000)).optional(),
   /** Public addresses the file had on the old site (rewritten in content). */
   urls: z.array(z.string().max(2_000)).max(50).optional(),
   /**
