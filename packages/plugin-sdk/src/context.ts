@@ -979,6 +979,12 @@ export interface BlockLoadContext {
    */
   signedIn?: boolean;
   /**
+   * The block being loaded, with the blocks it holds (plugin API 1.76;
+   * missing on older cores): a container can decide from what is inside it,
+   * e.g. hide itself when a list it holds has nothing to show. Read only.
+   */
+  block?: Readonly<CxdBlock>;
+  /**
    * Media of the library by id, as `context.media` gives them in `render`
    * (resized variants, focal point, alternative text in the page's
    * language), for media named by the plugin's own data rather than by the

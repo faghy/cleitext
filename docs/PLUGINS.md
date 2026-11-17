@@ -695,6 +695,7 @@ defineBlock<{ gap: number; image?: string }>({
 - Plugin API 1.73: services between plugins, `ctx.services.provide` / `use` / `all`. See [Services between plugins](#services-between-plugins).
 - Plugin API 1.74: entries (`ctx.content.find` / `get`) and entry events carry `position` (the manual order, WordPress's `menu_order`) and `excerpt` (the short summary, a product's short description).
 - Plugin API 1.75: `ctx.mail.send({ …, notification: true })` marks a notice for the staff (a new submission, a new order…): it does not go to people who turned notifications off in their profile (Profile → Notifications). Leave it out for what a person asked for, such as receipts and confirmations.
+- Plugin API 1.76: a block's `load` gets `context.block`, the block itself with the blocks it holds (read only), so a container can decide from what is inside it (e.g. hide itself when a list it holds is empty).
 - Plugin API 1.72: `ctx.terms.copy` takes `slug`. Slugs of German content write ä ö ü as ae oe ue (core 0.99).
 - Plugin API 1.71: `ctx.content.create` takes `terms` and `featuredMediaId`.
 - Plugin API 1.70: `ctx.content.create` and `ctx.content.publish` (new permission `content:publish`), and producers of entries for calendar plugins (`registerProducer`, `producers`, `produce`). See [Writing and publishing entries](#writing-and-publishing-entries).

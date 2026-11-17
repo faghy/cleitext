@@ -2532,6 +2532,8 @@ export class PublicService {
                   },
                   query: (query) => this.queryEntries(scope, query),
                   signedIn: Boolean(scope.viewer),
+                  // The block with what it holds, for containers (plugin API 1.76).
+                  block: instance,
                   // Media named by the plugin's own data (plugin API 1.46).
                   loadMedia: (ids) =>
                     loadMedia(
