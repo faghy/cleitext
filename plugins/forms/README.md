@@ -53,3 +53,23 @@ With **Consent and button on one row** on, the button "Send the request" and the
 - Messages are in the `plg_forms.submissions` table; `data` (jsonb, 1.3.0) holds every field of a custom form as `{ name, label, type, value }`, in order. `GET /api/v1/ext/forms/submissions` returns it as `fields`.
 - The grid: the form has the class `cf-grid` (twelve columns from 1024px), each field `cf-field cf-<type> cf-w-<width>` (e.g. `cf-w-1-6`), and the consent and button row `cf-submit-row`.
 - Plugin API 1.43: list attributes in the block editor.
+
+## For add-on authors (1.9.0)
+
+Forms offers every message it delivers to other plugins, through the `forms.delivered` extension point (plugin API 1.73 services). It is called after the message is stored and before the email is sent, for messages sent directly and for those held as spam and then released:
+
+```ts
+ctx.services?.provide('forms.delivered', {
+  async delivered(siteId, message) {
+    // message: { messageId, form, fields, page: { path, url? }, locale, submittedAt, ip?, userAgent? }
+    await queue(siteId, message); // only put it aside: send it later, in a scheduled task
+    return { skipMail: false };
+  },
+});
+```
+
+- `fields` holds every field the visitor sent, by name (`{ "email": "ada@example.com", "rooms": ["single", "double"] }`), with the values Forms checked; fields starting with `_`, the hidden anti-bot field and captcha tokens are left out.
+- `page.url` is the full address when the site's address is known; `ip` and `userAgent` may be missing (e.g. for older messages released from the spam queue).
+- Answer `{ skipMail: true }` to keep the notification email back: the message stays in **Messages**.
+- Providers must only enqueue: the visitor is waiting for the page. A provider that throws is logged and left out; the message is delivered anyway.
+- The `forms` service gives `formNames(siteId)`, the names of the forms that sent messages.

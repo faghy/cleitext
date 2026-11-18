@@ -51,3 +51,23 @@ Con **Consenso e pulsante sulla stessa riga** attivo, il pulsante "INVIA LA RICH
 - I messaggi sono nella tabella `plg_forms.submissions`; `data` (jsonb, 1.3.0) contiene tutti i campi di un modulo personalizzato come `{ name, label, type, value }`, in ordine. `GET /api/v1/ext/forms/submissions` lo restituisce come `fields`.
 - La griglia: il modulo ha la classe `cf-grid` (dodici colonne da 1024px), ogni campo `cf-field cf-<tipo> cf-w-<larghezza>` (ad esempio `cf-w-1-6`) e la riga di consenso e pulsante `cf-submit-row`.
 - API dei plugin 1.43: attributi lista nell'editor a blocchi.
+
+## Per chi scrive componenti aggiuntivi (1.9.0)
+
+Moduli offre ogni messaggio che consegna agli altri plugin, con il punto di estensione `forms.delivered` (servizi dell'API dei plugin 1.73). Viene chiamato dopo aver salvato il messaggio e prima di inviare l'email, sia per i messaggi inviati direttamente sia per quelli trattenuti come spam e poi rilasciati:
+
+```ts
+ctx.services?.provide('forms.delivered', {
+  async delivered(siteId, message) {
+    // message: { messageId, form, fields, page: { path, url? }, locale, submittedAt, ip?, userAgent? }
+    await queue(siteId, message); // solo metterlo da parte: inviarlo dopo, in un'attività pianificata
+    return { skipMail: false };
+  },
+});
+```
+
+- `fields` contiene ogni campo inviato dal visitatore, per nome (`{ "email": "ada@example.com", "camere": ["singola", "doppia"] }`), con i valori controllati da Moduli; i campi che iniziano con `_`, il campo nascosto anti-bot e i token dei captcha sono esclusi.
+- `page.url` è l'indirizzo completo quando l'indirizzo del sito è noto; `ip` e `userAgent` possono mancare (ad esempio per messaggi più vecchi rilasciati dalla coda dello spam).
+- Rispondi `{ skipMail: true }` per non inviare l'email di notifica: il messaggio resta in **Messaggi**.
+- I componenti devono solo mettere in coda: il visitatore sta aspettando la pagina. Uno che genera un errore viene registrato nel log e saltato; il messaggio viene consegnato comunque.
+- Il servizio `forms` offre `formNames(siteId)`, i nomi dei moduli che hanno inviato messaggi.

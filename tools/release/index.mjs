@@ -72,6 +72,7 @@ const SEPARATE = [
   'tandem',
   'turbosmtp',
   'disbigle',
+  'zaphook',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {

@@ -1,0 +1,17 @@
+{
+  "slug": "zaphook",
+  "name": "Zaphook",
+  "version": "1.0.0",
+  "apiVersion": "^1.73",
+  "description": "Sends every message of your contact forms to the services you use, through a webhook: Zapier, Make, n8n or any https address. Choose the forms, sign the requests with a secret if you like, and see every delivery in a log. Failed deliveries are retried by themselves.",
+  "author": "Cleitext",
+  "homepage": "https://cleitext.com/plugins/zaphook",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "requires": {
+    "plugins": { "forms": "^1.9.0" }
+  },
+  "permissions": ["routes:admin", "settings:own", "network"],
+  "capabilities": ["manage_zaphook"]
+}

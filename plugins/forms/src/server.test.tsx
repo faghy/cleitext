@@ -29,7 +29,13 @@ let ip = 0;
 
 /** The plugin set up against a fake context: what it registered and did. */
 function setUp(
-  options: { challenge?: string; refuse?: boolean; verdict?: Record<string, unknown> } = {},
+  options: {
+    challenge?: string;
+    refuse?: boolean;
+    verdict?: Record<string, unknown>;
+    /** Plugins offering `forms.delivered` (1.9.0). */
+    providers?: { plugin: string; service: Record<string, unknown> }[];
+  } = {},
 ) {
   const actions = new Map<string, (payload: never, context: { siteId: string }) => unknown>();
   const blocks: PluginBlockDefinition<Record<string, unknown>, Data>[] = [];
@@ -39,7 +45,13 @@ function setUp(
   const mails: Record<string, unknown>[] = [];
   const verified: unknown[] = [];
   const conversions: Record<string, unknown>[] = [];
+  const warnings: string[] = [];
   const ctx = {
+    services: {
+      provide: () => undefined,
+      all: async (_siteId: string, name: string) =>
+        name === 'forms.delivered' ? (options.providers ?? []) : [],
+    },
     conversions: { paid: (_siteId: string, c: Record<string, unknown>) => conversions.push(c) },
     access: { defineCapability: () => undefined },
     settings: {
@@ -82,7 +94,7 @@ function setUp(
         }),
     },
     mail: { send: async (message: Record<string, unknown>) => void mails.push(message) },
-    log: { error: () => undefined, warn: () => undefined },
+    log: { error: () => undefined, warn: (text: string) => void warnings.push(text) },
   } as unknown as PluginContext;
   void plugin.setup(ctx);
   const block = blocks[0]!;
@@ -120,13 +132,18 @@ function setUp(
       body: { _block: 'b1', ...body },
       ip: `10.0.${Math.floor(++ip / 250)}.${ip % 250}`,
       user: null,
-      headers: { host: 'hotel.test', referer: 'http://hotel.test/prenota' },
+      origin: 'https://hotel.test',
+      headers: {
+        host: 'hotel.test',
+        referer: 'http://hotel.test/prenota',
+        'user-agent': 'Browser/1.0',
+      },
     });
 
   const emit = (name: string, payload: unknown) =>
     actions.get(name)!(payload as never, { siteId: 's' });
 
-  return { block, render, send, inserted, mails, verified, emit, conversions };
+  return { block, render, send, inserted, mails, verified, emit, conversions, warnings };
 }
 
 /** The classic form's markup before 1.3.0, which must not change. */
@@ -456,5 +473,123 @@ describe('leads (plugin API 1.58)', () => {
     await emit('form.released', { form: held.form, fields: held.fields, locale: 'it' });
     expect(conversions).toHaveLength(1);
     expect(conversions[0]!.referrals).toEqual({ tandem: 'x' });
+  });
+});
+
+describe('add-ons: forms.delivered (1.9.0)', () => {
+  /** A provider that keeps what it is given and answers `answer`. */
+  const provider = (answer?: unknown) => {
+    const given: Record<string, unknown>[] = [];
+    return {
+      given,
+      entry: {
+        plugin: 'zaphook',
+        service: {
+          delivered: async (siteId: string, message: Record<string, unknown>) => {
+            given.push({ siteId, ...message });
+            return answer;
+          },
+        },
+      },
+    };
+  };
+
+  it('gives every provider the stored message, its fields by name and the page', async () => {
+    const one = provider();
+    const { render, send, inserted, mails } = setUp({ providers: [one.entry] });
+    const { data } = await render(HOTEL_ATTRS);
+    await send({
+      _form: 'Prenotazione',
+      _spec: data.spec,
+      website: '',
+      'cf-turnstile-response': 'token',
+      _back: '/x',
+      ...HOTEL_REQUEST,
+    });
+    expect(inserted).toHaveLength(1);
+    expect(mails).toHaveLength(1);
+    expect(one.given).toHaveLength(1);
+    const given = one.given[0]!;
+    expect(given).toMatchObject({
+      siteId: 's',
+      messageId: 'm1',
+      form: 'Prenotazione',
+      page: { path: '/prenota', url: 'https://hotel.test/prenota' },
+      locale: 'it',
+      userAgent: 'Browser/1.0',
+    });
+    expect(typeof given.ip).toBe('string');
+    expect(Number.isNaN(Date.parse(given.submittedAt as string))).toBe(false);
+    // The checked values (the email in lowercase), no internal field.
+    expect(given.fields).toEqual({
+      'your-name': 'Mario Rossi',
+      'your-email': 'mario@example.com',
+      'your-tel': '+39 019 123456',
+      guests: '2',
+      arrival: '2027-07-10',
+      departure: '2027-07-17',
+      requests: 'Camera vista mare,\nse possibile.',
+      privacy: 'Sì',
+    });
+  });
+
+  it('keeps the email back when a provider asks, the message stays stored', async () => {
+    const keep = provider({ skipMail: true });
+    const other = provider(undefined);
+    const { send, inserted, mails } = setUp({ providers: [other.entry, keep.entry] });
+    await send({ name: 'Ada', email: 'Ada@Example.com', message: 'Hello', phone: '' });
+    expect(inserted).toHaveLength(1);
+    expect(mails).toHaveLength(0);
+    expect(other.given[0]!.fields).toEqual({
+      name: 'Ada',
+      email: 'ada@example.com',
+      message: 'Hello',
+      phone: '',
+    });
+  });
+
+  it('delivers anyway when a provider fails', async () => {
+    const after = provider();
+    const { send, inserted, mails, warnings } = setUp({
+      providers: [
+        {
+          plugin: 'broken',
+          service: {
+            delivered: async () => {
+              throw new Error('down');
+            },
+          },
+        },
+        after.entry,
+      ],
+    });
+    const response = await send({ name: 'Ada', email: 'ada@example.com', message: 'Hello' });
+    expect(response.headers!.location).toBe('/prenota#form-b1-sent');
+    expect(inserted).toHaveLength(1);
+    expect(mails).toHaveLength(1);
+    expect(after.given).toHaveLength(1);
+    expect(warnings.join('\n')).toContain('forms.delivered of broken');
+  });
+
+  it('is not told about spam until it is released, then with who sent it', async () => {
+    const one = provider();
+    const { send, emit, verified } = setUp({
+      providers: [one.entry],
+      verdict: { ok: true, spam: true },
+    });
+    await send({ name: 'Ada', email: 'ada@example.com', message: 'Hello' });
+    expect(one.given).toHaveLength(0);
+    const held = verified[0] as { form: string; fields: Record<string, unknown>; locale: string };
+    expect(held.fields._ua).toBe('Browser/1.0');
+    await emit('form.released', { form: held.form, fields: held.fields, locale: 'it' });
+    expect(one.given).toHaveLength(1);
+    expect(one.given[0]).toMatchObject({
+      form: 'Contact',
+      page: { path: '/prenota', url: 'https://hotel.test/prenota' },
+      userAgent: 'Browser/1.0',
+      submittedAt: held.fields._at,
+      fields: { name: 'Ada', email: 'ada@example.com', message: 'Hello' },
+    });
+    expect(one.given[0]!.ip).toBe(held.fields._ip);
   });
 });

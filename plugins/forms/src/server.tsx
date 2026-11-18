@@ -27,6 +27,7 @@ import {
   newsletterTicked,
   type OptInCheckbox,
 } from './newsletter-optin';
+import { notifyDelivered, submittedFields } from './delivered';
 import { submissions, type Submission } from './schema';
 
 const SUBMIT_PATH = '/_forms/submit';
@@ -47,6 +48,24 @@ interface FormAttrs {
   replyTo?: string;
   /** The consent and the button on one row. */
   submitInline?: boolean;
+}
+
+/** How a message was sent: what add-ons are told (`forms.delivered`, 1.9.0). */
+interface Sent {
+  body: Record<string, unknown>;
+  locale: string;
+  /** When the visitor sent it (ISO 8601). */
+  at: string;
+  /** The site's address as the visitor reached it, e.g. `https://example.com`. */
+  origin?: string | undefined;
+  ip?: string | undefined;
+  userAgent?: string | undefined;
+}
+
+/** The page's full address, when the site's address is known. */
+function pageUrl(origin: string | undefined, path: string): string | undefined {
+  if (!origin || !/^https?:\/\/[^/]+$/i.test(origin)) return undefined;
+  return `${origin}${path}`;
 }
 
 /** What a message keeps and sends. */
@@ -764,7 +783,8 @@ export default definePlugin({
       siteId: string,
       message: Message,
       back: string,
-      referrals: Record<string, string> = {},
+      referrals: Record<string, string>,
+      sent: Sent,
     ): Promise<void> {
       const [stored] = await ctx.db.transaction(siteId, (tx) =>
         tx
@@ -791,8 +811,22 @@ export default definePlugin({
           label: message.formName,
           referrals,
         });
+      // Add-ons (`forms.delivered`, 1.9.0): they put the message aside and may keep the email.
+      const url = pageUrl(sent.origin, back);
+      const { skipMail } = stored
+        ? await notifyDelivered(ctx, siteId, {
+            messageId: stored.id,
+            form: message.formName,
+            fields: submittedFields(sent.body, message.data, message.data ? null : message),
+            page: { path: back, ...(url ? { url } : {}) },
+            locale: sent.locale,
+            submittedAt: sent.at,
+            ...(sent.ip ? { ip: sent.ip } : {}),
+            ...(sent.userAgent ? { userAgent: sent.userAgent } : {}),
+          })
+        : { skipMail: false };
       const { recipient } = await ctx.settings.get(siteId);
-      if (typeof recipient === 'string' && EMAIL_RE.test(recipient)) {
+      if (!skipMail && typeof recipient === 'string' && EMAIL_RE.test(recipient)) {
         await ctx.mail
           .send({
             siteId,
@@ -825,6 +859,7 @@ export default definePlugin({
 
         const message = await messageOf(request.siteId, form, back, request.locale);
         if (!message) return redirect('error');
+        const at = new Date().toISOString();
         if (!allowed(`${request.siteId}|${request.ip}`)) {
           return { status: 429, body: 'Too many messages. Try again later.' };
         }
@@ -834,7 +869,16 @@ export default definePlugin({
           form: FORM_ID,
           locale: request.locale,
           // The page, for a message delivered later (`form.released`).
-          fields: { ...form, _back: back, _referrals: request.referrals ?? {} },
+          // Who sent it and when, for the add-ons (`forms.delivered`, 1.9.0).
+          fields: {
+            ...form,
+            _back: back,
+            _referrals: request.referrals ?? {},
+            _origin: request.origin ?? '',
+            _ip: request.ip ?? '',
+            _ua: (request.headers['user-agent'] ?? '').slice(0, 500),
+            _at: at,
+          },
           ip: request.ip,
           host: (request.headers.host ?? '').replace(/:\d+$/, ''),
           signedIn: request.user !== null,
@@ -846,7 +890,14 @@ export default definePlugin({
         // Held as spam: the visitor reads the usual thanks.
         if (verdict?.spam) return redirect('sent');
 
-        await deliver(request.siteId, message, back, request.referrals);
+        await deliver(request.siteId, message, back, request.referrals ?? {}, {
+          body: form,
+          locale: request.locale,
+          at,
+          origin: request.origin,
+          ip: request.ip,
+          userAgent: request.headers['user-agent'],
+        });
         await subscribeIfAsked(request.siteId, form, message, request.locale, request.ip);
         return redirect('sent');
       },
@@ -866,8 +917,37 @@ export default definePlugin({
         fields._referrals && typeof fields._referrals === 'object'
           ? (fields._referrals as Record<string, string>)
           : {};
-      await deliver(siteId, message, back, referrals);
+      const held = (name: string) =>
+        typeof fields[name] === 'string' && fields[name] !== ''
+          ? (fields[name] as string)
+          : undefined;
+      const at = held('_at');
+      await deliver(siteId, message, back, referrals, {
+        body: fields,
+        locale,
+        at:
+          at && !Number.isNaN(Date.parse(at))
+            ? new Date(at).toISOString()
+            : new Date().toISOString(),
+        origin: held('_origin'),
+        ip: held('_ip'),
+        userAgent: held('_ua'),
+      });
       await subscribeIfAsked(siteId, fields, message, locale);
+    });
+
+    // For add-ons (1.9.0): the names of the forms that sent messages, e.g. to choose some.
+    ctx.services?.provide('forms', {
+      async formNames(siteId: string): Promise<string[]> {
+        const rows = await ctx.db.transaction(siteId, (tx) =>
+          tx
+            .selectDistinct({ name: submissions.formName })
+            .from(submissions)
+            .orderBy(asc(submissions.formName))
+            .limit(100),
+        );
+        return rows.map((r) => r.name);
+      },
     });
 
     // GDPR requests (Privacy plugin): the messages sent with an email address.
