@@ -92,6 +92,12 @@ test('an assistant is connected from the admin and disconnected', async ({ page,
 function fakeProvider() {
   let round = 0;
   return createServer((req, res) => {
+    // The admin lists the provider's models when the provider form opens.
+    if (req.method === 'GET' && req.url?.endsWith('/models')) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ data: [{ id: 'fake-model' }] }));
+      return;
+    }
     req.resume();
     req.on('end', () => {
       const message =
@@ -177,6 +183,12 @@ test('the chat opened from an entry knows the entry and its editor', async ({ pa
   page.on('pageerror', (e) => errors.push(e.message));
   // A provider that answers with what the system prompt says about the entry.
   const provider = createServer((req, res) => {
+    // The admin lists the provider's models when the provider form opens.
+    if (req.method === 'GET' && req.url?.endsWith('/models')) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ data: [{ id: 'fake-model' }] }));
+      return;
+    }
     let data = '';
     req.on('data', (chunk) => (data += chunk));
     req.on('end', () => {
