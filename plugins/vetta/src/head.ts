@@ -226,6 +226,43 @@ export function verificationCode(raw: string): string {
     .slice(0, 200);
 }
 
+/** Names that other routes of the site answer: never served as verification files. */
+const RESERVED_FILES = new Set(['robots.txt', 'llms.txt', 'ads.txt', 'app-ads.txt', 'sitemap.xml']);
+const FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}\.(html|txt|xml)$/;
+
+/** A verification file at the site root (e.g. `google….html`, `BingSiteAuth.xml`). */
+export interface VerificationFile {
+  body: string;
+  contentType: string;
+}
+
+/**
+ * The verification file asked for by name (`<name>.<ext>` at the root), from
+ * the `verify_files` list of the settings; null when there is none.
+ */
+export function verificationFile(list: unknown, requested: string): VerificationFile | null {
+  const name = requested.trim();
+  if (!FILE_NAME.test(name) || RESERVED_FILES.has(name.toLowerCase()) || name.includes('..'))
+    return null;
+  if (!Array.isArray(list)) return null;
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    if (typeof row.name !== 'string' || row.name.trim().replace(/^\/+/, '') !== name) continue;
+    const body = typeof row.content === 'string' ? row.content : '';
+    if (!body.trim()) return null;
+    const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase();
+    const contentType =
+      ext === 'html'
+        ? 'text/html; charset=utf-8'
+        : ext === 'xml'
+          ? 'application/xml; charset=utf-8'
+          : 'text/plain; charset=utf-8';
+    return { body, contentType };
+  }
+  return null;
+}
+
 export function buildHead(input: HeadInput): Head {
   const c = input.config;
   const { head, entry, seo, locale } = input;

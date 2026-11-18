@@ -28,7 +28,7 @@ The links of the **Breadcrumbs** block carry the whole title of their page as a 
 - `%page%` says "Page 2 of 22" ("Pagina 2 di 22") since 1.1.0 with core 0.88 (plugin API 1.57; "Page 2" on older cores); titles imported from WordPress keep their straight quotes and hyphens in the search and social titles.
 - **Social networks**: default image, X card and account, Facebook page and app.
 - **Organization and local business**: name, logo, profiles, and for a business its kind, address, opening hours, price range, coordinates, legal name and VAT number, all in the schema.org graph.
-- **Webmaster tools**: Google, Bing, Yandex, Baidu, Pinterest and Norton verification (paste the code or the whole tag).
+- **Webmaster tools**: Google, Bing, Yandex, Baidu, Pinterest and Norton verification (paste the code or the whole tag), and verification files served at the site root (e.g. `google….html`, `BingSiteAuth.xml`), which survive updates.
 - **Breadcrumbs**: separator, home, prefix; the **Breadcrumbs** block shows them, with a BreadcrumbList in the structured data.
 - **Sitemap**, **Links and images**, **llms.txt and robots.txt**, **Pages not found** (with the log, cleared by hand or by a limit) and **IndexNow** (the key is made for you; pages are sent when published, or by hand, with a log).
 

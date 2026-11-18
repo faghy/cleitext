@@ -78,6 +78,7 @@ export const DEFAULTS: Config = {
   verify_baidu: '',
   verify_pinterest: '',
   verify_norton: '',
+  verify_files: [],
   breadcrumbs_separator: '›',
   breadcrumbs_home: true,
   breadcrumbs_home_label: '',

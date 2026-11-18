@@ -646,10 +646,32 @@ export function webmasterFields(): Field[] {
     ['verify_baidu', 'Baidu'],
     ['verify_pinterest', 'Pinterest'],
     ['verify_norton', 'Norton Safe Web'],
-  ].map(
-    ([name, label]) =>
-      ({ name: name!, type: 'text', maxLength: 300, label: label!, help }) as Field,
-  );
+  ]
+    .map(
+      ([name, label]) =>
+        ({ name: name!, type: 'text', maxLength: 300, label: label!, help }) as Field,
+    )
+    .concat({
+      name: 'verify_files',
+      type: 'list',
+      label: l('Verification files', 'File di verifica'),
+      help: l(
+        'For services that verify the site with a file at its root (e.g. google123.html, BingSiteAuth.xml): the name and the content they give you. Only .html, .txt and .xml.',
+        'Per i servizi che verificano il sito con un file nella radice (es. google123.html, BingSiteAuth.xml): il nome e il contenuto che ti danno. Solo .html, .txt e .xml.',
+      ),
+      itemLabel: 'name',
+      max: 20,
+      fields: [
+        { name: 'name', type: 'text', maxLength: 100, label: l('File name', 'Nome del file') },
+        {
+          name: 'content',
+          type: 'text',
+          multiline: true,
+          maxLength: 2000,
+          label: l('Content', 'Contenuto'),
+        },
+      ],
+    } as Field);
 }
 
 export function breadcrumbFields(): Field[] {

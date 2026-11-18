@@ -26,7 +26,7 @@ import {
   type Config,
 } from './config.js';
 import { BOX_TYPE, ENTRY_FIELDS, TERM_FIELDS } from './fields.js';
-import { buildHead } from './head.js';
+import { buildHead, verificationFile } from './head.js';
 import { termSeoFromWxr } from './import.js';
 import { schemaGraph, type Crumb } from './jsonld.js';
 import { indexnowLog, notFound } from './schema.js';
@@ -679,9 +679,35 @@ export default definePlugin({
     ctx.routes.public({
       method: 'GET',
       path: '/:key.txt',
-      // Any other .txt (robots.txt, ads.txt…) is left to the site.
-      handler: async (request) => (await keyFile(request)) ?? null,
+      // A verification file, else any other .txt (robots.txt, ads.txt…) is left to the site.
+      handler: async (request) => (await keyFile(request)) ?? (await verifyFile(request, 'txt')),
     });
+
+    // ---- Verification files at the root (google….html, BingSiteAuth.xml) ----------------
+    for (const ext of ['html', 'xml'] as const)
+      ctx.routes.public({
+        method: 'GET',
+        path: `/:key.${ext}`,
+        // Pages or feeds with the same address are left to the site.
+        handler: async (request) => await verifyFile(request, ext),
+      });
+    async function verifyFile(
+      request: { siteId: string; params: Record<string, string> },
+      ext: 'html' | 'txt' | 'xml',
+    ) {
+      const config = await configFor(ctx, request.siteId);
+      const file = verificationFile(config.verify_files, `${request.params.key ?? ''}.${ext}`);
+      return file
+        ? {
+            body: file.body,
+            contentType: file.contentType,
+            headers: {
+              'x-robots-tag': 'noindex',
+              'content-security-policy': "default-src 'none'; sandbox",
+            },
+          }
+        : null;
+    }
     async function keyFile(request: { siteId: string; params: Record<string, string> }) {
       const config = await configFor(ctx, request.siteId);
       const key = text(config, 'indexnow_key');

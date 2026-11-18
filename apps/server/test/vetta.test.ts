@@ -291,6 +291,34 @@ describe('Vetta SEO', () => {
     await admin.request('PUT', '/api/v1/ext/vetta/config', { config: { module_indexNow: false } });
   });
 
+  it('serves the verification files at the root, leaving other addresses to the site', async () => {
+    await admin.request('PUT', '/api/v1/ext/vetta/config', {
+      config: {
+        verify_files: [
+          { name: 'google0123abcd.html', content: 'google-site-verification: google0123abcd.html' },
+          {
+            name: 'BingSiteAuth.xml',
+            content: '<?xml version="1.0"?><users><user>K1</user></users>',
+          },
+          { name: 'yandex_99.txt', content: 'verify-99' },
+        ],
+      },
+    });
+    const google = await visitor.get('/google0123abcd.html');
+    expect(google.statusCode).toBe(200);
+    expect(google.body).toBe('google-site-verification: google0123abcd.html');
+    expect(google.headers['content-type']).toContain('text/html');
+    const bing = await visitor.get('/BingSiteAuth.xml');
+    expect(bing.statusCode).toBe(200);
+    expect(bing.headers['content-type']).toContain('xml');
+    expect(bing.body).toContain('<user>K1</user>');
+    expect((await visitor.get('/yandex_99.txt')).body).toBe('verify-99');
+    expect((await visitor.get('/google-other.html')).statusCode).toBe(404);
+    expect((await visitor.get('/robots.txt')).body).toContain('User-agent');
+    await admin.request('PUT', '/api/v1/ext/vetta/config', { config: {} });
+    expect((await visitor.get('/google0123abcd.html')).statusCode).toBe(404);
+  });
+
   it('gives categories and tags their own search title, description, robots and canonical', async () => {
     const screen = (await admin.get('/api/v1/field-screens/term')).json() as {
       groups: { id: string; fields: { name: string; type: string }[] }[];

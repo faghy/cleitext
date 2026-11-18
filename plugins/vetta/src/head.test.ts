@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { entrySeo, sanitizeConfig, taxonomyValue } from './config';
-import { buildHead, robotsContent, robotsFor, verificationCode, type HeadInput } from './head';
+import {
+  buildHead,
+  robotsContent,
+  robotsFor,
+  verificationCode,
+  verificationFile,
+  type HeadInput,
+} from './head';
 import { openingHours, schemaGraph } from './jsonld';
 import { excluded, imageTexts, linkAttributes, llmsText, robotsText } from './tools';
 
@@ -420,5 +427,36 @@ describe('the page’s HTML', () => {
     expect(robotsText('User-agent: *\nDisallow: /tmp', 'https://bar.example/sitemap.xml')).toBe(
       'User-agent: *\nDisallow: /tmp\n\nSitemap: https://bar.example/sitemap.xml\n',
     );
+  });
+});
+
+describe('verificationFile', () => {
+  const list = [
+    {
+      name: 'google7b1481c7b4e3669e.html',
+      content: 'google-site-verification: google7b1481c7b4e3669e.html',
+    },
+    { name: '/BingSiteAuth.xml', content: '<?xml version="1.0"?><users><user>ABC</user></users>' },
+    { name: 'robots.txt', content: 'User-agent: *' },
+    { name: 'empty.txt', content: '  ' },
+  ];
+
+  it('serves a listed file with the type of its extension', () => {
+    expect(verificationFile(list, 'google7b1481c7b4e3669e.html')).toEqual({
+      body: 'google-site-verification: google7b1481c7b4e3669e.html',
+      contentType: 'text/html; charset=utf-8',
+    });
+    expect(verificationFile(list, 'BingSiteAuth.xml')?.contentType).toBe(
+      'application/xml; charset=utf-8',
+    );
+  });
+
+  it('leaves everything else to the site', () => {
+    expect(verificationFile(list, 'other.html')).toBeNull();
+    expect(verificationFile(list, 'robots.txt')).toBeNull();
+    expect(verificationFile(list, 'empty.txt')).toBeNull();
+    expect(verificationFile(list, 'BingSiteAuth.php')).toBeNull();
+    expect(verificationFile(list, '../x.html')).toBeNull();
+    expect(verificationFile(undefined, 'google7b1481c7b4e3669e.html')).toBeNull();
   });
 });
