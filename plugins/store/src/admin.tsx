@@ -64,6 +64,19 @@ interface LicenseRow {
   priceCents: number | null;
   currency: string | null;
   createdAt: string;
+  sites?: { internal: number; external: number };
+  links?: OrderLinkRow[];
+}
+interface OrderLinkRow {
+  id: string;
+  orderNumber: number | null;
+  orderId: string | null;
+  orderRef: string | null;
+  status: 'pending' | 'linked' | 'refused';
+  previousSource: string | null;
+  note: string | null;
+  createdAt: string;
+  linkedAt: string | null;
 }
 interface ActivationRow {
   id: string;
@@ -72,6 +85,18 @@ interface ActivationRow {
   createdAt: string;
   lastSeenAt: string;
   deactivatedAt: string | null;
+  internal?: boolean;
+}
+
+/** A badge: internal (our servers) or external installation (Store 1.6). */
+function Scope({ internal, label }: { internal: boolean; label: string }) {
+  return (
+    <span
+      className={`rounded px-1.5 py-0.5 text-xs font-medium ${internal ? 'bg-slate-200 text-slate-700' : 'bg-emerald-100 text-emerald-800'}`}
+    >
+      {label}
+    </span>
+  );
 }
 
 const T = {
@@ -153,6 +178,30 @@ const T = {
     portal: 'Customer portal',
     portalHint:
       'Customers and agencies sign in with the email of their licenses (a link by email) and see their keys, sites and downloads; they can free a seat.',
+    internal: 'internal',
+    external: 'external',
+    sitesScope: '{internal} internal, {external} external',
+    linkOrder: 'Link to a Cleishop order',
+    linkHint:
+      'For a license made by hand whose order is entered in Cleishop afterwards: the order takes this license, without a new key, an email or an invoice. Give the order number (or the address of its page), or make the order here: it is imported in Cleishop as completed, with no email, stock movement, payment or invoice.',
+    orderField: 'Order number or address of its page',
+    linkButton: 'Link',
+    createOrder: 'Make the order in Cleishop from this license',
+    firstName: 'First name',
+    lastName: 'Last name',
+    company: 'Company',
+    vatNumber: 'VAT number',
+    taxCode: 'Tax code',
+    country: 'Country (IT, DE…)',
+    total: 'Total paid, tax included (empty: the license’s price)',
+    tax: 'Tax in it',
+    date: 'Date (empty: the license’s)',
+    orderNumber: 'Order number (optional)',
+    createButton2: 'Make and link the order',
+    linked: 'Cleishop order {number}',
+    pending: 'waiting for Cleishop order {number}',
+    refused: 'order {number} not linked: {note}',
+    cancelLink: 'Cancel',
   },
   it: {
     title: 'Store',
@@ -233,6 +282,30 @@ const T = {
     portal: 'Portale clienti',
     portalHint:
       'Clienti e agenzie accedono con l’email delle loro licenze (un link per email) e vedono chiavi, siti e download; possono liberare un posto.',
+    internal: 'interna',
+    external: 'esterna',
+    sitesScope: '{internal} interni, {external} esterni',
+    linkOrder: 'Collega a un ordine Cleishop',
+    linkHint:
+      'Per una licenza fatta a mano il cui ordine viene inserito dopo in Cleishop: l’ordine prende questa licenza, senza nuova chiave, email né fattura. Indica il numero dell’ordine (o l’indirizzo della sua pagina), oppure crea qui l’ordine: viene importato in Cleishop come completato, senza email, movimenti di magazzino, pagamento né fattura.',
+    orderField: 'Numero dell’ordine o indirizzo della sua pagina',
+    linkButton: 'Collega',
+    createOrder: 'Crea l’ordine in Cleishop da questa licenza',
+    firstName: 'Nome',
+    lastName: 'Cognome',
+    company: 'Azienda',
+    vatNumber: 'Partita IVA',
+    taxCode: 'Codice fiscale',
+    country: 'Paese (IT, DE…)',
+    total: 'Totale pagato, IVA inclusa (vuoto: il prezzo della licenza)',
+    tax: 'Di cui IVA',
+    date: 'Data (vuota: quella della licenza)',
+    orderNumber: 'Numero dell’ordine (facoltativo)',
+    createButton2: 'Crea e collega l’ordine',
+    linked: 'ordine Cleishop {number}',
+    pending: 'in attesa dell’ordine Cleishop {number}',
+    refused: 'ordine {number} non collegato: {note}',
+    cancelLink: 'Annulla',
   },
 };
 type Strings = (typeof T)['en'];
@@ -345,6 +418,9 @@ function Activations({
             {a.siteOrigin}
           </span>
           <code className="text-xs">{a.productSlug}</code>
+          {a.internal !== undefined && (
+            <Scope internal={a.internal} label={a.internal ? t.internal : t.external} />
+          )}
           <span className="text-xs text-slate-500">
             {new Date(a.createdAt).toLocaleDateString(locale)} –{' '}
             {new Date(a.deactivatedAt ?? a.lastSeenAt).toLocaleDateString(locale)}
@@ -357,6 +433,82 @@ function Activations({
         </li>
       ))}
     </ul>
+  );
+}
+
+/** «Link to a Cleishop order» of a license (Store 1.6). */
+function LinkOrder({
+  id,
+  api,
+  t,
+  onDone,
+}: {
+  id: string;
+  api: AdminPageProps['api'];
+  t: Strings;
+  onDone: () => void;
+}) {
+  const [order, setOrder] = useState('');
+  const [create, setCreate] = useState(false);
+  const [form, setForm] = useState({
+    firstName: '',
+    lastName: '',
+    company: '',
+    vatNumber: '',
+    taxCode: '',
+    country: 'IT',
+    total: '',
+    tax: '',
+    date: '',
+    number: '',
+  });
+  const link = useMutation({
+    mutationFn: () =>
+      api('POST', `/admin/licenses/${id}/cleishop-order`, create ? { create: form } : { order }),
+    onSuccess: onDone,
+  });
+  const field = (name: keyof typeof form, label: string) => (
+    <TextField
+      key={name}
+      label={label}
+      value={form[name]}
+      onChange={(e) => setForm({ ...form, [name]: e.target.value })}
+    />
+  );
+  return (
+    <form
+      className="space-y-2 rounded border border-slate-200 p-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        link.mutate();
+      }}
+    >
+      <p className="text-xs text-slate-600">{t.linkHint}</p>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={create} onChange={(e) => setCreate(e.target.checked)} />
+        {t.createOrder}
+      </label>
+      {create ? (
+        <div className="grid gap-2 md:grid-cols-3">
+          {field('firstName', t.firstName)}
+          {field('lastName', t.lastName)}
+          {field('company', t.company)}
+          {field('vatNumber', t.vatNumber)}
+          {field('taxCode', t.taxCode)}
+          {field('country', t.country)}
+          {field('total', t.total)}
+          {field('tax', t.tax)}
+          {field('date', t.date)}
+          {field('number', t.orderNumber)}
+        </div>
+      ) : (
+        <TextField label={t.orderField} value={order} onChange={(e) => setOrder(e.target.value)} />
+      )}
+      {link.error && <Alert>{errorMessage(link.error)}</Alert>}
+      <Button type="submit" disabled={link.isPending || (!create && !order.trim())}>
+        {create ? t.createButton2 : t.linkButton}
+      </Button>
+    </form>
   );
 }
 
@@ -639,6 +791,11 @@ function StorePage({ api, user }: AdminPageProps) {
     mutationFn: (id: string) => api('POST', `/admin/licenses/${id}/extend`, { months: 12 }),
     onSuccess: refresh,
   });
+  const [linking, setLinking] = useState<string | null>(null);
+  const cancelLink = useMutation({
+    mutationFn: (link: string) => api('DELETE', `/admin/order-links/${link}`),
+    onSuccess: refresh,
+  });
   const changeSeats = useMutation({
     mutationFn: (v: { id: string; seats: number }) =>
       api('POST', `/admin/licenses/${v.id}/seats`, { seats: v.seats }),
@@ -658,6 +815,7 @@ function StorePage({ api, user }: AdminPageProps) {
     setStatus.error ??
     extend.error ??
     changeSeats.error ??
+    cancelLink.error ??
     savePeople.error;
   const nameOf = (slug: string) => data?.products.find((p) => p.slug === slug)?.name ?? slug;
 
@@ -1077,7 +1235,39 @@ function StorePage({ api, user }: AdminPageProps) {
                 {l.status === 'revoked' && (
                   <span className="font-medium text-red-700">{t.revoked}</span>
                 )}
+                {l.sites && l.sites.internal + l.sites.external > 0 && (
+                  <>
+                    {l.sites.external === 0 ? (
+                      <Scope internal label={t.internal} />
+                    ) : l.sites.internal === 0 ? (
+                      <Scope internal={false} label={t.external} />
+                    ) : (
+                      <span className="text-xs">{fill(t.sitesScope, l.sites)}</span>
+                    )}
+                  </>
+                )}
               </div>
+              {l.links?.map((link) => (
+                <p key={link.id} className="text-xs text-slate-600">
+                  {fill(
+                    link.status === 'linked'
+                      ? t.linked
+                      : link.status === 'pending'
+                        ? t.pending
+                        : t.refused,
+                    { number: link.orderNumber ?? '', note: link.note ?? '' },
+                  )}
+                  {link.status === 'pending' && (
+                    <button
+                      type="button"
+                      className="ml-2 text-sky-700 hover:underline"
+                      onClick={() => cancelLink.mutate(link.id)}
+                    >
+                      {t.cancelLink}
+                    </button>
+                  )}
+                </p>
+              ))}
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="secondary"
@@ -1098,6 +1288,15 @@ function StorePage({ api, user }: AdminPageProps) {
                 >
                   {t.editPeople}
                 </Button>
+                {l.source === 'manual' && (
+                  <Button
+                    variant="secondary"
+                    aria-expanded={linking === l.id}
+                    onClick={() => setLinking(linking === l.id ? null : l.id)}
+                  >
+                    {t.linkOrder}
+                  </Button>
+                )}
                 <Button
                   variant="secondary"
                   onClick={() => {
@@ -1157,6 +1356,17 @@ function StorePage({ api, user }: AdminPageProps) {
                   </div>
                 </form>
               )}
+              {linking === l.id && (
+                <LinkOrder
+                  id={l.id}
+                  api={api}
+                  t={t}
+                  onDone={() => {
+                    setLinking(null);
+                    return refresh();
+                  }}
+                />
+              )}
               {open === l.id && <Activations id={l.id} api={api} t={t} locale={locale} />}
             </li>
           ))}
@@ -1189,6 +1399,12 @@ interface InstallRow {
   themes: { slug: string; version: string }[];
   firstSeenAt: string;
   lastSeenAt: string;
+  /** Store 1.6: our own servers or not, why, and the mark by hand. */
+  serverIp?: string | null;
+  serverHost?: string | null;
+  internal?: boolean;
+  internalReason?: 'manual' | 'origin' | 'server' | 'address' | 'installation' | null;
+  manual?: boolean | null;
 }
 
 const I = {
@@ -1228,6 +1444,28 @@ const I = {
     installedOn: 'installed on',
     usedOn: 'in use on',
     only: 'installed only on',
+    scope: 'Installations',
+    scopeAll: 'All',
+    scopeInternal: 'Internal',
+    scopeExternal: 'External',
+    internal: 'internal',
+    external: 'external',
+    totalInternal: 'Internal',
+    totalExternal: 'External',
+    scopeHint:
+      'Internal: on our own servers and domains (Settings → Store → Internal domains and servers); external: all the others.',
+    serverName: 'server name',
+    reason: 'why',
+    reasons: {
+      manual: 'marked by hand',
+      origin: 'its domain is in the list',
+      server: 'its server is in the list',
+      address: 'its server’s address is in the list',
+      installation: 'another site of its installation is internal',
+    },
+    markInternal: 'Mark internal',
+    markExternal: 'Mark external',
+    markAuto: 'Back to the list',
   },
   it: {
     title: 'Installazioni',
@@ -1265,6 +1503,28 @@ const I = {
     installedOn: 'installato su',
     usedOn: 'in uso su',
     only: 'solo installato su',
+    scope: 'Installazioni',
+    scopeAll: 'Tutte',
+    scopeInternal: 'Interne',
+    scopeExternal: 'Esterne',
+    internal: 'interna',
+    external: 'esterna',
+    totalInternal: 'Interne',
+    totalExternal: 'Esterne',
+    scopeHint:
+      'Interne: sui nostri server e domini (Impostazioni → Store → Domini e server interni); esterne: tutte le altre.',
+    serverName: 'nome del server',
+    reason: 'perché',
+    reasons: {
+      manual: 'segnata a mano',
+      origin: 'il suo dominio è nell’elenco',
+      server: 'il suo server è nell’elenco',
+      address: 'l’indirizzo del suo server è nell’elenco',
+      installation: 'un altro sito della sua installazione è interno',
+    },
+    markInternal: 'Segna come interna',
+    markExternal: 'Segna come esterna',
+    markAuto: 'Torna all’elenco',
   },
 };
 
@@ -1460,6 +1720,7 @@ function InstallationsPage({ api, user }: AdminPageProps) {
   const [q, setQ] = useState('');
   const [plugin, setPlugin] = useState('');
   const [theme, setTheme] = useState('');
+  const [scope, setScope] = useState<'all' | 'internal' | 'external'>('all');
   const rows = useQuery({
     queryKey: ['store', 'installs', days],
     queryFn: () => api<InstallRow[]>('GET', `/admin/installs?days=${days}`),
@@ -1468,8 +1729,17 @@ function InstallationsPage({ api, user }: AdminPageProps) {
     mutationFn: (origin: string) => api('DELETE', '/admin/installs', { origin }),
     onSuccess: () => client.invalidateQueries({ queryKey: ['store', 'installs'] }),
   });
+  const mark = useMutation({
+    mutationFn: (v: { origin: string; internal: boolean | null }) =>
+      api('PUT', '/admin/installs/internal', v),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['store', 'installs'] }),
+  });
   const needle = q.trim().toLowerCase();
-  const all = rows.data ?? [];
+  const reported = rows.data ?? [];
+  const internalCount = reported.filter((r) => r.internal).length;
+  const all = reported.filter(
+    (r) => scope === 'all' || (scope === 'internal' ? r.internal === true : r.internal !== true),
+  );
   // Every plugin and theme reported, for the filters.
   const pluginSlugs = [...new Set(all.flatMap((r) => r.plugins.map((p) => p.slug)))].sort();
   const themeSlugs = [
@@ -1521,6 +1791,7 @@ function InstallationsPage({ api, user }: AdminPageProps) {
       inactive: new Set(entries.filter((e) => !e.active).map((e) => e.origin)).size,
     };
   });
+  const internalOf = new Map(data.map((r) => [r.origin, r.internal === true] as const));
   const usages = usageOf(data).filter((u) => !needle || u.slug.includes(needle));
   const sites = data.filter(
     (r) =>
@@ -1549,7 +1820,8 @@ function InstallationsPage({ api, user }: AdminPageProps) {
       </div>
       {rows.error && <Alert>{errorMessage(rows.error)}</Alert>}
       <ServerReports api={api} locale={locale} days={days} />
-      {forget.error && <Alert>{errorMessage(forget.error)}</Alert>}
+      {(forget.error ?? mark.error) && <Alert>{errorMessage(forget.error ?? mark.error)}</Alert>}
+      <p className="text-xs text-slate-600">{t.scopeHint}</p>
       <div className="flex flex-wrap items-end gap-4">
         <label className="block space-y-1 text-sm">
           <span className="block font-medium text-slate-800">{t.seen}</span>
@@ -1563,6 +1835,24 @@ function InstallationsPage({ api, user }: AdminPageProps) {
                 {d} {t.days}
               </option>
             ))}
+          </select>
+        </label>
+        <label className="block space-y-1 text-sm">
+          <span className="block font-medium text-slate-800">{t.scope}</span>
+          <select
+            className="rounded border border-slate-300 bg-white px-2 py-2"
+            value={scope}
+            onChange={(e) => setScope(e.target.value as typeof scope)}
+          >
+            <option value="all">
+              {t.scopeAll} ({reported.length})
+            </option>
+            <option value="internal">
+              {t.scopeInternal} ({internalCount})
+            </option>
+            <option value="external">
+              {t.scopeExternal} ({reported.length - internalCount})
+            </option>
           </select>
         </label>
         <TextField label={t.filter} value={q} onChange={(e) => setQ(e.target.value)} />
@@ -1626,10 +1916,12 @@ function InstallationsPage({ api, user }: AdminPageProps) {
       })}
       {all.length > 0 && (
         <Card title={t.summary}>
-          <dl className="mb-4 grid grid-cols-3 gap-4 text-center">
+          <dl className="mb-4 grid grid-cols-2 gap-4 text-center sm:grid-cols-5">
             {(
               [
                 [t.totalSites, data.length],
+                [t.totalInternal, data.filter((r) => r.internal).length],
+                [t.totalExternal, data.filter((r) => !r.internal).length],
                 [t.totalServers, servers],
                 [t.totalCore, coreVersions],
               ] as const
@@ -1716,6 +2008,14 @@ function InstallationsPage({ api, user }: AdminPageProps) {
                                   <a className="text-sky-700 hover:underline" href={s.origin}>
                                     {s.origin.replace(/^https?:\/\//, '')}
                                   </a>
+                                  {internalOf.has(s.origin) && (
+                                    <span className="ml-2">
+                                      <Scope
+                                        internal={internalOf.get(s.origin)!}
+                                        label={internalOf.get(s.origin) ? t.internal : t.external}
+                                      />
+                                    </span>
+                                  )}
                                   {u.kind !== 'core' && (
                                     <span className="ml-2 text-xs text-slate-500">
                                       {s.active ? t.inUse : t.installedOnly}
@@ -1735,6 +2035,14 @@ function InstallationsPage({ api, user }: AdminPageProps) {
       {view === 'sites' &&
         sites.map((r) => (
           <Card key={r.origin} title={r.origin.replace(/^https?:\/\//, '')}>
+            <p className="mb-2">
+              <Scope internal={r.internal === true} label={r.internal ? t.internal : t.external} />
+              {r.internalReason && (
+                <span className="ml-2 text-xs text-slate-600">
+                  {t.reason}: {t.reasons[r.internalReason]}
+                </span>
+              )}
+            </p>
             <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[10rem_1fr]">
               <dt className="font-medium">{t.core}</dt>
               <dd className="font-mono">{r.coreVersion}</dd>
@@ -1751,10 +2059,42 @@ function InstallationsPage({ api, user }: AdminPageProps) {
               </dd>
               <dt className="font-medium">{t.server}</dt>
               <dd className="font-mono text-xs">{r.installId.slice(0, 8)}</dd>
+              {(r.serverHost || r.serverIp) && (
+                <>
+                  <dt className="font-medium">{t.serverName}</dt>
+                  <dd className="font-mono text-xs">
+                    {[r.serverHost, r.serverIp].filter(Boolean).join(' · ')}
+                  </dd>
+                </>
+              )}
               <dt className="font-medium">{t.lastSeen}</dt>
               <dd>{new Date(r.lastSeenAt).toLocaleString(locale)}</dd>
             </dl>
-            <div className="mt-3">
+            <div className="mt-3 flex flex-wrap gap-2">
+              {r.manual !== true && (
+                <Button
+                  variant="secondary"
+                  onClick={() => mark.mutate({ origin: r.origin, internal: true })}
+                >
+                  {t.markInternal}
+                </Button>
+              )}
+              {r.manual !== false && (
+                <Button
+                  variant="secondary"
+                  onClick={() => mark.mutate({ origin: r.origin, internal: false })}
+                >
+                  {t.markExternal}
+                </Button>
+              )}
+              {r.manual !== null && r.manual !== undefined && (
+                <Button
+                  variant="secondary"
+                  onClick={() => mark.mutate({ origin: r.origin, internal: null })}
+                >
+                  {t.markAuto}
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 onClick={() => {

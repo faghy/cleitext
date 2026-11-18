@@ -2,6 +2,8 @@
  * Licenses sold by the site's own Cleishop (Store 1.5, Cleishop 1.22): a paid
  * order makes the license and emails the key, the renewal link carries the
  * license to the order line and adds a year once, a refund revokes it.
+ * Store 1.6: a license made by hand is linked to its Cleishop order (made by
+ * the store, named by id or by number) without a new key or an email.
  */
 import { cp, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -176,5 +178,108 @@ describe('licenses sold with Cleishop', () => {
     await setStatus(id, 'refunded');
     const statuses = (await licensesOf('anna@example.test')).map((l) => l.status).sort();
     expect(statuses).toEqual(['active', 'revoked']);
+  });
+});
+
+describe('licenses made by hand, linked to their Cleishop order (Store 1.6)', () => {
+  const outbox = () => app.get(MailService).outbox;
+  const keyMails = (from: number) =>
+    outbox()
+      .slice(from)
+      .filter((m) => /License key: /.test(m.text));
+
+  async function manual(email: string) {
+    const made = await admin.request('POST', `${STORE}/admin/licenses`, {
+      productSlug: 'vivid',
+      email,
+      seats: 1,
+      listPriceCents: 5900,
+    });
+    expect(made.statusCode, made.body).toBe(200);
+    return made.json().id as string;
+  }
+  const link = (id: string, body: unknown) =>
+    admin.request('POST', `${STORE}/admin/licenses/${id}/cleishop-order`, body);
+  const licenses = async (email: string) =>
+    (await admin.get(`${STORE}/admin/licenses?q=${encodeURIComponent(email)}`)).json() as {
+      id: string;
+      source: string;
+      orderRef: string | null;
+      status: string;
+      links: { status: string; orderNumber: number; orderId: string }[];
+    }[];
+
+  it('makes the order in Cleishop from the license: no new key, no email, no hook', async () => {
+    const id = await manual('bea@example.test');
+    const before = outbox().length;
+    const done = await link(id, {
+      create: { firstName: 'Bea', lastName: 'Verdi', vatNumber: '01234567890', date: '2026-11-17' },
+    });
+    expect(done.statusCode, done.body).toBe(200);
+    const orderId = done.json().link.orderId as string;
+    expect(outbox().length).toBe(before);
+    const order = (await admin.get(`${SHOP}/orders/${orderId}`)).json();
+    expect(order.order).toMatchObject({ status: 'completed', email: 'bea@example.test' });
+    expect(order.order.total).toBe('59.00');
+    const [license] = await licenses('bea@example.test');
+    expect(license).toMatchObject({ id, source: 'cleishop', status: 'active' });
+    expect(license!.orderRef).toBe(`${orderId}:${order.items[0].id}`);
+    expect(license!.links).toMatchObject([{ status: 'linked', orderId }]);
+    // Again: the same order, the same link.
+    const again = await link(id, { create: { date: '2026-11-17' } });
+    expect(again.statusCode, again.body).toBe(200);
+    expect(again.json().link.orderId).toBe(orderId);
+    // Later status changes find the license there: no second one, no key.
+    await setStatus(orderId, 'processing');
+    await setStatus(orderId, 'completed');
+    expect(await licenses('bea@example.test')).toHaveLength(1);
+    expect(keyMails(before)).toEqual([]);
+  });
+
+  it('links an order of the checkout by the address of its page, before it is paid', async () => {
+    const id = await manual('anna@example.test');
+    const orderId = await buy(`/cart/add?product=${theme}`, '10.97.0.5');
+    const before = outbox().length;
+    const done = await link(id, {
+      order: `https://${host}/admin/p/shop/orders?order=${orderId}`,
+    });
+    expect(done.statusCode, done.body).toBe(200);
+    const count = (await licenses('anna@example.test')).length;
+    await setStatus(orderId, 'processing');
+    await setStatus(orderId, 'completed');
+    expect(await licenses('anna@example.test')).toHaveLength(count);
+    expect(keyMails(before)).toEqual([]);
+    expect((await licenses('anna@example.test')).find((l) => l.id === id)?.source).toBe('cleishop');
+  });
+
+  it('waits for an order named by its number, then links it when it is paid', async () => {
+    const id = await manual('anna@example.test');
+    const orderId = await buy(`/cart/add?product=${theme}`, '10.97.0.6');
+    const number = (await admin.get(`${SHOP}/orders/${orderId}`)).json().order.number as number;
+    const done = await link(id, { order: `#${number}` });
+    expect(done.statusCode, done.body).toBe(200);
+    expect(done.json().link).toMatchObject({ status: 'pending', orderNumber: number });
+    const count = (await licenses('anna@example.test')).length;
+    const before = outbox().length;
+    await setStatus(orderId, 'processing');
+    const after = await licenses('anna@example.test');
+    expect(after).toHaveLength(count);
+    expect(after.find((l) => l.id === id)).toMatchObject({
+      source: 'cleishop',
+      links: [{ status: 'linked', orderNumber: number, orderId }],
+    });
+    expect(keyMails(before)).toEqual([]);
+    // Refunded: the linked license is revoked, as one sold by the shop.
+    await setStatus(orderId, 'refunded');
+    expect((await licenses('anna@example.test')).find((l) => l.id === id)?.status).toBe('revoked');
+  });
+
+  it('refuses an order that already made its license', async () => {
+    const orderId = await buy(`/cart/add?product=${theme}`, '10.97.0.7');
+    await setStatus(orderId, 'processing');
+    const id = await manual('anna@example.test');
+    const done = await link(id, { order: orderId });
+    expect(done.statusCode).toBe(409);
+    expect((await licenses('anna@example.test')).find((l) => l.id === id)?.source).toBe('manual');
   });
 });

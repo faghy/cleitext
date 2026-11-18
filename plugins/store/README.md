@@ -81,6 +81,39 @@ The portal pages are not cached (`cache-control: private, no-store`); a proxy ca
 
 Reports from development and test addresses (`localhost`, `.test`, `.local`, private networks) are ignored. Sites can turn reporting off in **Settings → General**; a site not heard from for 180 days is deleted from the registry. **Forget** removes a site until its next report.
 
+### Internal and external installations
+
+Since 1.6.0 each installation is **internal** (on our own servers and domains) or **external** (every other one). **Settings → Store → Internal domains and servers** holds the list, one pattern per line:
+
+- `*.2clic.it`: every name under 2clic.it (server1.2clic.it, a staging subdomain…), not 2clic.it itself;
+- `sitoup.it`: that name only;
+- `203.0.113.7` or `203.0.113.0/24`: the address (or network) of a server.
+
+The default list is `*.2clic.it`, `2clic.it`, `*.sitoup.it`, `sitoup.it`, `*.dnsbazar.com`, `dnsbazar.com`; lines starting with `#` are comments. An installation is internal when:
+
+1. its site's host matches a name of the list;
+2. or the **server** it reports from matches: Cleitext's report names no server, so the store keeps the address the report comes from and its reverse DNS name (e.g. `server1.2clic.it`, when the server's PTR record says so), and matches the name against the names of the list and the address against the addresses;
+3. or another site of the same Cleitext **installation** (same install id: one server) is internal by 1 or 2.
+
+A site can also be **marked internal or external by hand** in its card (**By site**); the mark stays across reports until **Back to the list** (or **Forget**). The overview counts internal and external sites, the **Installations** filter (All / Internal / External) narrows everything, and each site has its badge. In **Store → Licenses**, each license shows whether its sites are internal or external, and **Sites** shows it for each activation (by the registry, or by the site's host when it has not reported). The admin API takes `GET …/admin/installs?scope=internal|external` and `PUT …/admin/installs/internal` with `{ origin, internal: true | false | null }`.
+
+## Linking a license to a Cleishop order
+
+A license made by hand (sold and billed outside the shop) can be linked afterwards to its **Cleishop order**, so the order is on record in the shop **without a new key, without an email and without an invoice**. In **Store → Licenses**, a license made by hand has **Link to a Cleishop order**:
+
+- **Make the order in Cleishop from this license** (recommended): the store imports the order through Cleishop's `shop` service, as the WooCommerce import does: status _completed_, the license's email, the billing name, company, VAT number and tax code given, the total (the license's price when empty) and the tax in it, the date (the license's when empty), a note naming the license. An imported order sends **no email**, moves **no stock**, takes **no payment** and fires **no status change**, so PDF Invoices makes **no invoice** for it. Making it again finds the same order (one per license).
+- Or give an **existing order**: its number (`123`, `#123`) or the address of its page (`…/orders?order=<id>`). By id, or by number for an imported order, it is linked at once. A number of an order that is not imported waits (_waiting for Cleishop order 123_) and is linked when that order next changes status, if its email is the license's (or its agency's); otherwise the link is refused and the order is handled as usual. A waiting link can be cancelled; it is dropped after 60 days.
+
+Linking gives the license the order's line (`source` cleishop, `orderRef` `<orderId>:<itemId>`, the same reference a license sold by Cleishop has) and marks that line as handled. When the order is then paid or completed (again), the store finds its license and makes no other, sends no key. If the order is **refunded or cancelled**, the linked license is **revoked**, as any license sold by the shop. Only licenses made by hand can be linked; an order that already made its license is refused (revoke one of the two). The license keeps a record of the link (and of its earlier source).
+
+The admin API: `POST …/admin/licenses/<id>/cleishop-order` with `{ "order": "123" }` or `{ "create": { "firstName", "lastName", "company", "vatNumber", "taxCode", "country", "total", "tax", "date", "number" } }`; `DELETE …/admin/order-links/<id>` cancels a waiting link.
+
+**Recommended procedure** for an order to enter after the license:
+
+1. Do not place the order through the checkout, nor change an order to _processing_ or _completed_ from Cleishop **before** linking it: that sells a license and emails a key (and PDF Invoices makes an invoice on those statuses).
+2. In **Store → Licenses**, find the license, **Link to a Cleishop order** → **Make the order in Cleishop from this license**, give the customer's data and the amount, **Make and link the order**.
+3. Check it in **Cleishop → Orders** (completed, with the store's note). Its documents show **Create the invoice**: do not click it, the invoice was made by hand. PDF Invoices has no setting to skip one order: an order changing to one of its statuses later gets an invoice.
+
 ## Public downloads
 
 **Store → Public downloads** publishes free files of a product, such as the Cleitext Toolkit for Plesk. Choose the product, give the version (`0.6.0-1`) and upload the `.zip`.
@@ -102,6 +135,17 @@ The Cleitext Toolkit for Plesk can send anonymous statistics, if its administrat
 Nothing else is kept: no domain, address or IP. Turning the statistics off sends `{ product, server, forget: true }`, which deletes the server's row. Rows not heard from for 180 days are deleted. Reports are limited per address and checked field by field; the product must exist in **Products**.
 
 **Store → Installations** shows them in **Plesk servers (Cleitext Toolkit)**: the number of servers and installations, by Toolkit version and by Plesk version.
+
+## In italiano (1.6.0)
+
+**Installazioni interne ed esterne.** Le installazioni sui nostri server e domini sono _interne_, tutte le altre _esterne_. L'elenco è in **Impostazioni → Store → Domini e server interni**, uno per riga: `*.2clic.it` (tutti i nomi sotto 2clic.it), `sitoup.it` (solo quel nome), `203.0.113.7` o `203.0.113.0/24` (l'indirizzo di un server). Di serie: `*.2clic.it`, `2clic.it`, `*.sitoup.it`, `sitoup.it`, `*.dnsbazar.com`, `dnsbazar.com`. Un'installazione è interna se il nome del sito corrisponde, se corrisponde il server da cui arriva il resoconto (Cleitext non manda il nome del server: lo store tiene l'indirizzo da cui arriva il resoconto e il suo nome DNS inverso, es. `server1.2clic.it`), o se un altro sito della stessa installazione di Cleitext (stesso install id) è interno. Ogni sito si può anche **segnare a mano** come interno o esterno. **Store → Installazioni** conta interne ed esterne, ha il filtro _Tutte / Interne / Esterne_ e un'etichetta su ogni sito; le licenze mostrano se i loro siti sono interni o esterni.
+
+**Collegare una licenza a un ordine Cleishop.** Per una licenza fatta a mano (venduta e fatturata fuori dal negozio), **Store → Licenze → Collega a un ordine Cleishop**:
+
+- **Crea l'ordine in Cleishop da questa licenza** (consigliato): lo store importa l'ordine in Cleishop come _completato_, con email della licenza, nome, azienda, partita IVA, codice fiscale, totale (vuoto: il prezzo della licenza), IVA e data (vuota: quella della licenza). Un ordine importato **non manda email**, non muove il magazzino, non incassa e non cambia stato, quindi PDF Invoices **non fa la fattura**. Ripetere l'operazione ritrova lo stesso ordine.
+- Oppure un **ordine esistente**: il numero (`123`) o l'indirizzo della sua pagina (`…/orders?order=<id>`). Con l'id, o con il numero di un ordine importato, il collegamento è immediato; il numero di un ordine non importato resta _in attesa_ e si collega al prossimo cambio di stato dell'ordine, se la sua email è quella della licenza (o dell'agenzia).
+
+Dopo il collegamento la licenza prende la riga dell'ordine: quando l'ordine viene pagato o completato lo store trova la licenza e **non ne crea un'altra, né manda la chiave**. Se l'ordine viene rimborsato o annullato la licenza viene revocata. Non va fatto l'ordine dalla cassa né messo _in lavorazione_ o _completato_ prima del collegamento (creerebbe una licenza e una fattura); nella pagina dell'ordine non cliccare **Crea la fattura**. PDF Invoices non ha un modo per escludere un singolo ordine.
 
 ## Permissions
 

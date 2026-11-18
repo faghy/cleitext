@@ -4,7 +4,7 @@ import {
   type RouteRequest,
   type RouteResponse,
 } from '@cleitext/plugin-sdk';
-import { and, count, desc, eq, gte, ilike, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, ilike, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import {
   addMonths,
   isKey,
@@ -19,6 +19,7 @@ import {
   verifyDownload,
 } from './keys';
 import { createHash } from 'node:crypto';
+import { reverse } from 'node:dns/promises';
 import {
   coveredProducts,
   EMAIL_RE,
@@ -39,6 +40,8 @@ import {
 } from './common';
 import { isZip, latestOf, parseServerReport, safeFilename } from './downloads';
 import { decideActivation, discounted, sealKey } from './licensing';
+import { classify, classifyOrigin, DEFAULT_INTERNAL_HOSTS, parsePatterns } from './internal';
+import { cancelPending, linkLicense, linksOf, resolvePending } from './order-links';
 import { findRelease, packageLocation } from './packages';
 import { registerPartners } from './partners-admin';
 import { registerPortal } from './portal';
@@ -432,10 +435,17 @@ export default definePlugin({
     // Licenses sold by the site's own Cleishop (1.5), next to Lemon Squeezy's.
     ctx.hooks.on('shop.order.status', async ({ orderId, to }, { siteId }) => {
       const shop = await ctx.services?.use<{
-        order(siteId: string, id: string): Promise<ShopOrder | null>;
+        order(
+          siteId: string,
+          id: string,
+        ): Promise<(ShopOrder & { order: { number: number } }) | null>;
       }>(siteId, 'shop');
       const detail = shop ? await shop.order(siteId, orderId) : null;
       if (!detail) return;
+      // Orders linked by hand to a license made before them (1.6): no other license.
+      await resolvePending(ctx, siteId, detail).catch((error: unknown) =>
+        ctx.log.error('Order links not checked', { order: orderId, error: String(error) }),
+      );
       for (const event of cleishopEvents(detail, to)) {
         await handleOrder(ctx, siteId, event).catch((error: unknown) =>
           ctx.log.error('Cleishop order not handled', {
@@ -467,6 +477,18 @@ export default definePlugin({
           label: { en: 'GitHub API address', it: 'Indirizzo dell’API di GitHub' },
           default: 'https://api.github.com',
           maxLength: 200,
+        },
+        {
+          name: 'internal_hosts',
+          type: 'text',
+          multiline: true,
+          label: { en: 'Internal domains and servers', it: 'Domini e server interni' },
+          help: {
+            en: 'One per line: *.example.com (every name under it), example.com (that name), or the address of a server (203.0.113.7, 203.0.113.0/24). Installations whose site, server name (reverse DNS) or server address matches are internal; the others external.',
+            it: 'Uno per riga: *.esempio.it (tutti i nomi sotto), esempio.it (quel nome), o l’indirizzo di un server (203.0.113.7, 203.0.113.0/24). Le installazioni il cui sito, nome del server (DNS inverso) o indirizzo del server corrisponde sono interne; le altre esterne.',
+          },
+          default: DEFAULT_INTERNAL_HOSTS,
+          maxLength: 5000,
         },
       ],
       { title: { en: 'Store', it: 'Store' }, capability: 'manage_store' },
@@ -736,7 +758,11 @@ export default definePlugin({
         if (!report) return fail(400, 'The report is not valid.');
         // Development machines, test suites and private networks are not installations.
         if (!isPublicOrigin(report.origin)) return { status: 204 };
+        // The server it came from (1.6), to tell our own servers from the others.
+        const serverIp = request.ip ? request.ip.slice(0, 64) : null;
         const values = {
+          serverIp,
+          serverHost: await serverName(serverIp),
           installId: report.installId,
           coreVersion: report.core,
           themeSlug: report.theme?.slug ?? null,
@@ -921,13 +947,59 @@ export default definePlugin({
       };
     });
 
+    /** Internal or external, for every reported site (1.6). */
+    const classified = async (siteId: string) => {
+      const patterns = parsePatterns((await ctx.settings.get(siteId)).internal_hosts);
+      const rows = await ctx.db.transaction(siteId, (tx) =>
+        tx
+          .select({
+            origin: installs.origin,
+            installId: installs.installId,
+            serverHost: installs.serverHost,
+            serverIp: installs.serverIp,
+            internal: installs.internal,
+          })
+          .from(installs),
+      );
+      const map = classify(patterns, rows);
+      return (origin: string) => map.get(origin) ?? classifyOrigin(patterns, origin);
+    };
+
     admin('GET', '/admin/installs', async (request) => {
       const days = Math.min(Math.max(Number(request.query.days) || 90, 1), RETENTION_DAYS);
       const since = new Date(Date.now() - days * 86_400_000);
+      const scope = request.query.scope;
       const rows = await ctx.db.transaction(request.siteId, (tx) =>
         tx.select().from(installs).where(gte(installs.lastSeenAt, since)).orderBy(installs.origin),
       );
-      return { body: rows };
+      const kind = await classified(request.siteId);
+      const body = rows
+        .map(({ siteId: _site, internal: manual, ...row }) => {
+          const c = kind(row.origin);
+          return { ...row, manual, internal: c.internal, internalReason: c.reason };
+        })
+        .filter(
+          (row) =>
+            (scope !== 'internal' || row.internal) && (scope !== 'external' || !row.internal),
+        );
+      return { body };
+    });
+
+    // Marks a site internal or external by hand, or back to the list (null).
+    admin('PUT', '/admin/installs/internal', async (request) => {
+      const body = (request.body ?? {}) as { origin?: unknown; internal?: unknown };
+      const origin = originOf(body.origin);
+      if (!origin) return fail(400, 'Which site?');
+      const internal = body.internal === true ? true : body.internal === false ? false : null;
+      const updated = await ctx.db.transaction(request.siteId, (tx) =>
+        tx
+          .update(installs)
+          .set({ internal })
+          .where(eq(installs.origin, origin))
+          .returning({ origin: installs.origin }),
+      );
+      if (updated.length === 0) return fail(404, 'This site has not reported.');
+      return { body: { ok: true, internal } };
     });
 
     admin('DELETE', '/admin/installs', async (request) => {
@@ -1164,15 +1236,48 @@ export default definePlugin({
           ),
         );
       });
+      // The sites using each license, internal or external (1.6), and its linked orders.
+      const ids = rows.map((r) => r.license.id);
+      const sites = ids.length
+        ? await ctx.db.transaction(request.siteId, (tx) =>
+            tx
+              .selectDistinct({ licenseId: activations.licenseId, origin: activations.siteOrigin })
+              .from(activations)
+              .where(and(inArray(activations.licenseId, ids), isNull(activations.deactivatedAt))),
+          )
+        : [];
+      const kind = await classified(request.siteId);
+      const links = await linksOf(ctx, request.siteId, ids);
       return {
-        body: rows.map(({ license, used }) => ({
-          ...license,
-          keyHash: undefined,
-          keySealed: undefined,
-          used,
-        })),
+        body: rows.map(({ license, used }) => {
+          const origins = sites.filter((s) => s.licenseId === license.id).map((s) => s.origin);
+          const internal = origins.filter((o) => kind(o).internal).length;
+          return {
+            ...license,
+            keyHash: undefined,
+            keySealed: undefined,
+            used,
+            sites: { internal, external: origins.length - internal },
+            links: (links.get(license.id) ?? []).map(({ siteId: _site, ...link }) => link),
+          };
+        }),
       };
     });
+
+    // Links a license made before its order to a Cleishop order (1.6): no new
+    // key, no email; the order's status changes then find the license there.
+    admin('POST', '/admin/licenses/:id/cleishop-order', (request) =>
+      linkLicense(
+        ctx,
+        request.siteId,
+        request.params.id ?? '',
+        (request.body ?? {}) as Parameters<typeof linkLicense>[3],
+      ),
+    );
+
+    admin('DELETE', '/admin/order-links/:id', (request) =>
+      cancelPending(ctx, request.siteId, request.params.id ?? ''),
+    );
 
     admin('POST', '/admin/licenses', async (request) => {
       const body = (request.body ?? {}) as Record<string, unknown>;
@@ -1317,8 +1422,9 @@ export default definePlugin({
       return { body: { ok: true, seats } };
     });
 
-    admin('GET', '/admin/licenses/:id/activations', async (request) => ({
-      body: await ctx.db.transaction(request.siteId, (tx) =>
+    admin('GET', '/admin/licenses/:id/activations', async (request) => {
+      const kind = await classified(request.siteId);
+      const rows = await ctx.db.transaction(request.siteId, (tx) =>
         tx
           .select({
             id: activations.id,
@@ -1332,8 +1438,9 @@ export default definePlugin({
           .innerJoin(licenses, eq(licenses.id, activations.licenseId))
           .where(eq(activations.licenseId, request.params.id ?? ''))
           .orderBy(desc(activations.createdAt)),
-      ),
-    }));
+      );
+      return { body: rows.map((row) => ({ ...row, internal: kind(row.siteOrigin).internal })) };
+    });
 
     admin('POST', '/admin/activations/:id/deactivate', async (request) => {
       await ctx.db.transaction(request.siteId, (tx) =>
@@ -1399,6 +1506,22 @@ interface Report {
   theme: { slug: string; version: string } | null;
   plugins: { slug: string; version: string; active: boolean }[];
   themes: { slug: string; version: string }[];
+}
+
+/**
+ * The name of the server a report came from (reverse DNS, e.g.
+ * server1.2clic.it), or null: public addresses only, never waiting long.
+ */
+export async function serverName(ip: string | null): Promise<string | null> {
+  if (!ip || !isPublicOrigin(`http://${ip.includes(':') ? `[${ip}]` : ip}`)) return null;
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500).unref());
+  const name = await Promise.race([
+    reverse(ip)
+      .then((names) => names[0] ?? null)
+      .catch(() => null),
+    timeout,
+  ]);
+  return name ? name.toLowerCase().replace(/\.$/, '').slice(0, 253) : null;
 }
 
 /** A report as sent by Cleitext (catalog/install-report), checked field by field. */

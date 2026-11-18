@@ -104,6 +104,11 @@ export const installs = pgTable('installs', {
   themeVersion: text('theme_version'),
   plugins: jsonb('plugins').$type<ReportedPlugin[]>().notNull().default([]),
   themes: jsonb('themes').$type<{ slug: string; version: string }[]>().notNull().default([]),
+  /** The address the report came from, and its reverse DNS name (Store 1.6). */
+  serverIp: text('server_ip'),
+  serverHost: text('server_host'),
+  /** Marked by hand: true internal, false external, null by the list (Store 1.6). */
+  internal: boolean('internal'),
   firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -157,6 +162,28 @@ export const portalTokens = pgTable('portal_tokens', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Orders of a shop linked by hand to an existing license (Store 1.6): the
+ * order then sells no other license. `pending` waits for the order (known by
+ * its number only) to reach the store through its status hook.
+ */
+export const orderLinks = pgTable('order_links', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  siteId: uuid('site_id').notNull(),
+  licenseId: uuid('license_id').notNull(),
+  provider: text('provider').notNull(),
+  orderNumber: integer('order_number'),
+  orderId: text('order_id'),
+  orderRef: text('order_ref'),
+  status: text('status').$type<'pending' | 'linked' | 'refused'>().notNull(),
+  /** How the license was sold before the link (e.g. manual). */
+  previousSource: text('previous_source'),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  linkedAt: timestamp('linked_at', { withTimezone: true }),
+});
+
+export type OrderLink = typeof orderLinks.$inferSelect;
 export type Partner = typeof partners.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type Variant = typeof variants.$inferSelect;
