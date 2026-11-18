@@ -4,7 +4,7 @@ import { coveredProducts, EMAIL_RE, ownSecret, SEAL_KEY, SLUG_RE, source, text }
 import { limiter, newToken, sha256 } from './keys';
 import { maskKey, portalRole, seatsInUse, unsealKey } from './licensing';
 import { latestAllowed, listReleases, packageLocation } from './packages';
-import { renewalUrl } from './providers';
+import { renewLink } from './renew-link';
 import { activations, downloads, licenses, portalTokens, products, type Product } from './schema';
 
 /**
@@ -220,6 +220,20 @@ export function registerPortal(ctx: PluginContext): void {
         )
       : [];
 
+    // Renewal links, each for the license's own plan (1.6.1).
+    const renewals = new Map(
+      await Promise.all(
+        rows.map(
+          async (l) =>
+            [
+              l.id,
+              l.updatesUntil
+                ? await renewLink(ctx, request.siteId, bySlug.get(l.productSlug), l)
+                : null,
+            ] as const,
+        ),
+      ),
+    );
     const cards = rows.map((license) => {
       const role = portalRole(license, email)!;
       const product = bySlug.get(license.productSlug);
@@ -233,8 +247,7 @@ export function registerPortal(ctx: PluginContext): void {
             date: license.updatesUntil.toLocaleDateString(locale),
           })
         : escapeHtml(t.forever);
-      const renew =
-        product?.renewUrl && license.updatesUntil ? renewalUrl(product.renewUrl, license.id) : null;
+      const renew = renewals.get(license.id) ?? null;
       const revealed = notice.revealed?.id === license.id ? notice.revealed.key : null;
       const keyCell = revealed
         ? `<code class="store-portal-key">${escapeHtml(revealed)}</code>`

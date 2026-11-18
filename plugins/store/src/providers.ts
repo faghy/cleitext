@@ -87,13 +87,20 @@ export function parseLemonSqueezy(payload: unknown): OrderEvent {
 }
 
 /** The renewal checkout with the license id as custom data (Lemon Squeezy format). */
-export function renewalUrl(base: string | null, licenseId: string): string | null {
+export function renewalUrl(
+  base: string | null,
+  licenseId: string,
+  /** Cleishop's product for this license's plan (1.6.1), instead of the link's own. */
+  cartProduct?: string | null,
+): string | null {
   if (!base) return null;
   try {
     const url = new URL(base);
     // Cleishop's add-to-cart link (1.5): the line keeps the license as its `ref`.
-    if (/\/cart\/add\/?$/.test(url.pathname)) url.searchParams.set('ref', licenseId);
-    else url.searchParams.set('checkout[custom][license]', licenseId);
+    if (/\/cart\/add\/?$/.test(url.pathname)) {
+      if (cartProduct) url.searchParams.set('product', cartProduct);
+      url.searchParams.set('ref', licenseId);
+    } else url.searchParams.set('checkout[custom][license]', licenseId);
     return url.href;
   } catch {
     return null;
@@ -164,4 +171,22 @@ export function cleishopEvents(detail: ShopOrder, to: string): OrderEvent[] {
         referrals: {},
       };
     });
+}
+
+/**
+ * Cleishop's product that renews a license of a given number of sites
+ * (1.6.1). With renewal products: the one for the same sites, else none (the
+ * renewal link keeps its own product). Without: the product sold new with the
+ * same sites (a line with the license as `ref` renews it).
+ */
+export function renewalProductFor(
+  candidates: { provider: string; variantId: string; seats: number; kind: string }[],
+  seats: number,
+): string | null {
+  const shop = candidates.filter((v) => v.provider === 'cleishop');
+  const renewals = shop.filter((v) => v.kind === 'renewal');
+  const pick = renewals.length
+    ? renewals.find((v) => v.seats === seats)
+    : shop.find((v) => v.kind === 'new' && v.seats === seats);
+  return pick?.variantId ?? null;
 }

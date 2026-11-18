@@ -48,11 +48,11 @@ import { registerPortal } from './portal';
 import {
   cleishopEvents,
   parseLemonSqueezy,
-  renewalUrl,
   verifyLemonSqueezy,
   type OrderEvent,
   type ShopOrder,
 } from './providers';
+import { renewLink } from './renew-link';
 import {
   activations,
   downloads,
@@ -91,7 +91,7 @@ async function licenseAnswer(ctx: PluginContext, siteId: string, license: Licens
   return {
     updatesUntil: iso(license.updatesUntil),
     seats: { used: await seatsUsed(ctx, siteId, license.id), total: license.seats },
-    renewUrl: renewalUrl(product?.renewUrl ?? null, license.id),
+    renewUrl: await renewLink(ctx, siteId, product, license),
   };
 }
 
@@ -248,7 +248,25 @@ async function handleOrder(ctx: PluginContext, siteId: string, order: OrderEvent
   const product = await productOf(ctx, siteId, variant.productSlug);
   if (!product) return { body: { ok: true, ignored: true } };
 
-  if (variant.kind === 'renewal') {
+  // The product sold new, bought again for a license of the same product (its
+  // renewal link sets the license as the line's `ref`): a renewal too (1.6.1).
+  const sameProductLicense =
+    variant.kind === 'new' && order.licenseId
+      ? await ctx.db.transaction(siteId, async (tx) => {
+          const [found] = await tx
+            .select({ id: licenses.id })
+            .from(licenses)
+            .where(
+              and(
+                eq(licenses.id, order.licenseId!),
+                eq(licenses.productSlug, variant.productSlug),
+                eq(licenses.status, 'active'),
+              ),
+            );
+          return found ?? null;
+        })
+      : null;
+  if (variant.kind === 'renewal' || sameProductLicense) {
     if (!order.licenseId) {
       ctx.log.warn('Renewal without a license id', { order: order.orderRef });
       return { body: { ok: true, ignored: true } };
@@ -350,7 +368,7 @@ async function sendReminders(ctx: PluginContext, siteId: string, now = new Date(
   );
   for (const license of rows) {
     const product = await productOf(ctx, siteId, license.productSlug);
-    const link = renewalUrl(product?.renewUrl ?? null, license.id);
+    const link = await renewLink(ctx, siteId, product, license);
     if (!product || !link || !license.updatesUntil) continue;
     // What was sent, for this end date: a renewal moves it, and reminders start again.
     const key = `reminded:${license.id}`;
@@ -670,7 +688,7 @@ export default definePlugin({
             `Updates for this license ended on ${until}: renew it to install ${version}.`,
             {
               updatesUntil: license.updatesUntil.toISOString(),
-              renewUrl: renewalUrl(product.renewUrl, license.id),
+              renewUrl: await renewLink(ctx, request.siteId, product, license),
             },
           );
         }

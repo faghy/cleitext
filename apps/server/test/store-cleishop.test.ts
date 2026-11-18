@@ -169,6 +169,19 @@ describe('licenses sold with Cleishop', () => {
     expect(added).toBeLessThan(370 * 86_400_000);
   });
 
+  it('renew it also when the product sold new is bought again for it (1.6.1)', async () => {
+    const [before] = await licensesOf('anna@example.test');
+    const id = await buy(`/cart/add?product=${theme}&ref=${licenseId}`, '10.97.0.13');
+    await setStatus(id, 'processing');
+    await setStatus(id, 'completed');
+    const after = await licensesOf('anna@example.test');
+    // No second license: the same one, a year longer.
+    expect(after).toHaveLength(1);
+    const added = Date.parse(after[0]!.updatesUntil) - Date.parse(before!.updatesUntil);
+    expect(added).toBeGreaterThan(360 * 86_400_000);
+    expect(added).toBeLessThan(370 * 86_400_000);
+  });
+
   it('revoke the license of a refunded order', async () => {
     const id = await buy(`/cart/add?product=${theme}`, '10.97.0.4');
     await setStatus(id, 'processing');

@@ -136,6 +136,10 @@ Nothing else is kept: no domain, address or IP. Turning the statistics off sends
 
 **Store → Installations** shows them in **Plesk servers (Cleitext Toolkit)**: the number of servers and installations, by Toolkit version and by Plesk version.
 
+## Renewals with the same product (1.6.1)
+
+A Cleishop product sold new also renews: bought again with the license as the cart line's `ref` (the renewal link adds it), it extends that license by the product's months instead of making a new one. The renewal link (reminders, the customer portal, sites whose updates ended) points to the product of the license's own plan: e.g. the 10-site product for a 10-site license. Set the product's renewal address to Cleishop's cart link, `https://<site>/cart/add?product=<Cleishop product id>`. Separate renewal products still work as before and are preferred when they exist.
+
 ## In italiano (1.6.0)
 
 **Installazioni interne ed esterne.** Le installazioni sui nostri server e domini sono _interne_, tutte le altre _esterne_. L'elenco è in **Impostazioni → Store → Domini e server interni**, uno per riga: `*.2clic.it` (tutti i nomi sotto 2clic.it), `sitoup.it` (solo quel nome), `203.0.113.7` o `203.0.113.0/24` (l'indirizzo di un server). Di serie: `*.2clic.it`, `2clic.it`, `*.sitoup.it`, `sitoup.it`, `*.dnsbazar.com`, `dnsbazar.com`. Un'installazione è interna se il nome del sito corrisponde, se corrisponde il server da cui arriva il resoconto (Cleitext non manda il nome del server: lo store tiene l'indirizzo da cui arriva il resoconto e il suo nome DNS inverso, es. `server1.2clic.it`), o se un altro sito della stessa installazione di Cleitext (stesso install id) è interno. Ogni sito si può anche **segnare a mano** come interno o esterno. **Store → Installazioni** conta interne ed esterne, ha il filtro _Tutte / Interne / Esterne_ e un'etichetta su ogni sito; le licenze mostrano se i loro siti sono interni o esterni.
@@ -150,3 +154,7 @@ Dopo il collegamento la licenza prende la riga dell'ordine: quando l'ordine vien
 ## Permissions
 
 `routes:admin` (the license server, the webhook and the admin API), `routes:public` (public downloads and the customer portal), `settings:own` (settings and encrypted secrets) and `mail:send` (the keys and the portal's sign-in links). The capability `manage_store` goes to administrators.
+
+### Rinnovi con lo stesso prodotto (1.6.1)
+
+Un prodotto Cleishop venduto come nuovo rinnova anche: ricomprato con la licenza come `ref` della riga del carrello (il link di rinnovo la aggiunge), prolunga quella licenza dei mesi del prodotto invece di crearne una nuova. Il link di rinnovo (promemoria, portale del cliente, siti con gli aggiornamenti scaduti) porta al prodotto del piano della licenza: per esempio quello da 10 siti per una licenza da 10 siti. Come indirizzo di rinnovo del prodotto usa il link del carrello di Cleishop, `https://<sito>/cart/add?product=<id del prodotto Cleishop>`. I prodotti di rinnovo separati funzionano come prima e, se ci sono, hanno la precedenza.

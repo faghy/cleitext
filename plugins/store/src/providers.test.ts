@@ -1,6 +1,12 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { cleishopEvents, parseLemonSqueezy, renewalUrl, verifyLemonSqueezy } from './providers';
+import {
+  cleishopEvents,
+  parseLemonSqueezy,
+  renewalProductFor,
+  renewalUrl,
+  verifyLemonSqueezy,
+} from './providers';
 
 const order = (event: string, extra: Record<string, unknown> = {}) => ({
   meta: { event_name: event, custom_data: extra },
@@ -155,5 +161,30 @@ describe('Cleishop orders (1.5)', () => {
     expect(renewalUrl('https://shop.lemonsqueezy.com/buy/x', 'lic-1')).toContain(
       'checkout%5Bcustom%5D%5Blicense%5D=lic-1',
     );
+  });
+});
+
+describe("renewal links for the license's plan (1.6.1)", () => {
+  const plans = [
+    { provider: 'cleishop', variantId: 'one', seats: 1, kind: 'new' },
+    { provider: 'cleishop', variantId: 'ten', seats: 10, kind: 'new' },
+    { provider: 'cleishop', variantId: 'all', seats: 0, kind: 'new' },
+    { provider: 'lemonsqueezy', variantId: '99', seats: 10, kind: 'new' },
+  ];
+  it('pick the product of the same sites, and put it in the cart link', () => {
+    expect(renewalProductFor(plans, 10)).toBe('ten');
+    expect(renewalProductFor(plans, 0)).toBe('all');
+    expect(renewalProductFor(plans, 3)).toBeNull();
+    expect(renewalUrl('https://cleitext.com/cart/add?product=one', 'lic-1', 'ten')).toBe(
+      'https://cleitext.com/cart/add?product=ten&ref=lic-1',
+    );
+  });
+  it("prefer renewal products, and keep the link's own when none fits", () => {
+    const withRenewal = [
+      ...plans,
+      { provider: 'cleishop', variantId: 'r', seats: 0, kind: 'renewal' },
+    ];
+    expect(renewalProductFor(withRenewal, 0)).toBe('r');
+    expect(renewalProductFor(withRenewal, 1)).toBeNull();
   });
 });
