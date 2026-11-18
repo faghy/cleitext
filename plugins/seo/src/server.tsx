@@ -5,11 +5,13 @@ import {
   businessProperties,
   cleanMinimums,
   cleanBusiness,
+  cleanVerificationFiles,
   EMPTY_BUSINESS,
   isBusinessType,
   DEFAULT_TITLE,
   pageVariable,
   searchTitle,
+  verificationFile,
   withDefaults,
   type SeoConfig,
 } from './config';
@@ -532,6 +534,31 @@ export default definePlugin({
       }),
     );
 
+    // ---- Verification files at the root (google….html, BingSiteAuth.xml), 2.7.0 -----------
+    for (const ext of ['html', 'txt', 'xml'] as const)
+      ctx.routes.public({
+        method: 'GET',
+        path: `/:name.${ext}`,
+        // Any other address (robots.txt, pages, feeds…) is left to the site.
+        async handler(request) {
+          const cfg = await config(ctx, request.siteId);
+          const file = verificationFile(
+            cfg.verificationFiles,
+            `${request.params.name ?? ''}.${ext}`,
+          );
+          return file
+            ? {
+                body: file.body,
+                contentType: file.contentType,
+                headers: {
+                  'x-robots-tag': 'noindex',
+                  'content-security-policy': "default-src 'none'; sandbox",
+                },
+              }
+            : null;
+        },
+      });
+
     // ---- Admin: the SEO page ----------------------------------------------------------
 
     /**
@@ -632,6 +659,7 @@ export default definePlugin({
               rep.kind !== 'person' && isBusinessType(rep.businessType) ? rep.businessType : '',
             business: cleanBusiness(rep.business),
           },
+          verificationFiles: cleanVerificationFiles(body.verificationFiles),
         };
         await ctx.storage.set(request.siteId, 'config', next);
         // Every page carries the head; sitemaps carry the site tag.

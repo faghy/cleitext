@@ -17,6 +17,7 @@ import {
   TITLE_VARIABLES,
   type LocalBusinessData,
   type SeoConfig,
+  type VerificationFile,
 } from './config';
 import { SeoAnalysisPanel } from './panel';
 
@@ -583,6 +584,73 @@ function SeoForm({ api, initial, tr, user }: AdminPageProps & { initial: SeoConf
               {tr('One address per line.', 'Un indirizzo per riga.')}
             </span>
           </label>
+        </div>
+      </Card>
+
+      <Card title={tr('Verification files', 'File di verifica')}>
+        <div className="space-y-3 text-sm">
+          <p className="text-slate-600">
+            {tr(
+              'For services that verify the site with a file at its root, e.g. google123.html for Search Console (HTML file) or BingSiteAuth.xml: the name and the content they give you. Only .html, .txt and .xml; they stay through updates.',
+              'Per i servizi che verificano il sito con un file nella radice, es. google123.html per Search Console (file HTML) o BingSiteAuth.xml: il nome e il contenuto che ti danno. Solo .html, .txt e .xml; restano anche dopo gli aggiornamenti.',
+            )}
+          </p>
+          {cfg.verificationFiles.map((file, i) => {
+            const setFile = (change: Partial<VerificationFile>) =>
+              setCfg((c) => ({
+                ...c,
+                verificationFiles: c.verificationFiles.map((f, j) =>
+                  j === i ? { ...f, ...change } : f,
+                ),
+              }));
+            return (
+              <div key={i} className="space-y-1 rounded border border-slate-200 p-2">
+                <div className="flex gap-2">
+                  <input
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 font-mono"
+                    placeholder="google123.html"
+                    aria-label={tr('File name', 'Nome del file')}
+                    value={file.name}
+                    onChange={(e) => setFile({ name: e.target.value })}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() =>
+                      setCfg((c) => ({
+                        ...c,
+                        verificationFiles: c.verificationFiles.filter((_, j) => j !== i),
+                      }))
+                    }
+                  >
+                    {tr('Remove', 'Rimuovi')}
+                  </Button>
+                </div>
+                <textarea
+                  rows={3}
+                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 font-mono"
+                  aria-label={tr('Content', 'Contenuto')}
+                  placeholder="google-site-verification: google123.html"
+                  value={file.content}
+                  onChange={(e) => setFile({ content: e.target.value })}
+                />
+              </div>
+            );
+          })}
+          {cfg.verificationFiles.length < 20 && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                setCfg((c) => ({
+                  ...c,
+                  verificationFiles: [...c.verificationFiles, { name: '', content: '' }],
+                }))
+              }
+            >
+              {tr('Add a file', 'Aggiungi un file')}
+            </Button>
+          )}
         </div>
       </Card>
 

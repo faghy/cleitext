@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { applyTemplate, pageVariable, searchTitle } from './config';
+import {
+  applyTemplate,
+  cleanVerificationFiles,
+  pageVariable,
+  searchTitle,
+  verificationFile,
+} from './config';
 
 describe('title templates', () => {
   it('say which page of an archive, as Yoast SEO’s %%page%%', () => {
@@ -22,5 +28,35 @@ describe('title templates', () => {
     // Renamed since: the new title.
     expect(searchTitle('L’ipnosi oggi', "L'ipnosi - cos'è")).toBe('L’ipnosi oggi');
     expect(searchTitle('Title', undefined)).toBe('Title');
+  });
+});
+
+describe('verification files', () => {
+  const files = cleanVerificationFiles([
+    {
+      name: '/google7b1481c7b4e3669e.html',
+      content: 'google-site-verification: google7b1481c7b4e3669e.html',
+    },
+    { name: 'BingSiteAuth.xml', content: '<?xml version="1.0"?><users><user>K</user></users>' },
+    { name: 'robots.txt', content: 'User-agent: *' },
+    { name: 'x.php', content: 'no' },
+    { name: 'empty.txt', content: ' ' },
+    { name: 'BingSiteAuth.xml', content: 'twice' },
+  ]);
+
+  it('keep valid names with a content, once each', () => {
+    expect(files.map((f) => f.name)).toEqual(['google7b1481c7b4e3669e.html', 'BingSiteAuth.xml']);
+  });
+
+  it('are served with the type of their extension, and nothing else is', () => {
+    expect(verificationFile(files, 'google7b1481c7b4e3669e.html')).toEqual({
+      body: 'google-site-verification: google7b1481c7b4e3669e.html',
+      contentType: 'text/html; charset=utf-8',
+    });
+    expect(verificationFile(files, 'BingSiteAuth.xml')?.contentType).toBe(
+      'application/xml; charset=utf-8',
+    );
+    expect(verificationFile(files, 'other.html')).toBeNull();
+    expect(verificationFile(files, 'robots.txt')).toBeNull();
   });
 });

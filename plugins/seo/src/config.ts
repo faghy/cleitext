@@ -31,6 +31,11 @@ export interface SeoConfig {
     businessType: string;
     business: LocalBusinessData;
   };
+  /**
+   * Files that services verify the site with, served at its root (since
+   * 2.7.0), e.g. `google….html` for Search Console or `BingSiteAuth.xml`.
+   */
+  verificationFiles: VerificationFile[];
 }
 
 /** What a local business adds to the Organization (all optional). */
@@ -251,6 +256,7 @@ export const DEFAULT_CONFIG: SeoConfig = {
     businessType: '',
     business: EMPTY_BUSINESS,
   },
+  verificationFiles: [],
 };
 
 export function withDefaults(saved: Partial<SeoConfig> | null): SeoConfig {
@@ -263,7 +269,62 @@ export function withDefaults(saved: Partial<SeoConfig> | null): SeoConfig {
       ...value.representation,
       business: cleanBusiness(value.representation?.business),
     },
+    verificationFiles: cleanVerificationFiles(value.verificationFiles),
   };
+}
+
+/** A file at the site's root that a service checks to verify the site. */
+export interface VerificationFile {
+  name: string;
+  content: string;
+}
+
+/** Names that other routes of the site answer: never verification files. */
+const RESERVED_FILES = new Set(['robots.txt', 'llms.txt', 'ads.txt', 'app-ads.txt', 'sitemap.xml']);
+const FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}\.(html|txt|xml)$/;
+
+/** A valid name for a verification file, or ''. */
+export function verificationFileName(raw: unknown): string {
+  const name = typeof raw === 'string' ? raw.trim().replace(/^\/+/, '') : '';
+  return FILE_NAME.test(name) && !name.includes('..') && !RESERVED_FILES.has(name.toLowerCase())
+    ? name
+    : '';
+}
+
+/** The files as saved: valid names, a content, 20 at most, no name twice. */
+export function cleanVerificationFiles(value: unknown): VerificationFile[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const out: VerificationFile[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const name = verificationFileName(row.name);
+    const content = typeof row.content === 'string' ? row.content.slice(0, 5000) : '';
+    if (!name || !content.trim() || seen.has(name)) continue;
+    seen.add(name);
+    out.push({ name, content });
+    if (out.length === 20) break;
+  }
+  return out;
+}
+
+/** The verification file asked for at the root, with its type; null when there is none. */
+export function verificationFile(
+  files: VerificationFile[],
+  requested: string,
+): { body: string; contentType: string } | null {
+  const name = verificationFileName(requested);
+  const file = name ? files.find((f) => f.name === name) : undefined;
+  if (!file) return null;
+  const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase();
+  const contentType =
+    ext === 'html'
+      ? 'text/html; charset=utf-8'
+      : ext === 'xml'
+        ? 'application/xml; charset=utf-8'
+        : 'text/plain; charset=utf-8';
+  return { body: file.content, contentType };
 }
 
 export const DEFAULT_TITLE = '%%title%% %%sep%% %%sitename%%';

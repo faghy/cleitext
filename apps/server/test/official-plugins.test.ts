@@ -346,6 +346,29 @@ describe('SEO', () => {
     await admin.request('PUT', '/api/v1/ext/seo/config', {});
   });
 
+  it('serves the verification files at the root, leaving other addresses to the site', async () => {
+    await admin.request('PUT', '/api/v1/ext/seo/config', {
+      verificationFiles: [
+        { name: 'google0123abcd.html', content: 'google-site-verification: google0123abcd.html' },
+        {
+          name: 'BingSiteAuth.xml',
+          content: '<?xml version="1.0"?><users><user>K1</user></users>',
+        },
+      ],
+    });
+    const google = await visitor.get('/google0123abcd.html');
+    expect(google.statusCode).toBe(200);
+    expect(google.body).toBe('google-site-verification: google0123abcd.html');
+    expect(google.headers['content-type']).toContain('text/html');
+    const bing = await visitor.get('/BingSiteAuth.xml');
+    expect(bing.headers['content-type']).toContain('xml');
+    expect(bing.body).toContain('<user>K1</user>');
+    expect((await visitor.get('/google-other.html')).statusCode).toBe(404);
+    expect((await visitor.get('/robots.txt')).body).toContain('User-agent');
+    await admin.request('PUT', '/api/v1/ext/seo/config', {});
+    expect((await visitor.get('/google0123abcd.html')).statusCode).toBe(404);
+  });
+
   it('keeps archives with fewer entries than the minimum out of search', async () => {
     const tag = async (name: string) =>
       ((await admin.post('/api/v1/taxonomies/tag/terms', { name })).json() as { id: string }).id;
