@@ -60,7 +60,7 @@ describe('internal domains and servers', () => {
       { origin: 'https://www.sitoup.it', installId: 'e', internal: false },
       { origin: 'https://other-e.example.com', installId: 'e' },
     ]);
-    expect(Object.fromEntries(result)).toEqual({
+    expect(Object.fromEntries(result)).toMatchObject({
       'https://demo.2clic.it': { internal: true, reason: 'origin' },
       'https://client-on-server1.com': { internal: true, reason: 'installation' },
       'https://hosted.example.com': { internal: true, reason: 'server' },
@@ -80,9 +80,43 @@ describe('internal domains and servers', () => {
     const edited = parsePatterns('*.example.com');
     expect(classify(edited, rows).get('https://shop.example.com')?.internal).toBe(true);
     expect(classifyOrigin(edited, 'https://example.com').internal).toBe(false);
-    expect(classifyOrigin(defaults, 'https://x.dnsbazar.com:8443')).toEqual({
+    expect(classifyOrigin(defaults, 'https://x.dnsbazar.com:8443')).toMatchObject({
       internal: true,
       reason: 'origin',
     });
+  });
+});
+
+describe('sites to check and short server names (1.6.2)', () => {
+  it('a site with no report of its server is to check, not external', () => {
+    const patterns = parsePatterns('*.2clic.it\nserver*');
+    const out = classify(patterns, [
+      { origin: 'https://cliente.it', installId: 'a' },
+      {
+        origin: 'https://altro.it',
+        installId: 'b',
+        serverHost: 'host.example.net',
+        serverIp: '198.51.100.9',
+      },
+      {
+        origin: 'https://disbigle.com',
+        installId: 'c',
+        serverHost: 'server1',
+        serverIp: '89.163.135.135',
+      },
+      { origin: 'https://segnato.it', installId: 'd', internal: false },
+    ]);
+    expect(out.get('https://cliente.it')).toMatchObject({ internal: false, unknown: true });
+    expect(out.get('https://altro.it')).toMatchObject({ internal: false, unknown: false });
+    expect(out.get('https://disbigle.com')).toMatchObject({ internal: true, reason: 'server' });
+    expect(out.get('https://segnato.it')).toMatchObject({ internal: false, unknown: false });
+  });
+
+  it('`server*` matches short names and not others', () => {
+    const patterns = parsePatterns('server*');
+    expect(hostMatches(patterns, 'server1')).toBe(true);
+    expect(hostMatches(patterns, 'server12')).toBe(true);
+    expect(hostMatches(patterns, 'myserver1')).toBe(false);
+    expect(hostMatches(patterns, 'server1.evil.example')).toBe(false);
   });
 });

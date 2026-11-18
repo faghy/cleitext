@@ -26,7 +26,7 @@ export const DEFAULT_INTERNAL_HOSTS = [
 export type InternalReason = 'manual' | 'origin' | 'server' | 'address' | 'installation';
 
 export interface Pattern {
-  kind: 'host' | 'suffix' | 'ip' | 'cidr';
+  kind: 'host' | 'suffix' | 'glob' | 'ip' | 'cidr';
   value: string;
   bits?: number;
 }
@@ -64,6 +64,9 @@ export function parsePatterns(text: unknown): Pattern[] {
       out.push({ kind: 'ip', value: plainIp(line) });
     } else if (line.startsWith('*.') && HOST_RE.test(line.slice(2))) {
       out.push({ kind: 'suffix', value: line.slice(2) });
+    } else if (line.includes('*') && HOST_RE.test(line.replace(/\*/g, 'x'))) {
+      // A name with `*` inside (1.6.2), e.g. `server*` for servers that report a short name.
+      out.push({ kind: 'glob', value: line });
     } else if (HOST_RE.test(line)) {
       out.push({ kind: 'host', value: line });
     }
@@ -76,7 +79,13 @@ export function hostMatches(patterns: Pattern[], host: string | null | undefined
   const h = (host ?? '').trim().toLowerCase().replace(/\.$/, '');
   if (!h) return false;
   return patterns.some((p) =>
-    p.kind === 'host' ? h === p.value : p.kind === 'suffix' ? h.endsWith(`.${p.value}`) : false,
+    p.kind === 'host'
+      ? h === p.value
+      : p.kind === 'suffix'
+        ? h.endsWith(`.${p.value}`)
+        : p.kind === 'glob'
+          ? new RegExp(`^${p.value.replace(/\./g, '\\.').replace(/\*/g, '[a-z0-9-]*')}$`).test(h)
+          : false,
   );
 }
 
@@ -114,6 +123,11 @@ export interface Classifiable {
 export interface Classified {
   internal: boolean;
   reason: InternalReason | null;
+  /**
+   * Not known yet (1.6.2): not internal by its domain, and no report has said
+   * its server's name or address (reports before Store 1.6). Not external.
+   */
+  unknown: boolean;
 }
 
 /** Why one site is internal by itself (not by its installation), or null. */
@@ -140,13 +154,17 @@ export function classify(patterns: Pattern[], rows: Classifiable[]): Map<string,
   const out = new Map<string, Classified>();
   for (const row of rows) {
     if (row.internal === true || row.internal === false) {
-      out.set(row.origin, { internal: row.internal, reason: 'manual' });
+      out.set(row.origin, { internal: row.internal, reason: 'manual', unknown: false });
       continue;
     }
     const reason =
       own.get(row.origin) ??
       (row.installId && internalInstalls.has(row.installId) ? 'installation' : null);
-    out.set(row.origin, { internal: reason !== null, reason });
+    out.set(row.origin, {
+      internal: reason !== null,
+      reason,
+      unknown: reason === null && !row.serverHost && !row.serverIp,
+    });
   }
   return out;
 }
@@ -154,5 +172,5 @@ export function classify(patterns: Pattern[], rows: Classifiable[]): Map<string,
 /** One origin without a report (e.g. a site of a license): by its host only. */
 export function classifyOrigin(patterns: Pattern[], origin: string): Classified {
   const reason = hostMatches(patterns, hostOf(origin)) ? 'origin' : null;
-  return { internal: reason !== null, reason };
+  return { internal: reason !== null, reason, unknown: false };
 }

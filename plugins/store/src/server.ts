@@ -500,10 +500,13 @@ export default definePlugin({
           name: 'internal_hosts',
           type: 'text',
           multiline: true,
-          label: { en: 'Internal domains and servers', it: 'Domini e server interni' },
+          label: {
+            en: 'Our domains and servers (hosting)',
+            it: 'I nostri domini e server (hosting)',
+          },
           help: {
-            en: 'One per line: *.example.com (every name under it), example.com (that name), or the address of a server (203.0.113.7, 203.0.113.0/24). Installations whose site, server name (reverse DNS) or server address matches are internal; the others external.',
-            it: 'Uno per riga: *.esempio.it (tutti i nomi sotto), esempio.it (quel nome), o l’indirizzo di un server (203.0.113.7, 203.0.113.0/24). Le installazioni il cui sito, nome del server (DNS inverso) o indirizzo del server corrisponde sono interne; le altre esterne.',
+            en: 'The domains of our sites and the servers that host them, from which sites send their report (e.g. server1.2clic.it or its address). One per line: *.example.com (every name under it), example.com (that name), server* (names starting so), or an address (203.0.113.7, 203.0.113.0/24). Sites whose domain, server name or server address matches are internal; the others external, or «to check» until their first report from Store 1.6.',
+            it: 'I domini dei nostri siti e i server che li ospitano, da cui i siti mandano il resoconto (es. server1.2clic.it o il suo IP). Uno per riga: *.esempio.it (tutti i nomi sotto), esempio.it (quel nome), server* (i nomi che iniziano così) o un indirizzo (203.0.113.7, 203.0.113.0/24). I siti il cui dominio, nome del server o indirizzo del server corrisponde sono interni; gli altri esterni, o «da verificare» finché non mandano il primo resoconto con lo Store 1.6.',
           },
           default: DEFAULT_INTERNAL_HOSTS,
           maxLength: 5000,
@@ -994,11 +997,19 @@ export default definePlugin({
       const body = rows
         .map(({ siteId: _site, internal: manual, ...row }) => {
           const c = kind(row.origin);
-          return { ...row, manual, internal: c.internal, internalReason: c.reason };
+          return {
+            ...row,
+            manual,
+            internal: c.internal,
+            unknown: c.unknown,
+            internalReason: c.reason,
+          };
         })
         .filter(
           (row) =>
-            (scope !== 'internal' || row.internal) && (scope !== 'external' || !row.internal),
+            (scope !== 'internal' || row.internal) &&
+            (scope !== 'external' || (!row.internal && !row.unknown)) &&
+            (scope !== 'unknown' || row.unknown),
         );
       return { body };
     });

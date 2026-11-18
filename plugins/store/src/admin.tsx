@@ -88,15 +88,22 @@ interface ActivationRow {
   internal?: boolean;
 }
 
-/** A badge: internal (our servers) or external installation (Store 1.6). */
-function Scope({ internal, label }: { internal: boolean; label: string }) {
-  return (
-    <span
-      className={`rounded px-1.5 py-0.5 text-xs font-medium ${internal ? 'bg-slate-200 text-slate-700' : 'bg-emerald-100 text-emerald-800'}`}
-    >
-      {label}
-    </span>
-  );
+/** A badge: internal (our servers), external, or to check (Store 1.6.2). */
+function Scope({
+  internal,
+  unknown = false,
+  label,
+}: {
+  internal: boolean;
+  unknown?: boolean;
+  label: string;
+}) {
+  const look = internal
+    ? 'bg-slate-200 text-slate-700'
+    : unknown
+      ? 'bg-amber-100 text-amber-800'
+      : 'bg-emerald-100 text-emerald-800';
+  return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${look}`}>{label}</span>;
 }
 
 const T = {
@@ -282,8 +289,8 @@ const T = {
     portal: 'Portale clienti',
     portalHint:
       'Clienti e agenzie accedono con l’email delle loro licenze (un link per email) e vedono chiavi, siti e download; possono liberare un posto.',
-    internal: 'interna',
-    external: 'esterna',
+    internal: 'interno',
+    external: 'esterno',
     sitesScope: '{internal} interni, {external} esterni',
     linkOrder: 'Collega a un ordine Cleishop',
     linkHint:
@@ -1403,6 +1410,8 @@ interface InstallRow {
   serverIp?: string | null;
   serverHost?: string | null;
   internal?: boolean;
+  /** Not known yet: no report with its server so far (1.6.2). */
+  unknown?: boolean;
   internalReason?: 'manual' | 'origin' | 'server' | 'address' | 'installation' | null;
   manual?: boolean | null;
 }
@@ -1444,16 +1453,19 @@ const I = {
     installedOn: 'installed on',
     usedOn: 'in use on',
     only: 'installed only on',
-    scope: 'Installations',
+    scope: 'Sites',
     scopeAll: 'All',
     scopeInternal: 'Internal',
     scopeExternal: 'External',
+    scopeUnknown: 'To check',
     internal: 'internal',
     external: 'external',
+    unknown: 'to check',
     totalInternal: 'Internal',
     totalExternal: 'External',
+    totalUnknown: 'To check',
     scopeHint:
-      'Internal: on our own servers and domains (Settings → Store → Internal domains and servers); external: all the others.',
+      'Internal: on our domains and servers (Settings → Store → Our domains and servers); external: the others. To check: no report has said its server yet (sites send one about once a day).',
     serverName: 'server name',
     reason: 'why',
     reasons: {
@@ -1463,8 +1475,8 @@ const I = {
       address: 'its server’s address is in the list',
       installation: 'another site of its installation is internal',
     },
-    markInternal: 'Mark internal',
-    markExternal: 'Mark external',
+    markInternal: 'Mark as internal',
+    markExternal: 'Mark as external',
     markAuto: 'Back to the list',
   },
   it: {
@@ -1503,27 +1515,30 @@ const I = {
     installedOn: 'installato su',
     usedOn: 'in uso su',
     only: 'solo installato su',
-    scope: 'Installazioni',
-    scopeAll: 'Tutte',
-    scopeInternal: 'Interne',
-    scopeExternal: 'Esterne',
-    internal: 'interna',
-    external: 'esterna',
-    totalInternal: 'Interne',
-    totalExternal: 'Esterne',
+    scope: 'Siti',
+    scopeAll: 'Tutti',
+    scopeInternal: 'Interni',
+    scopeExternal: 'Esterni',
+    scopeUnknown: 'Da verificare',
+    internal: 'interno',
+    external: 'esterno',
+    unknown: 'da verificare',
+    totalInternal: 'Siti interni',
+    totalExternal: 'Siti esterni',
+    totalUnknown: 'Da verificare',
     scopeHint:
-      'Interne: sui nostri server e domini (Impostazioni → Store → Domini e server interni); esterne: tutte le altre.',
+      'Interni: sui nostri domini e server (Impostazioni → Store → I nostri domini e server); esterni: gli altri. Da verificare: nessun resoconto ha ancora detto il suo server (i siti ne mandano uno circa al giorno).',
     serverName: 'nome del server',
     reason: 'perché',
     reasons: {
-      manual: 'segnata a mano',
+      manual: 'segnato a mano',
       origin: 'il suo dominio è nell’elenco',
       server: 'il suo server è nell’elenco',
       address: 'l’indirizzo del suo server è nell’elenco',
       installation: 'un altro sito della sua installazione è interno',
     },
-    markInternal: 'Segna come interna',
-    markExternal: 'Segna come esterna',
+    markInternal: 'Segna come interno',
+    markExternal: 'Segna come esterno',
     markAuto: 'Torna all’elenco',
   },
 };
@@ -1720,7 +1735,7 @@ function InstallationsPage({ api, user }: AdminPageProps) {
   const [q, setQ] = useState('');
   const [plugin, setPlugin] = useState('');
   const [theme, setTheme] = useState('');
-  const [scope, setScope] = useState<'all' | 'internal' | 'external'>('all');
+  const [scope, setScope] = useState<'all' | 'internal' | 'external' | 'unknown'>('all');
   const rows = useQuery({
     queryKey: ['store', 'installs', days],
     queryFn: () => api<InstallRow[]>('GET', `/admin/installs?days=${days}`),
@@ -1737,8 +1752,15 @@ function InstallationsPage({ api, user }: AdminPageProps) {
   const needle = q.trim().toLowerCase();
   const reported = rows.data ?? [];
   const internalCount = reported.filter((r) => r.internal).length;
-  const all = reported.filter(
-    (r) => scope === 'all' || (scope === 'internal' ? r.internal === true : r.internal !== true),
+  const unknownCount = reported.filter((r) => !r.internal && r.unknown).length;
+  const all = reported.filter((r) =>
+    scope === 'all'
+      ? true
+      : scope === 'internal'
+        ? r.internal === true
+        : scope === 'unknown'
+          ? !r.internal && r.unknown === true
+          : !r.internal && !r.unknown,
   );
   // Every plugin and theme reported, for the filters.
   const pluginSlugs = [...new Set(all.flatMap((r) => r.plugins.map((p) => p.slug)))].sort();
@@ -1791,7 +1813,7 @@ function InstallationsPage({ api, user }: AdminPageProps) {
       inactive: new Set(entries.filter((e) => !e.active).map((e) => e.origin)).size,
     };
   });
-  const internalOf = new Map(data.map((r) => [r.origin, r.internal === true] as const));
+  const internalOf = new Map(data.map((r) => [r.origin, r] as const));
   const usages = usageOf(data).filter((u) => !needle || u.slug.includes(needle));
   const sites = data.filter(
     (r) =>
@@ -1851,7 +1873,10 @@ function InstallationsPage({ api, user }: AdminPageProps) {
               {t.scopeInternal} ({internalCount})
             </option>
             <option value="external">
-              {t.scopeExternal} ({reported.length - internalCount})
+              {t.scopeExternal} ({reported.length - internalCount - unknownCount})
+            </option>
+            <option value="unknown">
+              {t.scopeUnknown} ({unknownCount})
             </option>
           </select>
         </label>
@@ -1921,7 +1946,8 @@ function InstallationsPage({ api, user }: AdminPageProps) {
               [
                 [t.totalSites, data.length],
                 [t.totalInternal, data.filter((r) => r.internal).length],
-                [t.totalExternal, data.filter((r) => !r.internal).length],
+                [t.totalExternal, data.filter((r) => !r.internal && !r.unknown).length],
+                [t.totalUnknown, data.filter((r) => !r.internal && r.unknown).length],
                 [t.totalServers, servers],
                 [t.totalCore, coreVersions],
               ] as const
@@ -2011,8 +2037,18 @@ function InstallationsPage({ api, user }: AdminPageProps) {
                                   {internalOf.has(s.origin) && (
                                     <span className="ml-2">
                                       <Scope
-                                        internal={internalOf.get(s.origin)!}
-                                        label={internalOf.get(s.origin) ? t.internal : t.external}
+                                        internal={internalOf.get(s.origin)!.internal === true}
+                                        unknown={
+                                          !internalOf.get(s.origin)!.internal &&
+                                          internalOf.get(s.origin)!.unknown === true
+                                        }
+                                        label={
+                                          internalOf.get(s.origin)!.internal
+                                            ? t.internal
+                                            : internalOf.get(s.origin)!.unknown
+                                              ? t.unknown
+                                              : t.external
+                                        }
                                       />
                                     </span>
                                   )}
@@ -2036,7 +2072,11 @@ function InstallationsPage({ api, user }: AdminPageProps) {
         sites.map((r) => (
           <Card key={r.origin} title={r.origin.replace(/^https?:\/\//, '')}>
             <p className="mb-2">
-              <Scope internal={r.internal === true} label={r.internal ? t.internal : t.external} />
+              <Scope
+                internal={r.internal === true}
+                unknown={!r.internal && r.unknown === true}
+                label={r.internal ? t.internal : r.unknown ? t.unknown : t.external}
+              />
               {r.internalReason && (
                 <span className="ml-2 text-xs text-slate-600">
                   {t.reason}: {t.reasons[r.internalReason]}

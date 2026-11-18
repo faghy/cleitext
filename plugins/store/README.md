@@ -83,7 +83,7 @@ Reports from development and test addresses (`localhost`, `.test`, `.local`, pri
 
 ### Internal and external installations
 
-Since 1.6.0 each installation is **internal** (on our own servers and domains) or **external** (every other one). **Settings → Store → Internal domains and servers** holds the list, one pattern per line:
+Since 1.6.0 each installation is **internal** (on our own servers and domains) or **external** (every other one). **Settings → Store → Our domains and servers (hosting)** holds the list, one pattern per line:
 
 - `*.2clic.it`: every name under 2clic.it (server1.2clic.it, a staging subdomain…), not 2clic.it itself;
 - `sitoup.it`: that name only;
@@ -142,7 +142,7 @@ A Cleishop product sold new also renews: bought again with the license as the ca
 
 ## In italiano (1.6.0)
 
-**Installazioni interne ed esterne.** Le installazioni sui nostri server e domini sono _interne_, tutte le altre _esterne_. L'elenco è in **Impostazioni → Store → Domini e server interni**, uno per riga: `*.2clic.it` (tutti i nomi sotto 2clic.it), `sitoup.it` (solo quel nome), `203.0.113.7` o `203.0.113.0/24` (l'indirizzo di un server). Di serie: `*.2clic.it`, `2clic.it`, `*.sitoup.it`, `sitoup.it`, `*.dnsbazar.com`, `dnsbazar.com`. Un'installazione è interna se il nome del sito corrisponde, se corrisponde il server da cui arriva il resoconto (Cleitext non manda il nome del server: lo store tiene l'indirizzo da cui arriva il resoconto e il suo nome DNS inverso, es. `server1.2clic.it`), o se un altro sito della stessa installazione di Cleitext (stesso install id) è interno. Ogni sito si può anche **segnare a mano** come interno o esterno. **Store → Installazioni** conta interne ed esterne, ha il filtro _Tutte / Interne / Esterne_ e un'etichetta su ogni sito; le licenze mostrano se i loro siti sono interni o esterni.
+**Siti interni ed esterni.** I siti sui nostri domini e server sono _interni_, gli altri _esterni_. L'elenco è in **Impostazioni → Store → I nostri domini e server (hosting)**, uno per riga: `*.2clic.it` (tutti i nomi sotto 2clic.it), `sitoup.it` (solo quel nome), `server*` (i nomi che iniziano così, per i server che mandano un nome corto) o `203.0.113.7` / `203.0.113.0/24` (l'indirizzo di un server). Di serie: `*.2clic.it`, `2clic.it`, `*.sitoup.it`, `sitoup.it`, `*.dnsbazar.com`, `dnsbazar.com`. Un sito è interno se corrisponde il suo dominio, o il server da cui arriva il resoconto (Cleitext non manda il nome del server: lo Store tiene l'indirizzo da cui arriva il resoconto e il suo nome DNS inverso, es. `server1.2clic.it`), o se un altro sito della stessa installazione di Cleitext (stesso install id) è interno. Finché un sito non ha mandato un resoconto con lo Store 1.6 il suo server non è noto: dalla 1.6.2 risulta **da verificare**, non esterno. Ogni sito si può anche **segnare a mano** come interno o esterno. **Store → Installazioni** conta i siti interni, esterni e da verificare, ha il filtro _Tutti / Interni / Esterni / Da verificare_ e un'etichetta su ogni sito; le licenze mostrano se i loro siti sono interni o esterni.
 
 **Collegare una licenza a un ordine Cleishop.** Per una licenza fatta a mano (venduta e fatturata fuori dal negozio), **Store → Licenze → Collega a un ordine Cleishop**:
 
