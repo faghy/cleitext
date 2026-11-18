@@ -27,3 +27,7 @@ auditConfig:
     # charmap, fullscreen and help (plugins/classic-editor/src/tinymce.ts). The fixed
     # 7.9.4 is not on npm, and TinyMCE 8 is not under GPL alone, so 7.9.3 stays.
     - GHSA-mf2p-h6hf-fcwm
+    # picomatch ReDoS (extglobs): reached only through vite, a build tool that
+    # @wordpress/theme lists as a dependency; Cleitext never runs vite or matches
+    # globs from visitors at runtime. No fixed picomatch release exists yet.
+    - GHSA-fc5q-39xc-vjpf
