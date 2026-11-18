@@ -25,6 +25,7 @@ let provider: Server;
 let providerUrl: string;
 /** What the provider received, request by request. */
 const received: { authorization?: string; body: Record<string, unknown> }[] = [];
+const modelAuth: (string | undefined)[] = [];
 /** The requests without tools (plugins, plugin API 1.64). */
 const plain: Record<string, unknown>[] = [];
 
@@ -65,6 +66,17 @@ beforeAll(async () => {
     let data = '';
     req.on('data', (chunk) => (data += chunk));
     req.on('end', () => {
+      if (req.url === '/v1/models' && req.method === 'GET') {
+        modelAuth.push(req.headers.authorization);
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            object: 'list',
+            data: [{ id: 'model-b' }, { id: 'model-a' }, { id: 'model-a' }],
+          }),
+        );
+        return;
+      }
       if (req.url !== '/v1/chat/completions') {
         res.writeHead(404).end();
         return;
@@ -302,6 +314,29 @@ describe('ctx.ai.complete (plugin API 1.64)', () => {
         model: 'missing-model',
       }),
     ).rejects.toThrow(/does not exist\. Check the model name/);
+  });
+
+  it('lists the provider’s models, sending the saved key only to the saved address', async () => {
+    const saved = (await root.post('/api/v1/assistants/provider/models', {})).json();
+    expect(saved).toEqual({ models: ['model-a', 'model-b'] });
+    // The same address typed again: the saved key goes with it.
+    await root.post('/api/v1/assistants/provider/models', { baseUrl: providerUrl });
+    // A key typed in the form wins.
+    await root.post('/api/v1/assistants/provider/models', {
+      baseUrl: providerUrl,
+      apiKey: 'sk-new',
+    });
+    expect(modelAuth.slice(-2)).toEqual([modelAuth.at(-3), 'Bearer sk-new']);
+    // Another address never receives the saved key.
+    const other = `${providerUrl.replace('127.0.0.1', 'localhost')}`;
+    await root.post('/api/v1/assistants/provider/models', { baseUrl: other });
+    expect(modelAuth.at(-1)).toBeUndefined();
+    const down = (
+      await root.post('/api/v1/assistants/provider/models', { baseUrl: 'http://127.0.0.1:9/v1' })
+    ).json();
+    expect(down.models).toEqual([]);
+    expect(down.error).toMatch(/could not be reached/);
+    expect((await admin.post('/api/v1/assistants/provider/models', {})).statusCode).toBe(403);
   });
 
   it('tests the connection, with a clear error for a wrong address', async () => {

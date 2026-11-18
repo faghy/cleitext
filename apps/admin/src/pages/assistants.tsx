@@ -1,7 +1,7 @@
 import type { AiProviderView, ApiTokenView, AssistantsStatus } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
@@ -299,6 +299,32 @@ function ProviderCard() {
   );
 }
 
+/** Common providers with an OpenAI-compatible API: their address and where keys are made. */
+const PROVIDERS: { name: string; url: string; keys: string | null }[] = [
+  {
+    name: 'Anthropic (Claude)',
+    url: 'https://api.anthropic.com/v1',
+    keys: 'https://console.anthropic.com/settings/keys',
+  },
+  {
+    name: 'OpenAI',
+    url: 'https://api.openai.com/v1',
+    keys: 'https://platform.openai.com/api-keys',
+  },
+  {
+    name: 'Google Gemini',
+    url: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    keys: 'https://aistudio.google.com/apikey',
+  },
+  {
+    name: 'Mistral',
+    url: 'https://api.mistral.ai/v1',
+    keys: 'https://console.mistral.ai/api-keys',
+  },
+  { name: 'OpenRouter', url: 'https://openrouter.ai/api/v1', keys: 'https://openrouter.ai/keys' },
+  { name: 'Ollama', url: 'http://localhost:11434/v1', keys: null },
+];
+
 function ProviderForm({
   initial,
   onSaved,
@@ -334,6 +360,22 @@ function ProviderForm({
         {},
       ),
   });
+  // The provider's models, to choose one: listed once connected, or on request
+  // with the address and key typed (the saved key only goes to the saved address).
+  const [other, setOther] = useState(false);
+  const models = useMutation({
+    mutationFn: () =>
+      api<{ models: string[]; error?: string }>('POST', '/assistants/provider/models', {
+        ...(baseUrl.trim() ? { baseUrl: baseUrl.trim() } : {}),
+        ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+      }),
+  });
+  const { mutate: listModels } = models;
+  useEffect(() => {
+    if (initial) listModels();
+  }, [initial, listModels]);
+  const choices = models.data?.models ?? [];
+  const listed = choices.length > 0 && !other;
   const problem = error ?? save.error ?? remove.error ?? test.error;
 
   return (
@@ -368,12 +410,77 @@ function ProviderForm({
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
         />
-        <TextField
-          label={t('Model')}
-          placeholder="gpt-5"
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-        />
+        <details className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          <summary className="cursor-pointer font-medium text-slate-700">
+            {t('Where do I find the address and the key?')}
+          </summary>
+          <p className="mt-2">
+            {t(
+              'Choose your provider to fill in its address, then create a key in its console and paste it below.',
+            )}
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {PROVIDERS.map((p) => (
+              <li key={p.url} className="flex flex-wrap items-center gap-x-2">
+                <button
+                  type="button"
+                  className="font-medium text-sky-700 underline"
+                  onClick={() => setBaseUrl(p.url)}
+                >
+                  {p.name}
+                </button>
+                <code className="text-slate-700">{p.url}</code>
+                {p.keys ? (
+                  <a
+                    className="text-sky-700 underline"
+                    href={p.keys}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {t('Create a key')}
+                  </a>
+                ) : (
+                  <span>{t('no key needed')}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+        {listed ? (
+          <div className="space-y-1">
+            <label htmlFor="ai-model" className="block text-sm font-medium text-slate-800">
+              {t('Model')}
+            </label>
+            <select
+              id="ai-model"
+              className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+              value={model}
+              onChange={(e) => {
+                if (e.target.value === '\u0000other') setOther(true);
+                else setModel(e.target.value);
+              }}
+            >
+              {!choices.includes(model) && <option value={model}>{model || '—'}</option>}
+              {choices.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+              <option value={'\u0000other'}>{t('Another model…')}</option>
+            </select>
+            <p className="text-xs text-slate-500">
+              {t('The models of your account, as the provider lists them.')}
+            </p>
+          </div>
+        ) : (
+          <TextField
+            label={t('Model')}
+            placeholder="gpt-5"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+          />
+        )}
+        {models.data?.error && <Alert>{models.data.error}</Alert>}
         <TextField
           label={t('API key')}
           type="password"
@@ -385,6 +492,17 @@ function ProviderForm({
         <p className="text-xs text-slate-500">
           {t('The key is stored encrypted and never shown again.')}
         </p>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={models.isPending || !baseUrl.trim()}
+          onClick={() => {
+            setOther(false);
+            models.mutate();
+          }}
+        >
+          {models.isPending ? t('Loading the models…') : t('Show the available models')}
+        </Button>
         <div className="flex gap-2">
           <Button type="submit" disabled={save.isPending || !baseUrl.trim() || !model.trim()}>
             {t('Save')}

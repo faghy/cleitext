@@ -334,6 +334,16 @@ export const itGeneral: Messages = {
     'Il fornitore risponde: il modello {model} funziona.',
   'Testing…': 'Provo…',
   'Test the connection': 'Prova la connessione',
+  'Another model…': 'Un altro modello…',
+  'The models of your account, as the provider lists them.':
+    'I modelli del tuo account, come li elenca il fornitore.',
+  'Loading the models…': 'Caricamento dei modelli…',
+  'Show the available models': 'Mostra i modelli disponibili',
+  'Where do I find the address and the key?': 'Dove trovo l’indirizzo e la chiave?',
+  'Choose your provider to fill in its address, then create a key in its console and paste it below.':
+    'Scegli il tuo fornitore per inserirne l’indirizzo, poi crea una chiave nella sua console e incollala qui sotto.',
+  'Create a key': 'Crea una chiave',
+  'no key needed': 'nessuna chiave (Ollama sul tuo server)',
   'API address': 'Indirizzo dell’API',
   Model: 'Modello',
   'API key': 'Chiave API',

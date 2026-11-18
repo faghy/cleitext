@@ -1,4 +1,5 @@
 import {
+  aiModelsRequestSchema,
   aiProviderRequestSchema,
   assistantChatRequestSchema,
   CSRF_HEADER,
@@ -71,6 +72,22 @@ export class ChatController {
       return await this.chat.test(site.id);
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  /** The models the provider offers, to choose one (core 0.116). */
+  @Post('provider/models')
+  @HttpCode(200)
+  @RequireCapability('manage_plugins')
+  async providerModels(
+    @CurrentSite() site: SiteContext,
+    @Body() body: unknown,
+  ): Promise<{ models: string[] } | { models: []; error: string }> {
+    const input = parseBody(aiModelsRequestSchema, body ?? {});
+    try {
+      return { models: await this.chat.models(site.id, input) };
+    } catch (error) {
+      return { models: [], error: error instanceof Error ? error.message : String(error) };
     }
   }
 

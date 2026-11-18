@@ -152,6 +152,19 @@ export const aiProviderRequestSchema = z.object({
 });
 export type AiProviderRequest = z.infer<typeof aiProviderRequestSchema>;
 
+/**
+ * The models a provider offers (core 0.116): at the address and with the key
+ * given, or the saved ones; the saved key only goes to the saved address.
+ */
+export const aiModelsRequestSchema = z.object({
+  baseUrl: z
+    .url({ protocol: /^https?$/ })
+    .max(300)
+    .optional(),
+  apiKey: z.string().trim().max(1000).optional(),
+});
+export type AiModelsRequest = z.infer<typeof aiModelsRequestSchema>;
+
 /** A message of the admin chat, in the chat completions format. */
 export type AssistantChatMessage = Record<string, unknown> & {
   role: 'user' | 'assistant' | 'tool';

@@ -1,6 +1,7 @@
 import { settings, withContext, type DatabaseClient, type SiteTransaction } from '@cleitext/db';
 import type {
   AiProviderRequest,
+  AiModelsRequest,
   AiProviderView,
   AssistantChatEvent,
   AssistantChatMessage,
@@ -357,6 +358,68 @@ tell them to reload the editor to see it.`
   }
 
   /** A short question to the saved provider (Admin → Chriss → Test the connection). */
+  /**
+   * The models the provider lists (`GET <address>/models`, as OpenAI,
+   * Anthropic, OpenRouter and Ollama answer it). The saved key is sent only
+   * to the saved address, never to another one typed in the form.
+   */
+  async models(siteId: string, input: AiModelsRequest): Promise<string[]> {
+    const saved = await this.load(siteId);
+    const baseUrl = (input.baseUrl ?? saved?.baseUrl ?? '').replace(/\/+$/, '');
+    if (!baseUrl) throw new Error('Enter the API address first.');
+    const apiKey = input.apiKey || (saved && saved.baseUrl === baseUrl ? saved.apiKey : null);
+    let response: Response;
+    try {
+      response = await fetch(`${baseUrl}/models`, {
+        headers: {
+          accept: 'application/json',
+          ...(apiKey
+            ? {
+                authorization: `Bearer ${apiKey}`,
+                // Anthropic's own header, ignored by the others.
+                ...(/(^|\.)anthropic\.com$/i.test(new URL(baseUrl).hostname)
+                  ? { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+                  : {}),
+              }
+            : {}),
+        },
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch (error) {
+      const why =
+        (error as Error).name === 'TimeoutError'
+          ? 'it did not answer in time'
+          : (error as Error).message;
+      throw new Error(
+        `The AI provider could not be reached at ${baseUrl} (${why}): check the address.`,
+        {
+          cause: error,
+        },
+      );
+    }
+    const text = await response.text();
+    if (!response.ok) throw providerFailure(response.status, text, baseUrl);
+    let data: unknown;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error('The AI provider did not list its models.');
+    }
+    const list =
+      (data as { data?: unknown; models?: unknown }).data ?? (data as { models?: unknown }).models;
+    const ids = Array.isArray(list)
+      ? list
+          .map((m) =>
+            m && typeof m === 'object'
+              ? ((m as { id?: unknown; name?: unknown }).id ?? (m as { name?: unknown }).name)
+              : m,
+          )
+          .filter((id): id is string => typeof id === 'string' && id.length > 0 && id.length <= 200)
+      : [];
+    if (ids.length === 0) throw new Error('The AI provider did not list its models.');
+    return [...new Set(ids)].sort((a, b) => a.localeCompare(b)).slice(0, 1000);
+  }
+
   async test(siteId: string): Promise<{ ok: true; model: string; answer: string }> {
     const { text, model } = await this.generate(siteId, {
       messages: [{ role: 'user', content: 'Reply with the single word OK.' }],
