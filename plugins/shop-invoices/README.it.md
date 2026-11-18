@@ -8,6 +8,7 @@ Un componente aggiuntivo di Cleishop (plugin ufficiale, gratuito): una fattura i
 - **Nella lingua dell'ordine** (italiano o inglese), con ogni aliquota, sconti, spedizione e rimborsi; gli ordini lunghi proseguono su più pagine numerate.
 - **Download**: i clienti dal loro account e dalla pagina dell'ordine (un link con la chiave privata dell'ordine); il negozio dall'ordine nell'admin, insieme al **documento di trasporto** (senza prezzi).
 - **Un mese in un solo PDF**, per il commercialista: Plugin → Fatture PDF.
+- **Un solo numero per ogni documento** (1.1): gli altri plugin chiedono a Fatture PDF la fattura di un ordine con il suo servizio `shop-invoices` (`invoice`, `findInvoice`, `seller`), così la fattura elettronica dello stesso ordine ha lo stesso numero e la stessa data del PDF.
 - **Da WooCommerce**: gli ordini portati da Import da WooCommerce conservano numeri e date di «PDF Invoices & Packing Slips»; importali e la fattura successiva continua dal numero più alto.
 
 Leggero: il PDF lo scrive il plugin stesso (caratteri Helvetica standard, nessuna libreria esterna).

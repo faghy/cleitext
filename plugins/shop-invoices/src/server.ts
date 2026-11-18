@@ -4,6 +4,7 @@ import { counterOf, formatNumber } from './numbering';
 import { drawInvoice, drawPackingSlip, type OrderData, type ShopIdentity } from './pdf/documents';
 import { PdfDocument, picture } from './pdf/writer';
 import { cleanSettings, logoBytes, wooInvoice, type Settings } from './settings';
+import { invoicesService } from './service';
 import { counters, invoices, type InvoiceRow } from './store';
 import { strings } from './strings';
 
@@ -213,6 +214,20 @@ export default definePlugin({
         ];
       },
     });
+
+    // Other plugins (1.1): the invoice of an order, with the same number as its PDF.
+    ctx.services?.provide(
+      'shop-invoices',
+      invoicesService({
+        async exists(siteId, orderId) {
+          const shop = await shopOf(siteId);
+          return Boolean(shop && (await shop.order(siteId, orderId)));
+        },
+        ensure: ensureInvoice,
+        find: invoiceOf,
+        settings: settingsOf,
+      }),
+    );
 
     // A new invoice when an order reaches one of the chosen statuses.
     ctx.hooks.on('shop.order.status', async ({ orderId, to }, { siteId }) => {
