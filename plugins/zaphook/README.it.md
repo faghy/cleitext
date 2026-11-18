@@ -27,6 +27,11 @@ Il messaggio arriva comunque per email e resta in **Messaggi**, come sempre (a m
 3. Nell'admin, apri **Impostazioni → Zaphook**, fai clic su **Aggiungi un webhook**, incolla l'indirizzo e salva.
 4. Fai clic su **Invia una prova**: il servizio riceve un messaggio di esempio, che lo aiuta a conoscere i campi. Poi invia un messaggio vero con il tuo modulo.
 
+## Campi fissi ed email sugli invii falliti (1.1.0)
+
+- **Campi fissi**: ogni webhook può mandare, con ogni messaggio, dei valori suoi alla radice del JSON accanto ai campi del modulo (es. `product-id` → `PROD-123`, o una categoria che la tua automazione si aspetta). Un campo fisso vince su un campo del modulo con lo stesso nome; i nomi non possono iniziare con `_`.
+- **Invii non riusciti**: quando un messaggio non arriva nemmeno dopo l'ultimo tentativo, o il webhook lo rifiuta, Zaphook manda un'email agli amministratori del sito (quelli con l'indirizzo confermato), o all'indirizzo scelto nella pagina. Dice il modulo, il webhook e la risposta, mai i valori del visitatore. Si può spegnere.
+
 ## Per gli sviluppatori
 
 Ogni invio è un `POST` con `Content-Type: application/json`. I campi del modulo sono alla radice, per nome, come inviati (i campi con più valori, come le caselle di spunta, sono liste); le chiavi di Zaphook iniziano con `_`:
@@ -72,6 +77,8 @@ function verify(rawBody, headers, secret) {
 Usa il corpo esattamente come ricevuto, prima di interpretarlo. Il segreto è conservato cifrato nei segreti del plugin: non viene più mostrato, né scritto nei log, né esportato.
 
 **Come funziona.** Zaphook offre il punto di estensione `forms.delivered` di Moduli (Moduli 1.9.0): mentre il visitatore aspetta mette soltanto il messaggio in coda (la tabella `plg_zaphook.deliveries`, una riga per webhook), e risponde `skipMail` quando un webhook corrispondente chiede di non inviare l'email. Un'attività ogni minuto invia ciò che è dovuto con `ctx.http` (solo indirizzi https pubblici). I valori in coda fanno parte di **Privacy → Richieste** (esportazione e cancellazione per indirizzo email). API dei plugin 1.73; permessi `routes:admin`, `settings:own`, `network`.
+
+La pagina dell'admin legge tutto con `GET /api/v1/ext/zaphook/state` (webhook, registro, nomi dei moduli, avvisi); i webhook si cambiano con `POST /webhooks`, `PUT /webhooks/:id` e `DELETE /webhooks/:id`, l'email sugli invii falliti con `PUT /alerts`.
 
 ## Licenza
 

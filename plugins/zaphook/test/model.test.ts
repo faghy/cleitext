@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   buildPayload,
+  fixedFieldsOf,
   classify,
   emailOf,
   InvalidWebhook,
@@ -29,6 +30,7 @@ const HOOK: Webhook = {
   includeUserAgent: false,
   skipMail: false,
   hasSecret: false,
+  fixedFields: [],
 };
 
 /** The first real case: the fields the existing Zap expects at the root. */
@@ -144,6 +146,7 @@ describe('webhooks as saved', () => {
       includeUserAgent: false,
       skipMail: false,
       hasSecret: true,
+      fixedFields: [],
     });
     expect(JSON.stringify(webhook)).not.toContain('a-long-secret');
     expect(secret).toBe('a-long-secret');
@@ -227,5 +230,30 @@ describe('the privacy policy', () => {
     expect(policySection(hooks, 'en')[0]!.title).toBe('Forms sent to other services');
     expect(policySection(hooks, 'es')[0]!.text).toContain('hooks.zapier.com');
     expect(policySection([{ ...HOOK, enabled: false }], 'en')).toEqual([]);
+  });
+});
+
+describe('fixed fields', () => {
+  it('keep a name not starting with _, each once, and go over the form fields', () => {
+    const fields = fixedFieldsOf([
+      { name: ' artigiano ', value: 'Tecnico Caldaie' },
+      { name: '_form', value: 'x' },
+      { name: 'artigiano', value: 'twice' },
+      { name: '', value: 'no name' },
+      'junk',
+    ]);
+    expect(fields).toEqual([{ name: 'artigiano', value: 'Tecnico Caldaie' }]);
+    const payload = buildPayload(
+      { includeIp: false, includeUserAgent: false, fixedFields: fields },
+      {
+        messageId: 'm',
+        form: 'f',
+        fields: { nome: 'Mario', artigiano: 'from the visitor' },
+        page: { path: '/' },
+        locale: 'it',
+        submittedAt: '2026-11-18T10:00:00.000Z',
+      },
+    );
+    expect(payload).toMatchObject({ nome: 'Mario', artigiano: 'Tecnico Caldaie' });
   });
 });

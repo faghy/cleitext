@@ -19,6 +19,38 @@ export interface Webhook {
   skipMail: boolean;
   /** A signing secret is set (its value is never given back). */
   hasSecret: boolean;
+  /**
+   * Values sent with every message, at the root of the JSON (since 1.1.0),
+   * e.g. a product code the automation expects. They win over a form field
+   * with the same name.
+   */
+  fixedFields: FixedField[];
+}
+
+/** A value sent with every message of a webhook. */
+export interface FixedField {
+  name: string;
+  value: string;
+}
+
+export const MAX_FIXED_FIELDS = 20;
+
+/** The fixed fields as saved: a name not starting with `_`, a value, each name once. */
+export function fixedFieldsOf(value: unknown): FixedField[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const out: FixedField[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const name = typeof row.name === 'string' ? row.name.trim().slice(0, 80) : '';
+    const fieldValue = typeof row.value === 'string' ? row.value.slice(0, 1000) : '';
+    if (!name || name.startsWith('_') || seen.has(name)) continue;
+    seen.add(name);
+    out.push({ name, value: fieldValue });
+    if (out.length === MAX_FIXED_FIELDS) break;
+  }
+  return out;
 }
 
 /** What the admin sends to save a webhook: `secret` set replaces it, `''` clears it. */
@@ -33,6 +65,7 @@ export interface WebhookInput {
   includeUserAgent?: unknown;
   skipMail?: unknown;
   secret?: unknown;
+  fixedFields?: unknown;
 }
 
 /** A message delivered by Forms (`forms.delivered`, Forms 1.9.0). */
@@ -120,6 +153,10 @@ export function webhookFrom(
     includeUserAgent: flag(input.includeUserAgent, saved?.includeUserAgent ?? false),
     skipMail: flag(input.skipMail, saved?.skipMail ?? false),
     hasSecret: secret === undefined ? (saved?.hasSecret ?? false) : secret !== null,
+    fixedFields:
+      input.fixedFields === undefined
+        ? (saved?.fixedFields ?? [])
+        : fixedFieldsOf(input.fixedFields),
   };
   if (webhook.scope === 'selected' && webhook.forms.length === 0)
     throw new InvalidWebhook('Choose at least one form, or send every form.');
@@ -145,6 +182,7 @@ export function webhooksOf(stored: unknown): Webhook[] {
       includeUserAgent: item.includeUserAgent === true,
       skipMail: item.skipMail === true,
       hasSecret: item.hasSecret === true,
+      fixedFields: fixedFieldsOf(item.fixedFields),
     });
   }
   return out.slice(0, MAX_WEBHOOKS);
@@ -164,7 +202,7 @@ export function matches(webhook: Webhook, form: string): boolean {
  * start with `_`. The IP address and the browser only when the webhook asks.
  */
 export function buildPayload(
-  webhook: Pick<Webhook, 'includeIp' | 'includeUserAgent'>,
+  webhook: Pick<Webhook, 'includeIp' | 'includeUserAgent'> & { fixedFields?: FixedField[] },
   message: DeliveredMessage,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -173,6 +211,8 @@ export function buildPayload(
     if (typeof value === 'string') out[name] = value;
     else if (Array.isArray(value)) out[name] = value.filter((v) => typeof v === 'string');
   }
+  // The webhook's fixed values (1.1.0), over a visitor's field with the same name.
+  for (const field of webhook.fixedFields ?? []) out[field.name] = field.value;
   out._form = message.form;
   out._page_url = message.page.url ?? message.page.path;
   out._page_title = message.page.title ?? '';
@@ -186,7 +226,7 @@ export function buildPayload(
 
 /** A message to test a webhook with: sample values, and `_test: true`. */
 export function samplePayload(
-  webhook: Pick<Webhook, 'includeIp' | 'includeUserAgent'>,
+  webhook: Pick<Webhook, 'includeIp' | 'includeUserAgent'> & { fixedFields?: FixedField[] },
   origin: string,
   locale: string,
 ): Record<string, unknown> {

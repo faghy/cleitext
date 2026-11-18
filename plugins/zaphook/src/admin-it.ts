@@ -77,4 +77,17 @@ export const IT: Record<string, string> = {
   'This delivery cannot be tried again.': 'Questo invio non può essere ritentato.',
   'The webhook was removed.': 'Il webhook è stato eliminato.',
   'The webhook was turned off.': 'Il webhook è stato spento.',
+  'Fixed fields': 'Campi fissi',
+  'Values sent with every message, next to the form fields: e.g. a product code or a category your automation expects.':
+    'Valori inviati con ogni messaggio, insieme ai campi del modulo: per esempio un codice prodotto o una categoria che la tua automazione si aspetta.',
+  Value: 'Valore',
+  'Add a fixed field': 'Aggiungi un campo fisso',
+  'Failed deliveries': 'Invii non riusciti',
+  'When a message still does not arrive after the last attempt, or the webhook refuses it.':
+    'Quando un messaggio non arriva nemmeno dopo l’ultimo tentativo, o il webhook lo rifiuta.',
+  'Email me when a delivery fails': 'Avvisami per email quando un invio non riesce',
+  'Send it to': 'Invia a',
+  'The site’s administrators': 'Gli amministratori del sito',
+  'Empty: every administrator of the site.': 'Vuoto: tutti gli amministratori del sito.',
+  'The email address is not valid.': 'L’indirizzo email non è valido.',
 };

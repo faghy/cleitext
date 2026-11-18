@@ -12,7 +12,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { IT } from './admin-it';
-import type { Webhook } from './model';
+import type { FixedField, Webhook } from './model';
 import type { LogLine, StateView, TestResult } from './server';
 
 addMessages('it', IT);
@@ -33,6 +33,7 @@ interface Draft {
   hasSecret: boolean;
   secretAction: 'keep' | 'replace' | 'clear';
   secret: string;
+  fixedFields: FixedField[];
 }
 
 const EMPTY: Draft = {
@@ -48,6 +49,7 @@ const EMPTY: Draft = {
   hasSecret: false,
   secretAction: 'replace',
   secret: '',
+  fixedFields: [],
 };
 
 const draftOf = (w: Webhook): Draft => ({
@@ -64,6 +66,7 @@ const draftOf = (w: Webhook): Draft => ({
   hasSecret: w.hasSecret,
   secretAction: 'keep',
   secret: '',
+  fixedFields: w.fixedFields ?? [],
 });
 
 function Check({
@@ -247,6 +250,61 @@ function Editor({
       >
         {t('Send the visitor’s browser (user agent)')}
       </Check>
+      <div className="space-y-2">
+        <p className="font-medium text-slate-800">{t('Fixed fields')}</p>
+        <p className="text-xs text-slate-500">
+          {t(
+            'Values sent with every message, next to the form fields: e.g. a product code or a category your automation expects.',
+          )}
+        </p>
+        {draft.fixedFields.map((field, i) => {
+          const set = (change: Partial<FixedField>) =>
+            onChange({
+              fixedFields: draft.fixedFields.map((f, j) => (j === i ? { ...f, ...change } : f)),
+            });
+          return (
+            <div key={i} className="flex flex-wrap items-end gap-2">
+              <div className="min-w-40 flex-1">
+                <TextField
+                  label={t('Name')}
+                  value={field.name}
+                  maxLength={80}
+                  placeholder="product-id"
+                  onChange={(e) => set({ name: e.target.value })}
+                />
+              </div>
+              <div className="min-w-40 flex-1">
+                <TextField
+                  label={t('Value')}
+                  value={field.value}
+                  maxLength={1000}
+                  onChange={(e) => set({ value: e.target.value })}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  onChange({ fixedFields: draft.fixedFields.filter((_, j) => j !== i) })
+                }
+              >
+                {t('Remove')}
+              </Button>
+            </div>
+          );
+        })}
+        {draft.fixedFields.length < 20 && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() =>
+              onChange({ fixedFields: [...draft.fixedFields, { name: '', value: '' }] })
+            }
+          >
+            {t('Add a fixed field')}
+          </Button>
+        )}
+      </div>
       <Check
         checked={draft.skipMail}
         onChange={(skipMail) => onChange({ skipMail })}
@@ -263,6 +321,55 @@ function Editor({
         </Button>
       </div>
     </form>
+  );
+}
+
+/** The email about deliveries that failed for good (1.1.0). */
+function Alerts({
+  alerts,
+  busy,
+  onSave,
+}: {
+  alerts: StateView['alerts'];
+  busy: boolean;
+  onSave: (alerts: StateView['alerts']) => void;
+}) {
+  const { t } = useT();
+  const [enabled, setEnabled] = useState(alerts.enabled);
+  const [email, setEmail] = useState(alerts.email);
+  return (
+    <Card title={t('Failed deliveries')}>
+      <form
+        className="space-y-3 text-sm"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSave({ enabled, email: email.trim() });
+        }}
+      >
+        <Check
+          checked={enabled}
+          onChange={setEnabled}
+          hint={t(
+            'When a message still does not arrive after the last attempt, or the webhook refuses it.',
+          )}
+        >
+          {t('Email me when a delivery fails')}
+        </Check>
+        {enabled && (
+          <TextField
+            label={t('Send it to')}
+            type="email"
+            value={email}
+            placeholder={t('The site’s administrators')}
+            hint={t('Empty: every administrator of the site.')}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        )}
+        <Button type="submit" disabled={busy}>
+          {t('Save')}
+        </Button>
+      </form>
+    </Card>
   );
 }
 
@@ -317,6 +424,7 @@ function ZaphookPage(props: AdminPageProps) {
       includeIp: d.includeIp,
       includeUserAgent: d.includeUserAgent,
       skipMail: d.skipMail,
+      fixedFields: d.fixedFields.filter((f) => f.name.trim()),
       ...(d.secretAction === 'clear'
         ? { secret: null }
         : d.secretAction === 'replace' && d.secret.trim()
@@ -446,6 +554,14 @@ function ZaphookPage(props: AdminPageProps) {
           )}
         </div>
       </Card>
+
+      <Alerts
+        alerts={data.alerts}
+        busy={busy}
+        onSave={(alerts) =>
+          void run(() => props.api<StateView>('PUT', '/alerts', alerts), t('Saved.'))
+        }
+      />
 
       <Card title={t('Latest deliveries')}>
         <p className="mb-2 text-xs text-slate-500">

@@ -35,6 +35,23 @@ export const SLUG = 'zaphook';
 const CAPABILITY = 'manage_zaphook';
 const WEBHOOKS_KEY = 'webhooks';
 const ACTIVE_KEY = 'active';
+const ALERTS_KEY = 'alerts';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * The email sent when a delivery fails for good (1.1.0): on by default, to
+ * the site's administrators, or to the address chosen.
+ */
+export interface Alerts {
+  enabled: boolean;
+  email: string;
+}
+
+export function alertsOf(stored: unknown): Alerts {
+  const v = (stored ?? {}) as Partial<Alerts>;
+  const email = typeof v.email === 'string' ? v.email.trim().toLowerCase().slice(0, 200) : '';
+  return { enabled: v.enabled !== false, email: EMAIL_RE.test(email) ? email : '' };
+}
 /** Deliveries sent per site in one run of the task. */
 const BATCH = 25;
 /** A claimed delivery is not claimed again before this long (another server, a crash). */
@@ -64,6 +81,7 @@ export interface StateView {
   formNames: string[];
   webhooks: Webhook[];
   log: LogLine[];
+  alerts: Alerts;
 }
 
 export interface TestResult {
@@ -151,6 +169,53 @@ export function setupZaphook(ctx: PluginContext): void {
     }
   }
 
+  /** Tells the site's administrators (or the chosen address) that a delivery failed for good. */
+  async function alertFailure(
+    siteId: string,
+    webhook: Webhook,
+    form: string,
+    attempts: number,
+    result: { status: number | null; error: string | null },
+  ): Promise<void> {
+    const alerts = alertsOf(await ctx.storage.get(siteId, ALERTS_KEY));
+    if (!alerts.enabled) return;
+    const to = alerts.email
+      ? [alerts.email]
+      : (await ctx.users.find(siteId, { role: 'administrator', limit: 20 }))
+          .map((u) => u.email)
+          .filter((e): e is string => typeof e === 'string' && EMAIL_RE.test(e));
+    if (to.length === 0) return;
+    const site = await ctx.site(siteId);
+    const it = site.defaultLocale.toLowerCase().startsWith('it');
+    const host = hostOf(webhook.url);
+    const answer =
+      result.status !== null
+        ? `HTTP ${result.status}${result.error ? ` – ${result.error}` : ''}`
+        : (result.error ?? '');
+    const text = it
+      ? [
+          `Un messaggio del modulo «${form}» non è arrivato al webhook «${webhook.label}» (${host}) dopo ${attempts} tentativi.`,
+          `Risposta: ${answer}`,
+          '',
+          'Il messaggio è comunque salvato nei Messaggi del sito. Da Impostazioni → Zaphook puoi controllare il webhook e premere «Riprova» nel registro degli invii, entro 7 giorni.',
+        ]
+      : [
+          `A message of the form "${form}" did not reach the webhook "${webhook.label}" (${host}) after ${attempts} attempts.`,
+          `Answer: ${answer}`,
+          '',
+          'The message is still saved in the site’s Messages. In Settings → Zaphook you can check the webhook and press "Try again" in the delivery log, within 7 days.',
+        ];
+    await ctx.mail.send({
+      siteId,
+      to,
+      notification: true,
+      subject: it
+        ? `[${site.name}] Zaphook: invio non riuscito a ${host}`
+        : `[${site.name}] Zaphook: delivery to ${host} failed`,
+      text: text.join('\n'),
+    });
+  }
+
   /** Sends the deliveries that are due (or only one, tried again by hand). */
   async function sendDue(siteId: string, only?: string): Promise<number> {
     const now = Date.now();
@@ -201,13 +266,18 @@ export function setupZaphook(ctx: PluginContext): void {
       const status: DeliveryStatus =
         outcome === 'sent' ? 'sent' : outcome === 'retry' && next ? 'retrying' : 'failed';
       const final = status === 'sent' || status === 'failed';
-      if (status === 'failed')
+      if (status === 'failed') {
         ctx.log.warn('A webhook delivery failed', {
           siteId,
           host: webhook ? hostOf(webhook.url) : '',
           httpStatus: result.status,
           attempts,
         });
+        if (webhook && !only)
+          await alertFailure(siteId, webhook, row.formName, attempts, result).catch((error) =>
+            ctx.log.warn('The failure email was not sent', { siteId, error: shortError(error) }),
+          );
+      }
       await ctx.db.transaction(siteId, (tx) =>
         tx
           .update(deliveries)
@@ -399,6 +469,7 @@ export function setupZaphook(ctx: PluginContext): void {
       formNames: forms.names,
       webhooks: await webhooksOfSite(siteId),
       log: await logOf(siteId),
+      alerts: alertsOf(await ctx.storage.get(siteId, ALERTS_KEY)),
     };
   }
 
@@ -409,6 +480,19 @@ export function setupZaphook(ctx: PluginContext): void {
   ) => ctx.routes.api({ method, path, capability: CAPABILITY, handler });
 
   route('GET', '/state', async (request) => ({ body: await state(request.siteId) }));
+
+  // The email about failed deliveries (1.1.0): on or off, and where it goes.
+  route('PUT', '/alerts', async (request) => {
+    const body = (request.body ?? {}) as { enabled?: unknown; email?: unknown };
+    const email = typeof body.email === 'string' ? body.email.trim() : '';
+    if (email && !EMAIL_RE.test(email)) return problem(400, 'The email address is not valid.');
+    await ctx.storage.set(
+      request.siteId,
+      ALERTS_KEY,
+      alertsOf({ enabled: body.enabled !== false, email }),
+    );
+    return { body: await state(request.siteId) };
+  });
 
   /** Saves a new webhook (no id) or changes one. */
   async function save(siteId: string, input: WebhookInput, id?: string) {

@@ -17,6 +17,7 @@ import { withSiteContext } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, inject, it, vi } from 'vitest';
+import { MailService } from '../src/mail/mail.service.js';
 import { PluginHost } from '../src/plugins/plugin-host.service.js';
 import { PluginServicesProvider } from '../src/plugins/plugin-services.service.js';
 import {
@@ -137,6 +138,10 @@ beforeAll(async () => {
     site,
     role: 'administrator',
   });
+  // A confirmed address: plugins see only those (the failure email goes there).
+  await owner.db.execute(
+    sql`update users set email_verified_at = now() where email = 'admin@zaphook.test'`,
+  );
   admin = new TestClient(app, site.host, '10.81.0.1');
   await admin.login('admin@zaphook.test', PASSWORD);
   // Zaphook requires Forms: activated first.
@@ -271,7 +276,40 @@ describe('Zaphook', () => {
     expect(state).not.toContain(SECRET);
   });
 
+  it('sends the webhook’s fixed fields with every message, over a field with the same name', async () => {
+    const saved = await admin.request('PUT', ext(`/webhooks/${hookId}`), {
+      fixedFields: [
+        { name: 'artigiano', value: 'Tecnico Caldaie' },
+        { name: 'product-id', value: 'PROD-19N98465DG023353S' },
+        { name: 'comune', value: 'Fisso' },
+        { name: '_form', value: 'not allowed' },
+      ],
+    });
+    expect(saved.statusCode, saved.body).toBe(200);
+    expect(saved.json().webhooks[0].fixedFields).toEqual([
+      { name: 'artigiano', value: 'Tecnico Caldaie' },
+      { name: 'product-id', value: 'PROD-19N98465DG023353S' },
+      { name: 'comune', value: 'Fisso' },
+    ]);
+    // The secret is kept when the webhook is changed.
+    expect(saved.json().webhooks[0].hasSecret).toBe(true);
+    calls.length = 0;
+    expect((await submit(REQUEST, '10.81.0.11')).statusCode).toBe(303);
+    await deliverNow();
+    const body = JSON.parse(calls[0]!.body) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      nome: 'Mario Rossi',
+      artigiano: 'Tecnico Caldaie',
+      'product-id': 'PROD-19N98465DG023353S',
+      comune: 'Fisso',
+      _form: 'Richiesta informazioni',
+    });
+    await admin.request('PUT', ext(`/webhooks/${hookId}`), { fixedFields: [] });
+  });
+
   it('tries again when the service is busy or down, and stops on refusal', async () => {
+    const outbox = app.get(MailService).outbox;
+    const mailsBefore = outbox.length;
     calls.length = 0;
     answers.push(503, 'down', 410);
     expect((await submit(REQUEST, '10.81.0.10')).statusCode).toBe(303);
@@ -301,6 +339,39 @@ describe('Zaphook', () => {
       canRetry: true,
     });
     expect(calls).toHaveLength(3);
+    // The administrators hear of it, once, without the visitor's values.
+    const mails = outbox.slice(mailsBefore);
+    expect(mails).toHaveLength(1);
+    expect(JSON.stringify(mails[0]!.to)).toContain('admin@zaphook.test');
+    expect(mails[0]!.subject).toContain('Zaphook');
+    expect(mails[0]!.text).toContain('HTTP 410');
+    expect(mails[0]!.text).not.toContain('Mario');
+  });
+
+  it('sends the failure email to the chosen address, or to nobody when turned off', async () => {
+    const outbox = app.get(MailService).outbox;
+    expect((await admin.request('PUT', ext('/alerts'), { email: 'nope' })).statusCode).toBe(400);
+    const saved = await admin.request('PUT', ext('/alerts'), {
+      enabled: true,
+      email: 'Ops@Zaphook.test',
+    });
+    expect(saved.json().alerts).toEqual({ enabled: true, email: 'ops@zaphook.test' });
+    let before = outbox.length;
+    answers.push(410);
+    expect(
+      (await submit({ ...REQUEST, email: 'other@example.com' }, '10.81.0.12')).statusCode,
+    ).toBe(303);
+    await deliverNow();
+    expect(outbox.slice(before).map((m) => String(m.to))).toEqual(['ops@zaphook.test']);
+    await admin.request('PUT', ext('/alerts'), { enabled: false, email: '' });
+    before = outbox.length;
+    answers.push(410);
+    expect(
+      (await submit({ ...REQUEST, email: 'other@example.com' }, '10.81.0.13')).statusCode,
+    ).toBe(303);
+    await deliverNow();
+    expect(outbox.length).toBe(before);
+    await admin.request('PUT', ext('/alerts'), { enabled: true, email: '' });
   });
 
   it('finds a failed delivery’s values in privacy requests', async () => {

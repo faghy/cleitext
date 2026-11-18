@@ -27,6 +27,11 @@ The message still arrives by email and stays in **Messages**, as always (unless 
 3. In the admin, open **Settings → Zaphook**, click **Add a webhook**, paste the address and save.
 4. Click **Send a test**: the service receives a sample message, which helps it learn the fields. Then send a real message with your form.
 
+## Fixed fields and failure emails (1.1.0)
+
+- **Fixed fields**: each webhook can send values of its own with every message, at the root of the JSON next to the form fields (e.g. `product-id` → `PROD-123`, or a category your automation expects). A fixed field wins over a form field with the same name; names cannot start with `_`.
+- **Failed deliveries**: when a message still does not arrive after the last attempt, or the webhook refuses it, Zaphook sends an email to the site's administrators (those with a confirmed address), or to the address chosen in the page. It names the form, the webhook and the answer, never the visitor's values. It can be turned off.
+
 ## For developers
 
 Each delivery is a `POST` with `Content-Type: application/json`. The form's fields are at the root, by name, as sent (fields with several values, such as checkboxes, are lists); Zaphook's own keys start with `_`:
@@ -72,6 +77,8 @@ function verify(rawBody, headers, secret) {
 Use the body exactly as received, before parsing it. The secret is kept encrypted in the plugin's secrets: it is never shown again, logged or exported.
 
 **How it works.** Zaphook provides Forms' `forms.delivered` extension point (Forms 1.9.0): it only puts the message in its queue (the `plg_zaphook.deliveries` table, one row per webhook) while the visitor waits, and answers `skipMail` when a matching webhook asks for no email. A task every minute sends what is due through `ctx.http` (public https addresses only). Queued values are part of **Privacy → Requests** (export and erasure by email address). Plugin API 1.73; permissions `routes:admin`, `settings:own`, `network`.
+
+The admin page reads everything with `GET /api/v1/ext/zaphook/state` (webhooks, log, form names, alerts); webhooks are changed with `POST /webhooks`, `PUT /webhooks/:id` and `DELETE /webhooks/:id`, the failure email with `PUT /alerts`.
 
 ## License
 
