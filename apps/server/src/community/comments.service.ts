@@ -28,6 +28,7 @@ import { AuditService } from '../audit/audit.service.js';
 import type { AuthContext } from '../common/request-context.js';
 import { DATABASE } from '../database/database.module.js';
 import { MailService } from '../mail/mail.service.js';
+import { PushService } from '../push/push.service.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
 import { SettingsService } from '../settings/settings.service.js';
@@ -136,6 +137,7 @@ export class CommentsService {
     private readonly mail: MailService,
     private readonly audit: AuditService,
     private readonly plugins: PluginHost,
+    private readonly push: PushService,
   ) {}
 
   /** Whether an entry takes comments now, and why not. */
@@ -687,6 +689,17 @@ export class CommentsService {
       await this.notify(siteId, row, from, origin);
     } catch (error) {
       this.logger.warn(`Comment notification not sent: ${String(error)}`);
+    }
+    // The app's moderators: a new comment is waiting (in the background).
+    if (from === null && row.status === 'pending') {
+      const text = row.content.replace(/\s+/g, ' ').trim();
+      void this.push.notify(siteId, {
+        event: 'comment.pending',
+        id: row.id,
+        title: { en: 'Comment awaiting moderation', it: 'Commento da moderare' },
+        body: `${row.authorName}: ${text.length > 200 ? `${text.slice(0, 200)}…` : text}`,
+        adminPath: `${ADMIN_PATH}/comments?status=pending`,
+      });
     }
   }
 

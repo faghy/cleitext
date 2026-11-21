@@ -8,7 +8,7 @@ Nell'admin c'è anche **Chriss**, l'assistente di Cleitext: una chat che fa lo s
 
 ## Attivarlo
 
-Nell'admin apri **Chriss** e scegli _Attiva gli assistenti IA_ (oppure spunta _Permetti agli assistenti IA di lavorare su questo sito_ in **Impostazioni → Assistenti IA (MCP)** e salva). La pagina **Chriss** mostra l'indirizzo da dare all'assistente, `https://<il tuo sito>/mcp`, con il pulsante Copia, i passi per collegarlo e gli assistenti collegati al tuo account. Finché è spento, `/mcp` e gli indirizzi OAuth rispondono 404.
+Nell'admin apri **Chriss** e scegli _Attiva gli assistenti IA_ (oppure spunta _Permetti agli assistenti IA di lavorare su questo sito_ in **Impostazioni → Assistenti IA (MCP)** e salva). La pagina **Chriss** mostra l'indirizzo da dare all'assistente, `https://<il tuo sito>/mcp`, con il pulsante Copia, i passi per collegarlo e gli assistenti collegati al tuo account. Finché è spento, `/mcp` e gli indirizzi OAuth rispondono 404, tranne che per l'app ufficiale Cleitext: accede con lo stesso flusso OAuth (ritorno a `com.cleitext.app:/oauth/callback`) su ogni sito, perché non è un assistente IA.
 
 L'indirizzo non è una pagina da aprire nel browser: chi lo apre lì finisce su **Chriss** nell'admin.
 

@@ -1,4 +1,4 @@
-import type { ProfileAboutView, SessionView } from '@cleitext/shared';
+import type { ProfileAboutView, PushDeviceView, SessionView } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { api, ApiError, errorMessage, uploadFile } from '../api';
@@ -25,6 +25,7 @@ export function ProfilePage() {
           <AvatarCard />
           <PasswordCard />
           <NotificationsCard />
+          <AppDevicesCard />
         </div>
       </div>
       <UserFieldsCard path="/profile/fields" />
@@ -351,6 +352,56 @@ function PasswordCard() {
           {t('Change password')}
         </Button>
       </form>
+    </Card>
+  );
+}
+
+/** Phones with the Cleitext app that get this person's push notifications on the site. */
+function AppDevicesCard() {
+  const { t } = useT();
+  const queryClient = useQueryClient();
+  const devices = useQuery({
+    queryKey: ['push-devices'],
+    queryFn: () => api<PushDeviceView[]>('GET', '/push/devices'),
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => api<void>('DELETE', `/push/devices/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['push-devices'] }),
+  });
+
+  return (
+    <Card title={t('App and notifications')}>
+      {devices.error && <Alert>{errorMessage(devices.error)}</Alert>}
+      {remove.error && <Alert>{errorMessage(remove.error)}</Alert>}
+      {devices.data?.length === 0 && (
+        <p className="text-sm text-slate-500">
+          {t(
+            'Sign in to this site from the Cleitext app on your phone to get notifications of comments, messages and orders.',
+          )}
+        </p>
+      )}
+      <ul className="divide-y divide-slate-100 text-sm">
+        {devices.data?.map((d) => (
+          <li key={d.id} className="flex items-center justify-between gap-4 py-2">
+            <div className="min-w-0">
+              <p className="truncate">
+                {d.name || (d.platform === 'ios' ? 'iPhone / iPad' : 'Android')}
+              </p>
+              <p className="text-xs text-slate-500">
+                {d.events.length === 0 ? `${t('No notifications')} · ` : ''}
+                {t('last active {time}', { time: new Date(d.lastSeenAt).toLocaleString() })}
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              onClick={() => remove.mutate(d.id)}
+              disabled={remove.isPending}
+            >
+              {t('Remove')}
+            </Button>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }

@@ -29,6 +29,7 @@ import {
   type AiCompleteInput,
   type AiCompleteResult,
 } from '@cleitext/plugin-sdk';
+import { PUSH_EVENTS } from '@cleitext/shared';
 import type {
   FieldDefinition,
   FieldGroupInput,
@@ -44,6 +45,7 @@ import type { LoadedPlugin, PluginHost } from './plugin-host.service.js';
 import { pluginAssetUrl } from './plugin-assets.js';
 import type { MailMessage } from '../mail/mail.service.js';
 import { pluginMail } from '../mail/plugin-mail.js';
+import type { PushNotice } from '../push/push.service.js';
 
 /** What plugin contexts need from the core, implemented by `PluginServices`. */
 export interface PluginServices {
@@ -154,6 +156,8 @@ export interface PluginServices {
   sendMail(message: MailMessage, siteId?: string): Promise<void>;
   /** Addresses (lower case) of people who turned notification emails off (plugin API 1.75). */
   mutedEmails(emails: string[]): Promise<Set<string>>;
+  /** A push notification of the app, sent in the background (plugin API 1.78). */
+  pushNotify(siteId: string, notification: PushNotice): void;
   mediaItem(siteId: string, id: string): Promise<PluginMedia | null>;
   /** Library addresses of imported files by their old paths (plugin API 1.61). */
   importedMediaUrls(siteId: string, paths: readonly string[]): Promise<Record<string, string>>;
@@ -646,6 +650,26 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
           }
         }
         return services().sendMail(built, siteId);
+      },
+    },
+
+    push: {
+      notify(siteId, notification) {
+        assertSiteId(siteId);
+        // Only the events the core knows, each sent by its own plugin.
+        const spec = PUSH_EVENTS.find((e) => e.id === notification?.event);
+        if (!spec || spec.plugin !== plugin.slug) {
+          throw new Error(
+            `The push event "${String(notification?.event)}" is not sent by ${plugin.slug}.`,
+          );
+        }
+        services().pushNotify(siteId, {
+          event: spec.id,
+          id: String(notification.id ?? ''),
+          title: notification.title,
+          body: notification.body,
+          adminPath: String(notification.adminPath ?? ''),
+        });
       },
     },
 

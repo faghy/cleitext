@@ -28,10 +28,12 @@ export function ConnectPage() {
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
-      <h1 className="text-2xl font-semibold">{t('Connect an assistant')}</h1>
+      <h1 className="text-2xl font-semibold">
+        {view?.app ? t('Connect the app') : t('Connect an assistant')}
+      </h1>
       {consent.error && (
         <Alert>
-          {t(errorMessage(consent.error))} {t('Start again from your assistant.')}
+          {t(errorMessage(consent.error))} {t('Start again from your assistant or app.')}
         </Alert>
       )}
       {decide.error && <Alert>{t(errorMessage(decide.error))}</Alert>}
@@ -65,9 +67,13 @@ export function ConnectPage() {
               </label>
             )}
             <p className="text-xs text-slate-500">
-              {t(
-                'It acts with your permissions, and everything it does is in the activity log. You can disconnect it at any time on the Chriss page.',
-              )}
+              {view.app
+                ? t(
+                    'It acts with your permissions, and everything it does is in the activity log. You can disconnect it at any time in Profile → API tokens.',
+                  )
+                : t(
+                    'It acts with your permissions, and everything it does is in the activity log. You can disconnect it at any time on the Chriss page.',
+                  )}
             </p>
             <div className="flex gap-2">
               <Button disabled={decide.isPending} onClick={() => decide.mutate(true)}>

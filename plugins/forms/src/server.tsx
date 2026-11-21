@@ -28,6 +28,7 @@ import {
   type OptInCheckbox,
 } from './newsletter-optin';
 import { notifyDelivered, submittedFields } from './delivered';
+import { pushMessage } from './push';
 import { submissions, type Submission } from './schema';
 
 const SUBMIT_PATH = '/_forms/submit';
@@ -825,6 +826,8 @@ export default definePlugin({
             ...(sent.userAgent ? { userAgent: sent.userAgent } : {}),
           })
         : { skipMail: false };
+      // The official app's notification (1.10.0), in the background.
+      if (stored) pushMessage(ctx, siteId, { id: stored.id, ...message });
       const { recipient } = await ctx.settings.get(siteId);
       if (!skipMail && typeof recipient === 'string' && EMAIL_RE.test(recipient)) {
         await ctx.mail

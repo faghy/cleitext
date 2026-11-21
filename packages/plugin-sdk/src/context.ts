@@ -1384,6 +1384,40 @@ export interface MailApi {
 }
 
 /**
+ * A push notification for the official app (plugin API 1.78), e.g. a new
+ * form message or order. It goes to the phones of the people who chose the
+ * event in the app and have its capability on the site.
+ */
+export interface PushNotification {
+  /**
+   * One of the events the core knows, sent by its own plugin:
+   * `form.message` (Forms, people with `manage_forms`) and `shop.order`
+   * (Cleishop, people with `manage_shop`).
+   */
+  event: string;
+  /** The object it is about, e.g. the message's or the order's id. */
+  id: string;
+  /**
+   * Short texts (title 120 characters, body 400), each person reads them in
+   * their language: give `{ en, it }` (English is used for the others).
+   */
+  title: Label;
+  body: Label;
+  /** The admin screen it opens, e.g. `adminUrl('/ext/shop/orders?order=<id>')`. */
+  adminPath: string;
+}
+
+export interface PushApi {
+  /**
+   * Sends a notification to the app (plugin API 1.78; missing on older
+   * cores: call it as `ctx.push?.notify(...)`). It returns at once and the
+   * notification leaves in the background; it never throws for delivery
+   * problems, only for an event the plugin does not send.
+   */
+  notify(siteId: string, notification: PushNotification): void;
+}
+
+/**
  * Requests to other services (webhooks, mailing lists, chat notifications).
  * Needs `network` (plugin API 1.11). Only public https addresses: the
  * server's own network cannot be reached, redirects are not followed and
@@ -1917,6 +1951,11 @@ export interface PluginContext {
   readonly db: PluginDatabase;
   readonly cache: CacheApi;
   readonly mail: MailApi;
+  /**
+   * Push notifications of the official app (plugin API 1.78). Missing on
+   * older cores: call it as `ctx.push?.notify(...)`.
+   */
+  readonly push: PushApi;
   readonly http: HttpApi;
   readonly media: MediaApi;
   /** The site's members, read-only (plugin API 1.42, needs `users:read`). */

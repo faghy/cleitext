@@ -25,7 +25,7 @@ import { DATABASE } from '../database/database.module.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { ChatService } from './chat.service.js';
 import { siteOrigin } from './origin.js';
-import { OAuthService } from './oauth.service.js';
+import { isAppClient, OAuthService } from './oauth.service.js';
 
 /**
  * Admin → Chriss (RF-AI-01/02): whether MCP is on, the address to give
@@ -72,6 +72,7 @@ export class AssistantsController {
       user: auth.displayName,
       scopes: checked.scopes,
       canPublish: auth.capabilities.includes('publish_entries'),
+      app: isAppClient(checked.client),
     };
   }
 
@@ -114,9 +115,11 @@ export class AssistantsController {
     // Only a person signed in to the admin can connect an assistant.
     if (auth.apiToken)
       throw new ForbiddenException('Sign in to the admin to connect an assistant.');
-    if (!(await this.enabled(site.id)))
-      throw new NotFoundException('AI assistants are turned off on this site.');
     const checked = await this.oauth.checkRequest(site.id, params);
+    // The official app signs in also where AI assistants are off.
+    if (('problem' in checked || !isAppClient(checked.client)) && !(await this.enabled(site.id))) {
+      throw new NotFoundException('AI assistants are turned off on this site.');
+    }
     if ('problem' in checked) throw new BadRequestException(checked.problem);
     return checked;
   }

@@ -892,6 +892,24 @@ await ctx.mail.send({
 
 Entrambi i risultati accettano `from` (`Nome <indirizzo>`), il mittente da usare, rispettato solo se `fromChosen` è falso: un mittente scelto da un altro plugin resta. Conserva il risultato dato da un altro plugin. Se l'invio non riesce, lancia un errore: il core spedisce l'email nel modo solito e lo registra, così un plugin guasto non ferma mai le email del sito. Il filtro ha il limite di tempo dei lavori in background e riguarda solo le email di un sito, mai quelle del server. Il permesso vede ogni email, compresi i link per reimpostare la password, quindi attivare un plugin del genere chiede il consenso dell'amministratore.
 
+### Notifiche dell'app (API dei plugin 1.78)
+
+`ctx.push.notify(siteId, notification)` invia una notifica push all'app ufficiale Cleitext: ai telefoni delle persone che hanno scelto l'evento nell'app e hanno la sua capability sul sito. Non serve alcun permesso, ma solo per gli eventi che il core conosce, ognuno dal proprio plugin: `form.message` (Moduli, persone con `manage_forms`) e `shop.order` (Cleishop, persone con `manage_shop`); `comment.pending` lo invia il core (persone con `moderate_comments`). Qualsiasi altro evento genera un errore.
+
+```ts
+ctx.push?.notify(siteId, {
+  event: 'shop.order',
+  id: order.id,
+  title: { en: 'New order #12 — €71.98', it: 'Nuovo ordine n. 12 — 71,98 €' },
+  body: { en: 'Ada Rossi · 3 products', it: 'Ada Rossi · 3 prodotti' },
+  adminPath: adminUrl(`/ext/shop/orders?order=${order.id}`),
+});
+```
+
+- `title` e `body` sono un testo o testi per lingua: ognuno li legge nella propria lingua (l'inglese per le altre). I titoli si fermano a 120 caratteri, i testi a 400.
+- `adminPath` è la schermata dell'admin che la notifica apre (inizia con `/`). Il telefono riceve `data: { type, siteUrl, adminPath, id }`.
+- Ritorna subito: la notifica parte in background, tramite il relay di cleitext.com (`CLEITEXT_PUSH_RELAY`), e i problemi finiscono solo nel log. Chiamala con `?.`: manca sui core più vecchi.
+
 ### Commenti di un plugin
 
 `comments` (API dei plugin 1.19): `ctx.comments.post(request, { entryId, type, content, meta?, authorName?, authorEmail? })` pubblica un commento di un tipo del plugin (una recensione, una domanda) per il visitatore di una richiesta pubblica, connesso o ospite, con la moderazione, i controlli antispam, i limiti e le notifiche del core; `meta` contiene i dati del plugin, come un voto. La voce deve essere pubblicata; se li accetta lo decide il plugin. Gli errori hanno un messaggio per il visitatore e uno `status`. `ctx.comments.find(siteId, { entryId?, type?, status?, userId?, authorEmail?, limit?, offset? })` li legge (per default quelli approvati). Si moderano in Commenti come gli altri, non compaiono mai nelle discussioni delle voci e le azioni `comment.created` e `comment.status` ne portano il `meta`.

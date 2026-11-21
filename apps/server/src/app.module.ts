@@ -63,6 +63,8 @@ import { PluginRoutes } from './plugins/plugin-routes.js';
 import { PluginServicesProvider } from './plugins/plugin-services.service.js';
 import { PluginsController } from './plugins/plugins.controller.js';
 import { ProfileController } from './profile/profile.controller.js';
+import { PushController } from './push/push.controller.js';
+import { PushService } from './push/push.service.js';
 import { TwoFactorController } from './profile/two-factor.controller.js';
 import { PasskeysController } from './profile/passkeys.controller.js';
 import { PageCacheService } from './public/page-cache.service.js';
@@ -136,6 +138,7 @@ export class AppModule {
         TwoFactorController,
         PasskeysController,
         TokensController,
+        PushController,
         OEmbedController,
         StructureController,
         ThemesController,
@@ -194,6 +197,7 @@ export class AppModule {
         PluginRoutes,
         PluginServicesProvider,
         PublicService,
+        PushService,
         WebFontsService,
         SchedulerService,
         SettingsService,

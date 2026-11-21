@@ -46,7 +46,9 @@ function setUp(
   const verified: unknown[] = [];
   const conversions: Record<string, unknown>[] = [];
   const warnings: string[] = [];
+  const pushes: Record<string, unknown>[] = [];
   const ctx = {
+    push: { notify: (_siteId: string, n: Record<string, unknown>) => void pushes.push(n) },
     services: {
       provide: () => undefined,
       all: async (_siteId: string, name: string) =>
@@ -143,7 +145,7 @@ function setUp(
   const emit = (name: string, payload: unknown) =>
     actions.get(name)!(payload as never, { siteId: 's' });
 
-  return { block, render, send, inserted, mails, verified, emit, conversions, warnings };
+  return { block, render, send, inserted, mails, verified, emit, conversions, warnings, pushes };
 }
 
 /** The classic form's markup before 1.3.0, which must not change. */
@@ -591,5 +593,30 @@ describe('add-ons: forms.delivered (1.9.0)', () => {
       fields: { name: 'Ada', email: 'ada@example.com', message: 'Hello' },
     });
     expect(one.given[0]!.ip).toBe(held.fields._ip);
+  });
+});
+
+describe('app notifications (1.10.0)', () => {
+  it('tell the people who manage forms about each message', async () => {
+    const { send, pushes } = setUp();
+    await send({ name: 'Ada', email: 'ada@example.com', message: 'Is the room\nfree?' });
+    expect(pushes).toEqual([
+      {
+        event: 'form.message',
+        id: 'm1',
+        title: { en: 'New message — Contact', it: 'Nuovo messaggio — Contact' },
+        body: 'Ada: Is the room free?',
+        adminPath: '/cl-admin/ext/forms/messages',
+      },
+    ]);
+  });
+
+  it('wait for spam to be released', async () => {
+    const { send, emit, verified, pushes } = setUp({ verdict: { ok: true, spam: true } });
+    await send({ name: 'Ada', email: 'ada@example.com', message: 'Hello' });
+    expect(pushes).toHaveLength(0);
+    const held = verified[0] as { form: string; fields: Record<string, unknown> };
+    await emit('form.released', { form: held.form, fields: held.fields, locale: 'it' });
+    expect(pushes).toHaveLength(1);
   });
 });

@@ -1,3 +1,4 @@
+import { pushNewOrder } from './push';
 import { definePlugin, type PluginContext, type RouteRequest } from '@cleitext/plugin-sdk';
 import { conversions } from './conversions';
 import { z } from 'zod';
@@ -371,6 +372,7 @@ export default definePlugin({
       paid: async (siteId, origin, orderId, from) => {
         const detail = await ctx.db.transaction(siteId, (tx) => orderDetail(tx, orderId));
         if (!detail) return;
+        pushNewOrder(ctx, siteId, detail);
         await mail.send(siteId, origin, 'new_order', detail);
         for (const email of emailsForStatus(from, detail.order.status))
           await mail.send(siteId, origin, email, detail);
@@ -424,6 +426,7 @@ export default definePlugin({
         const detail = await ctx.db.transaction(siteId, (tx) => orderDetail(tx, orderId));
         // Online payments: nothing is sent before the provider confirms.
         if (!detail || detail.order.status === 'pending') return;
+        pushNewOrder(ctx, siteId, detail);
         await mail.send(siteId, origin, 'new_order', detail);
         await mail.send(
           siteId,

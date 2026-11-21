@@ -142,6 +142,7 @@ The context `ctx` contains:
 | `ctx.blocks`                                          | Blocks ([§7](#7-blocks))                                                                |
 | `ctx.routes`                                          | API endpoints and public addresses ([§8](#8-routes))                                    |
 | `ctx.settings`, `ctx.access`, `ctx.cache`, `ctx.mail` | [§9](#9-settings-capabilities-cache-mail)                                               |
+| `ctx.push`                                            | App notifications ([§9](#app-notifications-plugin-api-178), API 1.78)                   |
 | `ctx.db`                                              | Your own tables ([§10](#10-your-own-tables))                                            |
 | `ctx.users`                                           | The site's members, read-only ([§9](#site-members-plugin-api-142), API 1.42)            |
 
@@ -696,6 +697,7 @@ defineBlock<{ gap: number; image?: string }>({
 - Plugin API 1.74: entries (`ctx.content.find` / `get`) and entry events carry `position` (the manual order, WordPress's `menu_order`) and `excerpt` (the short summary, a product's short description).
 - Plugin API 1.75: `ctx.mail.send({ …, notification: true })` marks a notice for the staff (a new submission, a new order…): it does not go to people who turned notifications off in their profile (Profile → Notifications). Leave it out for what a person asked for, such as receipts and confirmations.
 - Plugin API 1.77: media items have a title and a description per language, like the alternative text and the caption (Media page, entry editor's featured image box). A block's `context.media` items carry `title`, the title in the page's language (empty when unset; the core renders it as the image's `title` attribute), and `ctx.media.get` returns `title`, `caption` and `description` by language.
+- Plugin API 1.78: `ctx.push.notify` sends push notifications of the official app (`form.message` from Forms, `shop.order` from Cleishop). See [App notifications](#app-notifications-plugin-api-178).
 - Plugin API 1.76: a block's `load` gets `context.block`, the block itself with the blocks it holds (read only), so a container can decide from what is inside it (e.g. hide itself when a list it holds is empty).
 - Plugin API 1.72: `ctx.terms.copy` takes `slug`. Slugs of German content write ä ö ü as ae oe ue (core 0.99).
 - Plugin API 1.71: `ctx.content.create` takes `terms` and `featuredMediaId`.
@@ -1028,6 +1030,24 @@ await ctx.mail.send({
 - `null`, the starting value, to leave it to the site's own SMTP settings or the server's.
 
 Both results take `from` (`Name <address>`), the sender to use, honored only when `fromChosen` is false, so a sender chosen by another plugin stays. Keep a result another plugin gave. When sending fails, throw: the core sends the email the usual way and logs it, so a broken plugin never stops a site's emails. The filter runs with the time limit of background jobs, and only for a site's emails, never for the server's own. The permission sees every email, password-reset links included, so activating such a plugin asks the administrator's consent.
+
+### App notifications (plugin API 1.78)
+
+`ctx.push.notify(siteId, notification)` sends a push notification to the official Cleitext app: to the phones of the people who chose the event in the app and have its capability on the site. It needs no permission, but only the events the core knows, each from its own plugin: `form.message` (Forms, people with `manage_forms`) and `shop.order` (Cleishop, people with `manage_shop`); the core sends `comment.pending` itself (people with `moderate_comments`). Any other event throws.
+
+```ts
+ctx.push?.notify(siteId, {
+  event: 'shop.order',
+  id: order.id,
+  title: { en: 'New order #12 — €71.98', it: 'Nuovo ordine n. 12 — 71,98 €' },
+  body: { en: 'Ada Rossi · 3 products', it: 'Ada Rossi · 3 prodotti' },
+  adminPath: adminUrl(`/ext/shop/orders?order=${order.id}`),
+});
+```
+
+- `title` and `body` are a text or texts by language: each person reads their own language (English for the others). Titles are cut at 120 characters, bodies at 400.
+- `adminPath` is the admin screen the notification opens (it starts with `/`). The phone gets `data: { type, siteUrl, adminPath, id }`.
+- It returns at once: the notification leaves in the background, through the relay of cleitext.com (`CLEITEXT_PUSH_RELAY`), and problems are only logged. Call it with `?.`: it is missing on older cores.
 
 ### Comments of a plugin
 

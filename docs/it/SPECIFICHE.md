@@ -378,26 +378,40 @@ Base: `/api/v1`. Il formato è JSON. Gli errori seguono RFC 9457. La paginazione
 
 ### 6.4 Sistema
 
-| Metodo                | Percorso                                                                       | Descrizione                                               |
-| --------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------- |
-| GET/POST/PATCH        | `/sites[/:id]`                                                                 | Siti (super admin).                                       |
-| GET/POST/DELETE       | `/sites/:id/domains[/:id]`                                                     | Domini.                                                   |
-| GET/PATCH             | `/settings/:namespace`                                                         | Impostazioni (validate dallo schema del namespace).       |
-| GET/POST/PATCH/DELETE | `/users[/:id]` · POST `/users/invite`                                          | Utenti del sito.                                          |
-| GET/POST/PATCH/DELETE | `/roles[/:id]`                                                                 | Ruoli.                                                    |
-| GET/POST/DELETE       | `/tokens[/:id]`                                                                | Token API.                                                |
-| GET                   | `/plugins`                                                                     | Plugin installati e stato sul sito.                       |
-| POST                  | `/plugins/:slug/activate` · `/deactivate`                                      | Attivazione per sito.                                     |
-| GET                   | `/registry/plugins?q=` · `/registry/themes?q=`                                 | Ricerca nel registro Cleitext (tramite proxy del server). |
-| POST                  | `/plugins/install` `{slug, version}` · `/plugins/upload` (multipart .zip/.tgz) | Installazione (`manage_plugins`).                         |
-| POST                  | `/plugins/:slug/update` · `/plugins/:slug/rollback`                            | Aggiornamento e rollback.                                 |
-| DELETE                | `/plugins/:slug`                                                               | Disinstallazione (con conferma).                          |
-| GET                   | `/themes` · POST `/themes/install` · `/themes/:slug/activate`                  | Temi.                                                     |
-| GET                   | `/search?q=`                                                                   | Ricerca globale admin (entry, media, termini, utenti).    |
-| GET                   | `/audit`                                                                       | Registro attività.                                        |
-| GET                   | `/system/status`                                                               | Stato del sistema.                                        |
-| GET                   | `/blocks`                                                                      | Registro dei blocchi disponibili (per l'editor).          |
-| POST                  | `/blocks/preview`                                                              | Un blocco di plugin reso dal server, con il suo CSS.      |
+| Metodo                | Percorso                                                                       | Descrizione                                                  |
+| --------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| GET/POST/PATCH        | `/sites[/:id]`                                                                 | Siti (super admin).                                          |
+| GET/POST/DELETE       | `/sites/:id/domains[/:id]`                                                     | Domini.                                                      |
+| GET/PATCH             | `/settings/:namespace`                                                         | Impostazioni (validate dallo schema del namespace).          |
+| GET/POST/PATCH/DELETE | `/users[/:id]` · POST `/users/invite`                                          | Utenti del sito.                                             |
+| GET/POST/PATCH/DELETE | `/roles[/:id]`                                                                 | Ruoli.                                                       |
+| GET/POST/DELETE       | `/tokens[/:id]`                                                                | Token API.                                                   |
+| GET                   | `/push/status`                                                                 | Notifiche dell'app: `{ enabled, events }` della persona.     |
+| GET/POST              | `/push/devices`                                                                | I telefoni della persona; POST `{ token, platform, name? }`. |
+| PUT/DELETE            | `/push/devices/:id`                                                            | PUT `{ events }`; solo i propri telefoni.                    |
+| GET                   | `/plugins`                                                                     | Plugin installati e stato sul sito.                          |
+| POST                  | `/plugins/:slug/activate` · `/deactivate`                                      | Attivazione per sito.                                        |
+| GET                   | `/registry/plugins?q=` · `/registry/themes?q=`                                 | Ricerca nel registro Cleitext (tramite proxy del server).    |
+| POST                  | `/plugins/install` `{slug, version}` · `/plugins/upload` (multipart .zip/.tgz) | Installazione (`manage_plugins`).                            |
+| POST                  | `/plugins/:slug/update` · `/plugins/:slug/rollback`                            | Aggiornamento e rollback.                                    |
+| DELETE                | `/plugins/:slug`                                                               | Disinstallazione (con conferma).                             |
+| GET                   | `/themes` · POST `/themes/install` · `/themes/:slug/activate`                  | Temi.                                                        |
+| GET                   | `/search?q=`                                                                   | Ricerca globale admin (entry, media, termini, utenti).       |
+| GET                   | `/audit`                                                                       | Registro attività.                                           |
+| GET                   | `/system/status`                                                               | Stato del sistema.                                           |
+| GET                   | `/blocks`                                                                      | Registro dei blocchi disponibili (per l'editor).             |
+| POST                  | `/blocks/preview`                                                              | Un blocco di plugin reso dal server, con il suo CSS.         |
+
+**L'app ufficiale** (iOS e Android) accede con il flusso OAuth 2.1 degli assistenti AI (§RF-AI-02): si registra con `redirect_uris: ["com.cleitext.app:/oauth/callback"]` (RFC 8252 §7.1; l'unico schema privato accettato), e questi endpoint funzionano per lei anche dove gli assistenti AI sono spenti. I suoi token hanno il suo nome ("Cleitext app") e compaiono in Profilo → Token API.
+
+**Notifiche push** (`/push`, una sessione o un token Bearer con `write` per le modifiche): ognuno vede e modifica solo i propri telefoni.
+
+- `POST /push/devices` `{ "token": "<token FCM>", "platform": "ios" | "android", "name"?: "Pixel 8" }` → `201` con il dispositivo. Lo stesso token di nuovo lo aggiorna (`lastSeenAt`) mantenendo gli eventi; il token di un altro account passa a questo. I telefoni nuovi ricevono tutti gli eventi; 20 telefoni a persona, i più vecchi escono.
+- Dispositivo: `{ "id", "platform", "name", "events": ["comment.pending", "form.message", "shop.order"], "createdAt", "lastSeenAt" }`.
+- `GET /push/devices` → i dispositivi della persona. `PUT /push/devices/:id` `{ "events": [...] }` → il dispositivo. `DELETE /push/devices/:id` → `204`.
+- `GET /push/status` → `{ "enabled": true, "events": ["comment.pending", "shop.order"] }`: se il server invia notifiche, e gli eventi che questa persona può ricevere (sua capability, plugin attivo).
+- Eventi: `comment.pending` (un commento attende la moderazione; `moderate_comments`), `form.message` (Moduli; `manage_forms`), `shop.order` (Cleishop, nuovo ordine; `manage_shop`). Testi nella lingua della persona; il telefono riceve `data: { type, siteUrl, adminPath, id }`.
+- Il server invia `{ tokens, title, body, data }` con `x-cleitext-site: <origine del sito>` a `CLEITEXT_PUSH_RELAY` (di base `https://cleitext.com/api/v1/ext/push-relay/send`, il plugin Push Relay), dopo la richiesta e senza rallentarla, e dimentica i token che il relay indica come `invalid`.
 
 ### 6.5 Delivery (sola lettura, headless)
 

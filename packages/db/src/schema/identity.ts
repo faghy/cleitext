@@ -279,3 +279,33 @@ export const userFields = pgTable(
   },
   (t) => [primaryKey({ columns: [t.siteId, t.userId] })],
 );
+
+/**
+ * Phones of the official app that receive push notifications (0040): per
+ * site and person, with the events chosen in the app. The token is the
+ * Firebase Cloud Messaging registration token, unique on the site.
+ */
+export const pushDevices = pgTable(
+  'push_devices',
+  {
+    id: id(),
+    siteId: siteId().references(() => sites.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    token: text('token').notNull(),
+    platform: text('platform').notNull(),
+    name: text('name').notNull().default(''),
+    events: text('events')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    createdAt: createdAt(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('push_devices_site_token_unique').on(t.siteId, t.token),
+    index('push_devices_user_idx').on(t.siteId, t.userId),
+    check('push_devices_platform_check', sql`${t.platform} in ('ios', 'android')`),
+  ],
+);

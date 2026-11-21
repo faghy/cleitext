@@ -92,7 +92,7 @@ describe('MCP', () => {
     expect(
       (
         await app.inject({
-          url: '/.well-known/oauth-authorization-server',
+          url: '/.well-known/oauth-protected-resource',
           headers: { host: site.host },
         })
       ).statusCode,

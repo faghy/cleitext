@@ -408,7 +408,14 @@ export const itGeneral: Messages = {
   'It acts with your permissions, and everything it does is in the activity log. You can disconnect it at any time on the Chriss page.':
     'Agisce con i tuoi permessi, e tutto quello che fa finisce nel registro attività. Puoi scollegarlo quando vuoi dalla pagina Chriss.',
   Allow: 'Consenti',
-  'Start again from your assistant.': 'Ricomincia dal tuo assistente.',
+  'Start again from your assistant or app.': 'Ricomincia dal tuo assistente o dall’app.',
+  'Connect the app': 'Collega l’app',
+  'App and notifications': 'App e notifiche',
+  'Sign in to this site from the Cleitext app on your phone to get notifications of comments, messages and orders.':
+    'Accedi a questo sito dall’app Cleitext sul tuo telefono per ricevere le notifiche di commenti, messaggi e ordini.',
+  'No notifications': 'Nessuna notifica',
+  'It acts with your permissions, and everything it does is in the activity log. You can disconnect it at any time in Profile → API tokens.':
+    'Agisce con i tuoi permessi, e tutto quello che fa finisce nel registro attività. Puoi scollegarla quando vuoi da Profilo → Token API.',
   'This assistant is not registered on this site: connect it again.':
     'Questo assistente non è registrato su questo sito: collegalo di nuovo.',
   'The redirect address does not match the one the assistant registered.':

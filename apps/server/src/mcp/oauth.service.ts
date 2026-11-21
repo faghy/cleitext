@@ -7,6 +7,7 @@ import {
   withContext,
   type DatabaseClient,
 } from '@cleitext/db';
+import { APP_REDIRECT_URI } from '@cleitext/shared';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, gt, lt } from 'drizzle-orm';
 import { TOKEN_PREFIX } from '../auth/api-token.service.js';
@@ -58,8 +59,12 @@ export interface TokenResponse {
   scope: string;
 }
 
-/** https, or http on the loopback (native apps, RFC 8252); no fragments. */
+/**
+ * https, or http on the loopback (native apps, RFC 8252 §7.3), or exactly the
+ * private-use scheme of the official Cleitext app (RFC 8252 §7.1); no fragments.
+ */
 export function validRedirectUri(uri: string): boolean {
+  if (uri === APP_REDIRECT_URI) return true;
   try {
     const url = new URL(uri);
     if (url.hash) return false;
@@ -68,6 +73,11 @@ export function validRedirectUri(uri: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** The official app: registered with its own redirect address only. */
+export function isAppClient(client: { redirectUris: string[] }): boolean {
+  return client.redirectUris.length > 0 && client.redirectUris.every((u) => u === APP_REDIRECT_URI);
 }
 
 export function pkceMatches(verifier: string, challenge: string): boolean {
@@ -242,7 +252,9 @@ export class OAuthService {
         .values({
           siteId,
           userId,
-          name: `${client?.name ?? 'AI assistant'} (MCP)`,
+          // The app is not an assistant: its tokens carry its name only.
+          name:
+            client && isAppClient(client) ? client.name : `${client?.name ?? 'AI assistant'} (MCP)`,
           tokenHash: hashToken(access),
           prefix: access.slice(0, TOKEN_PREFIX.length + 6),
           scopes,

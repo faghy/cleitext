@@ -124,6 +124,8 @@ Su Plesk, `localhost:25` senza le credenziali di una casella consegna solo ai do
 
 `chmod 600 cleitext-shared/.env`. Le altre impostazioni sono elencate in [`.env.example`](../../.env.example).
 
+**Notifiche dell'app.** Chi accede a un sito dall'app ufficiale Cleitext riceve le notifiche push dei commenti da moderare, dei messaggi dei moduli e dei nuovi ordini (sceglie quali nell'app; Profilo → App e notifiche elenca i suoi telefoni). Il sito le invia tramite il relay di cleitext.com, che custodisce le chiavi di Firebase: dal server escono solo i token dei telefoni, i testi brevi e l'indirizzo della schermata dell'admin. `CLEITEXT_PUSH_RELAY` indica un altro relay (il plugin Push Relay), e un valore vuoto spegne le notifiche.
+
 ### Proxy e indirizzo del visitatore
 
 Il limite ai tentativi di accesso, i limiti di frequenza, il registro delle attività, i controlli antispam su commenti e moduli, gli indirizzi fidati del plugin Captcha e il resoconto dell'installazione usano tutti l'indirizzo del visitatore. Dietro un proxy il server vede solo il proxy, quindi legge l'indirizzo da `X-Forwarded-For` percorrendolo **da destra**: ogni proxy fidato passa la mano all'indirizzo che riporta, e il primo indirizzo che non è un proxy fidato è il visitatore. Le voci più a sinistra le scrive il visitatore e non vengono mai credute come tali.

@@ -96,6 +96,8 @@ const envSchema = z.object({
   CATALOG_PUBLIC_KEY: z.string().min(40).optional(),
   /** The registry the installation report goes to (catalog/install-report); empty turns it off. */
   INSTALL_REPORT_URL: z.union([z.url({ protocol: /^https?$/ }), z.literal('')]).optional(),
+  /** The relay of the app's push notifications; empty turns them off. */
+  CLEITEXT_PUSH_RELAY: z.union([z.url({ protocol: /^https?$/ }), z.literal('')]).optional(),
   /** Where updates come from (GitHub owner/name); empty turns the update check off. */
   UPDATES_REPO: z
     .string()
@@ -142,6 +144,8 @@ export interface AppConfig {
   catalog: { url: string; publicKey: string };
   updates: { repo: string };
   installReport: { url: string };
+  /** Push notifications of the official app: where they are sent ('' = off). */
+  push: { relayUrl: string };
   /** Folder of the built admin, if the server serves it (production). */
   admin: { path: string | null };
   pageCache: { maxEntries: number; ttlSeconds: number };
@@ -207,6 +211,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       // Only real installations (production) report by default: never tests nor development.
       url: e.INSTALL_REPORT_URL ?? (e.NODE_ENV === 'production' ? DEFAULT_INSTALL_REPORT_URL : ''),
     },
+    push: {
+      // Tests never reach cleitext.com unless they say where.
+      relayUrl: e.CLEITEXT_PUSH_RELAY ?? (e.NODE_ENV === 'test' ? '' : DEFAULT_PUSH_RELAY_URL),
+    },
     admin: { path: adminPath(e.ADMIN_PATH) },
     pageCache: { maxEntries: e.PAGE_CACHE_MAX_ENTRIES, ttlSeconds: e.PAGE_CACHE_TTL_SECONDS },
     // Development and tests only: production refuses to start without one.
@@ -234,6 +242,9 @@ export function defaultMailUrl(
 
 /** The installation registry of cleitext.com (the Store plugin). */
 export const DEFAULT_INSTALL_REPORT_URL = 'https://cleitext.com/api/v1/ext/store/v1/report';
+
+/** The relay of push notifications on cleitext.com (the push-relay plugin). */
+export const DEFAULT_PUSH_RELAY_URL = 'https://cleitext.com/api/v1/ext/push-relay/send';
 
 /** The official catalog and its signing key (in @cleitext/shared: the CLI reads them too). */
 export { DEFAULT_CATALOG_KEY, DEFAULT_CATALOG_URL };

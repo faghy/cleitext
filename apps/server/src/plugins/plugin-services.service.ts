@@ -106,6 +106,7 @@ import { withPluginCssClasses, withThemeImport } from '../transfer/theme-import.
 import { emptyWxrMetaResult, withWxrMeta } from '../transfer/wxr-meta.js';
 import { phpMetaValue, phpUnserialize } from '@cleitext/plugin-sdk';
 import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
+import { PushService, type PushNotice } from '../push/push.service.js';
 import { ChatService } from '../mcp/chat.service.js';
 import type { AiCompleteInput, AiCompleteResult } from '@cleitext/plugin-sdk';
 import { themeDirectories, themeFor } from '../public/themes.js';
@@ -135,6 +136,7 @@ export class PluginServicesProvider implements PluginServices {
     private readonly dynamicService: DynamicSourcesService,
     private readonly optionsService: OptionsPagesService,
     private readonly chat: ChatService,
+    private readonly push: PushService,
   ) {
     host.bind(this);
     // The site's emails reach the transport plugins (plugin API 1.60).
@@ -1470,6 +1472,10 @@ export class PluginServicesProvider implements PluginServices {
   /** The addresses (lower case) of people who turned their notification emails off. */
   mutedEmails(emails: string[]): Promise<Set<string>> {
     return mutedEmails(this.database.db, emails);
+  }
+
+  pushNotify(siteId: string, notification: PushNotice): void {
+    void this.push.notify(siteId, notification);
   }
 }
 

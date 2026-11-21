@@ -305,6 +305,13 @@ async function seedSite(db: Database, name: string): Promise<SeededSite> {
       scopes: ['read'],
       expiresAt,
     });
+    await tx.insert(s.pushDevices).values({
+      siteId,
+      userId,
+      token: `fcm-${name}`,
+      platform: 'android',
+      events: ['comment.pending'],
+    });
     await tx.insert(s.contentTypes).values({ siteId, slug: 'page', name: { en: 'Pages' } });
     const [entry] = await tx
       .insert(s.entries)

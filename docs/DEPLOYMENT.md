@@ -124,6 +124,8 @@ On Plesk, `localhost:25` without the credentials of a mailbox delivers only to t
 
 `chmod 600 cleitext-shared/.env`. The other settings are listed in [`.env.example`](../.env.example).
 
+**App notifications.** People who sign in to a site from the official Cleitext app get push notifications of comments to moderate, form messages and new orders (they choose which in the app; Profile → App and notifications lists their phones). The site sends them through the relay of cleitext.com, which holds the Firebase keys: only the phones' tokens, the short texts and the address of the admin screen leave the server. `CLEITEXT_PUSH_RELAY` points to another relay (the Push Relay plugin), and an empty value turns notifications off.
+
 ### Proxies and the visitor's address
 
 Login throttling, rate limits, the activity log, spam checks on comments and forms, the Captcha plugin's trusted addresses and the installation report all use the visitor's address. Behind a proxy the server only sees the proxy, so it reads the address from `X-Forwarded-For`, walking it **from the right**: each trusted proxy hands over to the address it reports, and the first address that is not a trusted proxy is the visitor. The leftmost entries are written by the visitor and are never believed as such.

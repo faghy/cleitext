@@ -1,4 +1,4 @@
-import { ADMIN_PATH } from '@cleitext/shared';
+import { ADMIN_PATH, APP_REDIRECT_URI } from '@cleitext/shared';
 import { withContext, type DatabaseClient } from '@cleitext/db';
 import { Controller, Get, Inject, Options, Post, Req, Res } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -6,13 +6,15 @@ import { NoCsrf, Public } from '../common/decorators.js';
 import { DATABASE } from '../database/database.module.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { siteOrigin } from './origin.js';
-import { OAUTH_SCOPES, OAuthError, OAuthService } from './oauth.service.js';
+import { isAppClient, OAUTH_SCOPES, OAuthError, OAuthService } from './oauth.service.js';
 
 /**
  * OAuth 2.1 endpoints for AI assistants (RF-AI-02), discovered from /mcp:
  * metadata (RFC 9728, RFC 8414), dynamic registration (RFC 7591), the
  * authorization endpoint (the consent is in the admin, see consent.controller)
- * and the token endpoint. Only when MCP is on for the site.
+ * and the token endpoint. Only when MCP is on for the site, except for the
+ * official Cleitext app (redirect `com.cleitext.app:/oauth/callback`), which
+ * signs in with the same flow on every site.
  */
 
 type Body = Record<string, string | string[] | undefined>;
@@ -33,6 +35,14 @@ export class OAuthController {
       this.settings.core(tx),
     );
     return core.mcp === true;
+  }
+
+  /** MCP is on, or the client is the official app (which works without MCP). */
+  private async allowedFor(request: FastifyRequest, clientId: string | undefined) {
+    if (await this.enabled(request)) return true;
+    if (!request.site || !clientId) return false;
+    const client = await this.oauth.client(request.site.id, clientId);
+    return client !== null && isAppClient(client);
   }
 
   private notFound(reply: FastifyReply) {
@@ -60,9 +70,10 @@ export class OAuthController {
     return this.resource(request, reply);
   }
 
+  /** Also without MCP: the official app discovers the endpoints here. */
   @Get('.well-known/oauth-authorization-server')
   async server(@Req() request: FastifyRequest, @Res() reply: FastifyReply) {
-    if (!(await this.enabled(request))) return this.notFound(reply);
+    if (!request.site) return this.notFound(reply);
     const origin = siteOrigin(request);
     return cors(reply).send({
       issuer: origin,
@@ -93,11 +104,12 @@ export class OAuthController {
 
   @Post('oauth/register')
   async register(@Req() request: FastifyRequest, @Res() reply: FastifyReply) {
-    if (!(await this.enabled(request))) return this.notFound(reply);
     const body = (request.body ?? {}) as Record<string, unknown>;
     const uris = Array.isArray(body.redirect_uris)
       ? body.redirect_uris.filter((u) => typeof u === 'string')
       : [];
+    const app = uris.length > 0 && uris.every((u) => u === APP_REDIRECT_URI);
+    if (!request.site || !(app || (await this.enabled(request)))) return this.notFound(reply);
     try {
       const client = await this.oauth.register(request.site!.id, {
         name: typeof body.client_name === 'string' ? body.client_name : 'AI assistant',
@@ -121,16 +133,18 @@ export class OAuthController {
   /** The consent happens in the admin (Connect an assistant), signed in as usual. */
   @Get('oauth/authorize')
   async authorize(@Req() request: FastifyRequest, @Res() reply: FastifyReply) {
-    if (!(await this.enabled(request))) return this.notFound(reply);
+    const clientId = (request.query as Record<string, unknown> | undefined)?.client_id;
+    if (!(await this.allowedFor(request, typeof clientId === 'string' ? clientId : undefined)))
+      return this.notFound(reply);
     const query = request.url.includes('?') ? request.url.slice(request.url.indexOf('?')) : '';
     return reply.header('cache-control', 'no-store').redirect(`${ADMIN_PATH}/connect${query}`, 302);
   }
 
   @Post('oauth/token')
   async token(@Req() request: FastifyRequest, @Res() reply: FastifyReply) {
-    if (!(await this.enabled(request))) return this.notFound(reply);
     const body = (request.body ?? {}) as Body;
     const field = (k: string) => (typeof body[k] === 'string' ? (body[k] as string) : '');
+    if (!(await this.allowedFor(request, field('client_id')))) return this.notFound(reply);
     try {
       const siteId = request.site!.id;
       const clientId = field('client_id');
@@ -152,7 +166,8 @@ export class OAuthController {
                   'Use authorization_code or refresh_token.',
                 );
               })();
-      return cors(reply).header('cache-control', 'no-store').send(tokens);
+      // 200 as RFC 6749 §5.1 says (not the 201 of a POST by default).
+      return cors(reply).code(200).header('cache-control', 'no-store').send(tokens);
     } catch (error) {
       return oauthError(reply, error);
     }

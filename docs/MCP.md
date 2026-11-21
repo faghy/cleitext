@@ -8,7 +8,7 @@ In the admin there is also **Chriss**, the Cleitext assistant: a chat that does 
 
 ## Turn it on
 
-In the admin, open **Chriss** and choose _Turn on AI assistants_ (or check _Let AI assistants work on this site_ in **Settings → AI assistants (MCP)** and save). The **Chriss** page shows the address to give the assistant, `https://<your site>/mcp`, with a Copy button, the steps to connect, and the assistants connected to your account. Until it is on, `/mcp` and the OAuth endpoints answer 404.
+In the admin, open **Chriss** and choose _Turn on AI assistants_ (or check _Let AI assistants work on this site_ in **Settings → AI assistants (MCP)** and save). The **Chriss** page shows the address to give the assistant, `https://<your site>/mcp`, with a Copy button, the steps to connect, and the assistants connected to your account. Until it is on, `/mcp` and the OAuth endpoints answer 404, except for the official Cleitext app: it signs in with the same OAuth flow (redirect `com.cleitext.app:/oauth/callback`) on every site, as it is not an AI assistant.
 
 The address is not a page to open in the browser: whoever opens it there lands on **Chriss** in the admin.
 

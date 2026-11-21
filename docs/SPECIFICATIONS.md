@@ -386,6 +386,9 @@ Base: `/api/v1`. The format is JSON. Errors follow RFC 9457. Pagination is curso
 | GET/POST/PATCH/DELETE | `/users[/:id]` · POST `/users/invite`                                          | Site users.                                                |
 | GET/POST/PATCH/DELETE | `/roles[/:id]`                                                                 | Roles.                                                     |
 | GET/POST/DELETE       | `/tokens[/:id]`                                                                | API tokens.                                                |
+| GET                   | `/push/status`                                                                 | App notifications: `{ enabled, events }` for the person.   |
+| GET/POST              | `/push/devices`                                                                | The person's phones; POST `{ token, platform, name? }`.    |
+| PUT/DELETE            | `/push/devices/:id`                                                            | PUT `{ events }`; only the person's own phones.            |
 | GET                   | `/plugins`                                                                     | Installed plugins and their status on the site.            |
 | POST                  | `/plugins/:slug/activate` · `/deactivate`                                      | Per-site activation.                                       |
 | GET                   | `/registry/plugins?q=` · `/registry/themes?q=`                                 | Search the Cleitext registry (proxied through the server). |
@@ -398,6 +401,17 @@ Base: `/api/v1`. The format is JSON. Errors follow RFC 9457. Pagination is curso
 | GET                   | `/system/status`                                                               | System status.                                             |
 | GET                   | `/blocks`                                                                      | Registry of available blocks (for the editor).             |
 | POST                  | `/blocks/preview`                                                              | One plugin block rendered by the server, with its CSS.     |
+
+**The official app** (iOS and Android) signs in with the OAuth 2.1 flow of the AI assistants (§RF-AI-02): it registers with `redirect_uris: ["com.cleitext.app:/oauth/callback"]` (RFC 8252 §7.1; the only private-use scheme accepted), and these endpoints work for it also where AI assistants are off. Its tokens are named after it ("Cleitext app") and listed in Profile → API tokens.
+
+**Push notifications** (`/push`, a session or a Bearer token with `write` to change): each person sees and changes only their own phones.
+
+- `POST /push/devices` `{ "token": "<FCM token>", "platform": "ios" | "android", "name"?: "Pixel 8" }` → `201` with the device. The same token again refreshes it (`lastSeenAt`), keeping its events; a token of another account moves to this one. New phones get every event; 20 phones per person, the oldest go.
+- Device: `{ "id", "platform", "name", "events": ["comment.pending", "form.message", "shop.order"], "createdAt", "lastSeenAt" }`.
+- `GET /push/devices` → the person's devices. `PUT /push/devices/:id` `{ "events": [...] }` → the device. `DELETE /push/devices/:id` → `204`.
+- `GET /push/status` → `{ "enabled": true, "events": ["comment.pending", "shop.order"] }`: whether the server sends notifications, and the events this person can receive (their capability, and the plugin active).
+- Events: `comment.pending` (a comment waits for moderation; `moderate_comments`), `form.message` (Forms; `manage_forms`), `shop.order` (Cleishop, a new order; `manage_shop`). Texts in the person's language; the phone gets `data: { type, siteUrl, adminPath, id }`.
+- The server posts `{ tokens, title, body, data }` with `x-cleitext-site: <site origin>` to `CLEITEXT_PUSH_RELAY` (default `https://cleitext.com/api/v1/ext/push-relay/send`, the Push Relay plugin), after the request and without slowing it, and forgets the tokens the relay answers as `invalid`.
 
 ### 6.5 Delivery (read-only, headless)
 

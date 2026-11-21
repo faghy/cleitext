@@ -202,7 +202,15 @@ export interface OAuthConsentView {
   scopes: string[];
   /** The user may let it publish too. */
   canPublish: boolean;
+  /** The official Cleitext app (its own redirect address), not an AI assistant. */
+  app?: boolean;
 }
+
+/**
+ * Where the official Cleitext app gets the answer of a sign-in (RFC 8252
+ * §7.1, a private-use scheme): the only address of its kind accepted.
+ */
+export const APP_REDIRECT_URI = 'com.cleitext.app:/oauth/callback';
 
 export const oauthConsentRequestSchema = z.object({
   /** The query of /oauth/authorize. */
