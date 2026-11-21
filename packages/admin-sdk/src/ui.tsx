@@ -14,7 +14,7 @@ export function Button({
   }[variant];
   return (
     <button
-      className={`rounded px-3 py-2 text-sm font-medium focus:outline-2 focus:outline-offset-2 focus:outline-sky-600 disabled:cursor-not-allowed ${styles} ${className}`}
+      className={`rounded px-3 py-2 text-sm font-medium max-md:min-h-10 focus:outline-2 focus:outline-offset-2 focus:outline-sky-600 disabled:cursor-not-allowed ${styles} ${className}`}
       {...props}
     />
   );
@@ -85,7 +85,10 @@ export function Card({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-4 rounded border border-slate-200 bg-white p-4 shadow-sm">
+    <section
+      id={id}
+      className="scroll-mt-4 rounded border border-slate-200 bg-white p-4 shadow-sm max-md:min-w-0 max-md:p-3"
+    >
       {title && <h2 className="mb-3 text-base font-semibold">{title}</h2>}
       {children}
     </section>

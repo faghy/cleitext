@@ -41,6 +41,7 @@ export const itContent: Messages = {
   Draft: 'Bozza',
   Drafts: 'Bozze',
   'Drop files here to upload them.': 'Trascina qui i file per caricarli.',
+  'Take or choose a photo': 'Scatta o scegli una foto',
   Entry: 'Contenuto',
   'File details': 'Dettagli file',
   'File:': 'File:',

@@ -188,6 +188,8 @@ export const itAdmin: Messages = {
   'Searching…': 'Ricerca…',
   'Search…': 'Cerca…',
   'Open the command palette': 'Apri la palette dei comandi',
+  'Open the menu': 'Apri il menu',
+  'Close the menu': 'Chiudi il menu',
   'Visit site': 'Visualizza sito',
   '(opens in a new tab)': '(si apre in una nuova scheda)',
   'Updating…': 'Aggiornamento…',

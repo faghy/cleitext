@@ -308,7 +308,9 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
   };
 
   const shell = (body: ReactNode) => (
-    <div className="fixed inset-0 z-50 flex bg-white text-slate-800">{body}</div>
+    <div className="fixed inset-0 z-50 flex bg-white text-slate-800 max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)]">
+      {body}
+    </div>
   );
   if (active.error)
     return shell(<p className="m-6 text-sm text-red-700">{errorMessage(active.error)}</p>);
@@ -370,7 +372,8 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
           {controls && (
             <aside
               aria-label={t('Customize')}
-              className="flex w-[300px] shrink-0 flex-col border-r border-slate-300 bg-slate-100"
+              // Phones: the controls take the whole width; "Hide controls" shows the preview.
+              className="flex w-[300px] shrink-0 flex-col border-r border-slate-300 bg-slate-100 max-md:w-full max-md:border-r-0"
             >
               {/* Top bar: close, more actions, publish. */}
               <div className="flex h-[45px] shrink-0 items-stretch border-b border-slate-300 bg-slate-100">
@@ -685,7 +688,7 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
               type="button"
               onClick={() => setControls(true)}
               aria-label={t('Show controls')}
-              className="absolute bottom-2 left-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 text-white shadow"
+              className="absolute bottom-2 left-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 text-white shadow max-md:bottom-[max(0.5rem,env(safe-area-inset-bottom))] max-md:size-11"
             >
               ›
             </button>

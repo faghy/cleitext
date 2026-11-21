@@ -88,7 +88,7 @@ export function DashboardPage() {
           </button>
         </Alert>
       )}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 max-lg:grid-cols-1 lg:grid-cols-2">
         <Card title={t('Welcome, {name}', { name: me.user.displayName })}>
           <p className="text-sm text-slate-600">
             {signedInBefore}

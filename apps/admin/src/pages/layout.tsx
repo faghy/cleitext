@@ -9,7 +9,7 @@ import { Avatar } from '../components/avatar';
 import { LogoMark } from '@cleitext/admin-sdk';
 import { MAINTENANCE_QUERY_KEY } from './settings';
 import { taxonomiesQuery, taxonomyLabel } from './terms';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { CommandPalette, useCommandPaletteShortcut } from '../components/command-palette';
 import { usePluginMenu } from '../plugins';
 import {
@@ -21,10 +21,12 @@ import {
   type MenuNode,
 } from '../admin-menu';
 import { MenuIcon } from '../components/menu-icons';
+import { PHONE_QUERY, useWideTables } from '../components/wide-tables';
 import { UPDATES_QUERY } from './updates';
 import { useCatalogUpdates } from '../components/catalog';
 
 const SETTINGS_PATH: string = '/settings';
+const PROFILE_PATH: string = '/profile';
 
 /** WordPress-like admin frame: dark sidebar, top bar, content. */
 /** Section routes are registered dynamically (navigation.ts), hence a plain string. */
@@ -228,6 +230,33 @@ export function AdminLayout() {
   const tab = typeof tabParam === 'string' ? tabParam : undefined;
   const hash = useRouterState({ select: (state) => state.location.hash });
   const open = currentTop(menu, pathname);
+  // Phones: the sidebar is a drawer, closed again on every navigation and by Escape.
+  const [navOpen, setNavOpen] = useState(false);
+  const closeNav = useRef<HTMLButtonElement>(null);
+  const content = useRef<HTMLElement>(null);
+  useWideTables(content);
+  const openNav = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname, tab, hash]);
+  useEffect(() => {
+    if (!navOpen) return;
+    closeNav.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setNavOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    const opener = openNav.current;
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      // Back to the button that opened it, unless the drawer led elsewhere.
+      if (
+        document.activeElement === document.body ||
+        closeNav.current?.contains(document.activeElement)
+      )
+        opener?.focus();
+    };
+  }, [navOpen]);
   // A submenu item for a box of the screen (Settings → Reading): scrolled into view once it is there.
   useEffect(() => {
     if (!hash) return;
@@ -241,6 +270,17 @@ export function AdminLayout() {
     }, 100);
     return () => clearInterval(timer);
   }, [pathname, hash]);
+  // Phones: the chosen tab of a sideways-scrolling tab bar is brought into view.
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function' || !window.matchMedia(PHONE_QUERY).matches) return;
+    const frame = requestAnimationFrame(() => {
+      for (const selected of content.current?.querySelectorAll(
+        '[role="tablist"] [aria-selected="true"]',
+      ) ?? [])
+        selected.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pathname, tab]);
   const current = items
     .filter((item) =>
       item.to === '/'
@@ -263,20 +303,45 @@ export function AdminLayout() {
 
   return (
     <div className="flex min-h-screen bg-slate-100 text-slate-900">
+      {navOpen && (
+        // Phones: behind the open drawer, a tap closes it.
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          aria-hidden="true"
+          onClick={() => setNavOpen(false)}
+        />
+      )}
       {/* Darker than the content in both themes, with an edge: in the dark theme the
-          content's background is the old menu color, and the two blended. */}
-      <aside className="light-palette w-56 shrink-0 border-r border-black/40 bg-slate-950 text-slate-200 shadow-[inset_-1px_0_0_rgb(255_255_255/0.06)]">
-        <div className="px-4 py-4">
-          <SiteMenu
-            dark
-            className="flex items-center gap-2 rounded text-lg font-semibold text-white hover:text-sky-200"
+          content's background is the old menu color, and the two blended.
+          Below 768 px it is an off-canvas drawer opened from the top bar. */}
+      <aside
+        id="admin-sidebar"
+        className={`light-palette w-56 shrink-0 border-r border-black/40 bg-slate-950 text-slate-200 shadow-[inset_-1px_0_0_rgb(255_255_255/0.06)] max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-72 max-md:max-w-[85vw] max-md:overflow-x-hidden max-md:overflow-y-auto max-md:overscroll-contain max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)] max-md:pl-[env(safe-area-inset-left)] max-md:transition-transform ${navOpen ? '' : 'max-md:invisible max-md:-translate-x-full'}`}
+      >
+        <div className="flex items-start gap-2 px-4 py-4">
+          <div className="min-w-0 flex-1">
+            <SiteMenu
+              dark
+              className="flex items-center gap-2 rounded text-lg font-semibold text-white hover:text-sky-200"
+            >
+              <LogoMark size={24} />
+              Cleitext
+            </SiteMenu>
+            <p className="truncate text-xs text-slate-400" title={me.site.name}>
+              {me.site.name}
+            </p>
+          </div>
+          <button
+            ref={closeNav}
+            type="button"
+            className="-mt-2 -mr-2 flex size-10 shrink-0 items-center justify-center rounded text-slate-300 hover:bg-slate-800 hover:text-white md:hidden"
+            aria-label={t('Close the menu')}
+            onClick={() => setNavOpen(false)}
           >
-            <LogoMark size={24} />
-            Cleitext
-          </SiteMenu>
-          <p className="truncate text-xs text-slate-400" title={me.site.name}>
-            {me.site.name}
-          </p>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
+          </button>
         </div>
         {reorder && (
           <form
@@ -344,7 +409,7 @@ export function AdminLayout() {
                   <Link
                     to={section.to}
                     activeOptions={{ exact: true, includeSearch: false }}
-                    className={`block px-4 py-2 text-sm ${isOpen ? 'bg-sky-700 text-white' : 'hover:bg-slate-800/70 hover:text-sky-200'}`}
+                    className={`block px-4 py-2 text-sm max-md:py-2.5 ${isOpen ? 'bg-sky-700 text-white' : 'hover:bg-slate-800/70 hover:text-sky-200'}`}
                     aria-current={isOpen && !children.length ? 'page' : undefined}
                     {...(children.length && !isOpen ? { 'aria-haspopup': 'true' as const } : {})}
                   >
@@ -387,7 +452,7 @@ export function AdminLayout() {
                                   ? { search: { tab: child.tab } as never }
                                   : { search: {} as never })}
                                 {...(child.hash ? { hash: child.hash } : {})}
-                                className={`block py-1.5 pr-4 pl-11 text-[13px] ${active ? 'font-semibold text-white' : 'text-slate-300 hover:text-sky-200'}`}
+                                className={`block py-1.5 pr-4 pl-11 text-[13px] max-md:py-2.5 max-md:text-sm ${active ? 'font-semibold text-white' : 'text-slate-300 hover:text-sky-200'}`}
                                 aria-current={active ? 'page' : undefined}
                               >
                                 {child.label}
@@ -398,7 +463,7 @@ export function AdminLayout() {
                       </ul>
                     ) : (
                       // The others: beside the sidebar, on hover or keyboard focus, as in WordPress.
-                      <div className="absolute top-0 left-full z-50 hidden pl-0.5 group-focus-within/menu:block group-hover/menu:block">
+                      <div className="absolute top-0 left-full z-50 hidden pl-0.5 group-focus-within/menu:block group-hover/menu:block max-md:hidden!">
                         <ul className="min-w-44 rounded-r border-l-4 border-sky-700 bg-slate-800 py-1.5 shadow-xl">
                           {children.map((child) => (
                             <li key={`${child.to}|${child.tab ?? ''}|${child.hash ?? ''}`}>
@@ -434,42 +499,96 @@ export function AdminLayout() {
         <p className="px-4 py-3 text-xs text-slate-400" title={t('Cleitext version')}>
           Cleitext {me.version}
         </p>
+        {/* Phones: who is signed in and the way out, which the top bar has no room for. */}
+        <div className="border-t border-white/10 px-4 py-3 text-sm md:hidden">
+          <Link to={PROFILE_PATH} className="flex min-h-10 items-center gap-2 text-slate-100">
+            <Avatar name={me.user.displayName} url={me.user.avatarUrl} size={28} />
+            <span className="min-w-0">
+              <span className="block truncate">{me.user.displayName}</span>
+              <span className="block truncate text-xs text-slate-400">
+                {me.user.isSuperAdmin ? t('Super admin') : (me.role?.name ?? '')}
+              </span>
+            </span>
+          </Link>
+          <button
+            type="button"
+            className="mt-1 min-h-10 text-sky-300 hover:underline"
+            onClick={() => logout.mutate()}
+            disabled={logout.isPending}
+          >
+            {t('Sign out')}
+          </button>
+        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-end gap-4 border-b border-slate-200 bg-white px-6 py-2 text-sm">
-          {/* As in WordPress: the site name leads to the site, with a "Visit site" menu. */}
-          <SiteMenu className="flex items-center gap-1.5 rounded px-2 py-1 font-semibold text-slate-800 hover:bg-slate-100">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+        <header className="flex items-center justify-end gap-4 border-b border-slate-200 bg-white px-6 py-2 text-sm max-md:sticky max-md:top-0 max-md:z-30 max-md:gap-1 max-md:px-2 max-md:pt-[max(0.5rem,env(safe-area-inset-top))] max-md:pr-[max(0.5rem,env(safe-area-inset-right))] max-md:pl-[max(0.5rem,env(safe-area-inset-left))]">
+          <button
+            ref={openNav}
+            type="button"
+            className="flex size-10 shrink-0 items-center justify-center rounded text-slate-700 hover:bg-slate-100 md:hidden"
+            aria-label={t('Open the menu')}
+            aria-controls="admin-sidebar"
+            aria-expanded={navOpen}
+            onClick={() => setNavOpen(true)}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M3 18h18v-2H3zm0-5h18v-2H3zm0-7v2h18V6z" />
             </svg>
-            <span className="max-w-48 truncate">{me.site.name}</span>
-          </SiteMenu>
+          </button>
+          {/* As in WordPress: the site name leads to the site, with a "Visit site" menu. */}
+          <div className="max-md:min-w-0 max-md:flex-1">
+            <SiteMenu className="flex items-center gap-1.5 rounded px-2 py-1 font-semibold text-slate-800 hover:bg-slate-100 max-md:min-h-10">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+                className="shrink-0"
+              >
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+              </svg>
+              <span className="max-w-48 truncate">{me.site.name}</span>
+            </SiteMenu>
+          </div>
           <button
             type="button"
-            className="mr-auto flex items-center gap-2 rounded border border-slate-300 px-2 py-1 text-slate-600 hover:border-slate-400"
+            className="mr-auto flex items-center gap-2 rounded border border-slate-300 px-2 py-1 text-slate-600 hover:border-slate-400 max-md:mr-0 max-md:size-10 max-md:shrink-0 max-md:justify-center max-md:border-0 max-md:p-0"
             onClick={() => setPaletteOpen(true)}
             aria-label={t('Open the command palette')}
             aria-keyshortcuts="Control+K"
           >
-            {t('Search…')}
-            <kbd className="rounded bg-slate-100 px-1 text-xs text-slate-700">Ctrl K</kbd>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+              className="md:hidden"
+            >
+              <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14" />
+            </svg>
+            <span className="max-md:hidden">{t('Search…')}</span>
+            <kbd className="rounded bg-slate-100 px-1 text-xs text-slate-700 max-md:hidden">
+              Ctrl K
+            </kbd>
           </button>
           {maintenance.data?.enabled && (
             <Link
               to={SETTINGS_PATH}
               hash="maintenance"
-              className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-300 hover:bg-amber-200"
+              className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-300 hover:bg-amber-200 max-md:max-w-24 max-md:shrink-0 max-md:truncate"
               title={t('The site is in maintenance mode: visitors see the maintenance page.')}
             >
               {t('Maintenance')}
             </Link>
           )}
           {me.sites.length > 1 && (
-            <label className="mr-auto flex items-center gap-2">
-              <span className="text-slate-600">{t('Site')}</span>
+            <label className="mr-auto flex items-center gap-2 max-md:mr-0 max-md:shrink-0">
+              <span className="text-slate-600 max-md:sr-only">{t('Site')}</span>
               <select
-                className="rounded border border-slate-300 bg-white px-2 py-1"
+                className="rounded border border-slate-300 bg-white px-2 py-1 max-md:h-10 max-md:max-w-28"
                 value={me.site.id}
                 onChange={(e) => {
                   const target = me.sites.find((s) => s.id === e.target.value);
@@ -490,15 +609,15 @@ export function AdminLayout() {
             href="/"
             target="_blank"
             rel="noopener"
-            className="flex items-center gap-1 text-sky-700 hover:underline"
+            className="flex items-center gap-1 text-sky-700 hover:underline max-md:size-10 max-md:shrink-0 max-md:justify-center"
           >
-            {t('Visit site')}
+            <span className="max-md:sr-only">{t('Visit site')}</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3zm5 16H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2z" />
             </svg>
             <span className="sr-only">{t('(opens in a new tab)')}</span>
           </a>
-          <span className="flex items-center gap-2">
+          <span className="flex items-center gap-2 max-md:hidden">
             <Avatar name={me.user.displayName} url={me.user.avatarUrl} size={24} />
             {me.user.displayName}
             <span className="ml-2 text-slate-500">
@@ -507,7 +626,7 @@ export function AdminLayout() {
           </span>
           <button
             type="button"
-            className="text-sky-700 hover:underline"
+            className="text-sky-700 hover:underline max-md:hidden"
             onClick={() => logout.mutate()}
             disabled={logout.isPending}
           >
@@ -515,7 +634,10 @@ export function AdminLayout() {
           </button>
         </header>
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-        <main className="p-6">
+        <main
+          ref={content}
+          className="p-6 max-md:px-3 max-md:pt-4 max-md:pr-[max(0.75rem,env(safe-area-inset-right))] max-md:pb-[max(1.5rem,env(safe-area-inset-bottom))] max-md:pl-[max(0.75rem,env(safe-area-inset-left))]"
+        >
           <Outlet />
         </main>
       </div>

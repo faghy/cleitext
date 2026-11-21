@@ -50,6 +50,7 @@ export function MediaPage() {
   const [query, setQuery] = useState('');
   const [view, setView] = useState<View>(storedView);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   const library = useInfiniteQuery({
     queryKey: ['media', kind, query],
@@ -106,7 +107,7 @@ export function MediaPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">{t('Media Library')}</h1>
         <Button
           variant="secondary"
@@ -126,6 +127,26 @@ export function MediaPage() {
             e.target.value = '';
           }}
         />
+        {/* Phones: images only, so that the system offers the camera next to the photos. */}
+        <Button
+          variant="secondary"
+          className="md:hidden"
+          onClick={() => cameraRef.current?.click()}
+          disabled={upload.isPending}
+        >
+          {t('Take or choose a photo')}
+        </Button>
+        <input
+          ref={cameraRef}
+          type="file"
+          multiple
+          hidden
+          accept="image/*"
+          onChange={(e) => {
+            if (e.target.files) upload.mutate([...e.target.files]);
+            e.target.value = '';
+          }}
+        />
       </div>
 
       <div
@@ -135,7 +156,7 @@ export function MediaPage() {
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        className={`rounded border-2 border-dashed p-4 text-center text-sm ${dragging ? 'border-sky-600 bg-sky-50' : 'border-slate-300 text-slate-600'}`}
+        className={`rounded border-2 border-dashed p-4 text-center text-sm max-md:hidden ${dragging ? 'border-sky-600 bg-sky-50' : 'border-slate-300 text-slate-600'}`}
       >
         {t('Drop files here to upload them.')}
       </div>
@@ -160,7 +181,7 @@ export function MediaPage() {
             ) : (
               <li key={item.id} className="text-sm">
                 <label className="flex items-center gap-3">
-                  <span className="w-48 truncate">{item.name}</span>
+                  <span className="w-48 truncate max-md:w-28">{item.name}</span>
                   <progress className="h-2 flex-1" max={1} value={item.progress} />
                   <span className="w-10 text-right text-slate-600">
                     {Math.round(item.progress * 100)}%
@@ -173,7 +194,7 @@ export function MediaPage() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div role="group" aria-label={t('View')} className="flex">
             {(['grid', 'list'] as const).map((option) => (
               <button
@@ -181,7 +202,7 @@ export function MediaPage() {
                 type="button"
                 aria-pressed={view === option}
                 onClick={() => changeView(option)}
-                className={`border border-slate-300 px-2 py-1 text-sm first:rounded-l last:rounded-r ${view === option ? 'bg-slate-800 text-white' : 'bg-white'}`}
+                className={`border border-slate-300 px-2 py-1 text-sm first:rounded-l last:rounded-r max-md:min-h-10 max-md:px-3 ${view === option ? 'bg-slate-800 text-white' : 'bg-white'}`}
               >
                 {option === 'grid' ? t('Grid') : t('List')}
               </button>
@@ -203,7 +224,7 @@ export function MediaPage() {
         </div>
         <form
           role="search"
-          className="flex gap-2"
+          className="flex gap-2 max-md:w-full"
           onSubmit={(e) => {
             e.preventDefault();
             setQuery(search.trim());
@@ -217,7 +238,7 @@ export function MediaPage() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="rounded border border-slate-300 px-2 py-1 text-sm"
+            className="rounded border border-slate-300 px-2 py-1 text-sm max-md:min-w-0 max-md:flex-1"
           />
           <Button variant="secondary" type="submit">
             {t('Search')}
@@ -236,7 +257,7 @@ export function MediaPage() {
               </p>
             )}
             {view === 'grid' ? (
-              <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
+              <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3 max-md:grid-cols-[repeat(auto-fill,minmax(96px,1fr))] max-md:gap-2">
                 {items.map((item) => (
                   <li key={item.id}>
                     <button
@@ -262,15 +283,15 @@ export function MediaPage() {
               </ul>
             ) : (
               items.length > 0 && (
-                <table className="w-full text-left text-sm">
+                <table className="w-full text-left text-sm" data-mobile="">
                   <thead className="border-b border-slate-200 text-slate-600">
                     <tr>
                       <th className="w-14 py-2">
                         <span className="sr-only">{t('Preview')}</span>
                       </th>
                       <th className="py-2 font-medium">{t('File')}</th>
-                      <th className="py-2 font-medium">{t('Author')}</th>
-                      <th className="py-2 font-medium">{t('Size')}</th>
+                      <th className="py-2 font-medium max-md:hidden">{t('Author')}</th>
+                      <th className="py-2 font-medium max-md:hidden">{t('Size')}</th>
                       <th className="py-2 font-medium">{t('Date')}</th>
                     </tr>
                   </thead>
@@ -304,8 +325,10 @@ export function MediaPage() {
                           </button>
                           <div className="text-xs text-slate-500">{item.mime}</div>
                         </td>
-                        <td className="py-2">{item.uploadedBy?.displayName ?? '—'}</td>
-                        <td className="py-2">{formatBytes(item.sizeBytes)}</td>
+                        <td className="py-2 max-md:hidden">
+                          {item.uploadedBy?.displayName ?? '—'}
+                        </td>
+                        <td className="py-2 max-md:hidden">{formatBytes(item.sizeBytes)}</td>
                         <td className="py-2 text-slate-600">
                           {new Date(item.createdAt).toLocaleDateString(undefined, {
                             dateStyle: 'medium',
@@ -327,14 +350,27 @@ export function MediaPage() {
           </Card>
         </div>
         {selected && (
-          <MediaDetails key={selected.id} media={selected} onDeleted={() => setSelectedId(null)} />
+          <MediaDetails
+            key={selected.id}
+            media={selected}
+            onDeleted={() => setSelectedId(null)}
+            onClose={() => setSelectedId(null)}
+          />
         )}
       </div>
     </div>
   );
 }
 
-function MediaDetails({ media, onDeleted }: { media: MediaView; onDeleted: () => void }) {
+function MediaDetails({
+  media,
+  onDeleted,
+  onClose,
+}: {
+  media: MediaView;
+  onDeleted: () => void;
+  onClose: () => void;
+}) {
   const { t } = useT();
   const me = useMe();
   const queryClient = useQueryClient();
@@ -364,9 +400,21 @@ function MediaDetails({ media, onDeleted }: { media: MediaView; onDeleted: () =>
   return (
     <aside
       // It stays in view while the library scrolls (refs #34), scrolling on its own when taller.
-      className="sticky top-4 max-h-[calc(100vh-2rem)] w-80 shrink-0 space-y-3 overflow-y-auto rounded border border-slate-200 bg-white p-4 text-sm"
+      // Phones: a full-screen panel over the library, closed with its button.
+      className="sticky top-4 max-h-[calc(100vh-2rem)] w-80 shrink-0 space-y-3 overflow-y-auto rounded border border-slate-200 bg-white p-4 text-sm max-md:fixed max-md:inset-0 max-md:z-50 max-md:max-h-none max-md:w-auto max-md:rounded-none max-md:border-0 max-md:pt-[max(1rem,env(safe-area-inset-top))] max-md:pb-[max(1rem,env(safe-area-inset-bottom))]"
       aria-label={t('File details')}
     >
+      <div className="flex items-center justify-between md:hidden">
+        <h2 className="text-base font-semibold">{t('File details')}</h2>
+        <button
+          type="button"
+          className="flex size-10 items-center justify-center rounded text-slate-600 hover:bg-slate-100"
+          aria-label={t('Close')}
+          onClick={onClose}
+        >
+          ✕
+        </button>
+      </div>
       {media.kind === 'image' && <FocalPointPicker media={media} />}
       <dl className="space-y-1">
         <div>

@@ -135,6 +135,8 @@ function Editor({ initial }: { initial: EntryView }) {
   // Changes to remount a plugin editor with new content (revision, autosave, switch).
   const [editorMount, setEditorMount] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Phones: the block editor's sidebar is a sheet over the canvas, opened from the top bar.
+  const [sheetOpen, setSheetOpen] = useState(false);
   const pluginEditors = usePluginEditors(initial.type);
   const activeEditor: AvailableEditor | undefined = editorId
     ? pluginEditors.editors.find((e) => e.definition.id === editorId)
@@ -529,12 +531,12 @@ function Editor({ initial }: { initial: EntryView }) {
         className={
           ownChrome
             ? 'hidden'
-            : 'flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2'
+            : 'flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2 max-md:flex-wrap max-md:gap-x-2 max-md:gap-y-1.5 max-md:px-2 max-md:pt-[max(0.5rem,env(safe-area-inset-top))]'
         }
       >
         <Link
           to={backTo}
-          className="text-sm text-sky-700 hover:underline"
+          className="text-sm text-sky-700 hover:underline max-md:flex max-md:min-h-10 max-md:items-center max-md:px-1"
           aria-label={t('Back to the list')}
         >
           ← {typeName}
@@ -551,7 +553,7 @@ function Editor({ initial }: { initial: EntryView }) {
             markDirty();
           }}
           placeholder={t('Add title')}
-          className="min-w-0 flex-1 rounded border border-transparent px-2 py-1 text-xl font-semibold hover:border-slate-200 focus:border-sky-600 focus:outline-none"
+          className="min-w-0 flex-1 rounded border border-transparent px-2 py-1 text-xl font-semibold hover:border-slate-200 focus:border-sky-600 focus:outline-none max-md:order-last max-md:basis-full max-md:border-slate-200"
         />
         <EntryStates states={initial.states} />
         <span className="text-xs text-slate-500" role="status" aria-live="polite">
@@ -587,6 +589,17 @@ function Editor({ initial }: { initial: EntryView }) {
             variant="secondary"
             aria-expanded={settingsOpen}
             onClick={() => setSettingsOpen((open) => !open)}
+          >
+            {t('Settings')}
+          </Button>
+        )}
+        {editorId === null && (
+          <Button
+            variant="secondary"
+            className="md:hidden"
+            aria-expanded={sheetOpen}
+            aria-controls="entry-settings"
+            onClick={() => setSheetOpen((open) => !open)}
           >
             {t('Settings')}
           </Button>
@@ -752,17 +765,32 @@ function Editor({ initial }: { initial: EntryView }) {
           </div>
         )}
         <aside
+          id="entry-settings"
           className={
             editorId === null
-              ? 'flex w-80 shrink-0 flex-col border-l border-slate-200 bg-white'
+              ? // Phones: a sheet from the bottom, over the canvas.
+                `flex w-80 shrink-0 flex-col border-l border-slate-200 bg-white max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-40 max-md:h-[80dvh] max-md:w-auto max-md:rounded-t-xl max-md:border-t max-md:border-l-0 max-md:pb-[env(safe-area-inset-bottom)] max-md:shadow-[0_-8px_30px_rgb(0_0_0/0.2)] ${sheetOpen ? '' : 'max-md:hidden'}`
               : settingsOpen
                 ? // Below the top bar of an editor that draws its own (48 px, as Fresco's),
                   // so that the panel's ✕ is never hidden under it.
-                  `absolute ${ownChrome ? 'top-12' : 'top-0'} bottom-0 right-0 z-30 flex w-80 flex-col border-l border-slate-200 bg-white shadow-xl`
+                  `absolute ${ownChrome ? 'top-12' : 'top-0'} bottom-0 right-0 z-30 flex w-80 flex-col border-l border-slate-200 bg-white shadow-xl max-md:w-full`
                 : 'hidden'
           }
           aria-label={t('Settings')}
         >
+          {editorId === null && (
+            <div className="flex items-center justify-between border-b border-slate-200 py-1 pr-1 pl-3 text-sm font-medium md:hidden">
+              {t('Settings')}
+              <button
+                type="button"
+                className="flex size-10 items-center justify-center rounded text-slate-600 hover:bg-slate-100"
+                aria-label={t('Close')}
+                onClick={() => setSheetOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+          )}
           {editorId !== null && (
             <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2 text-sm">
               {!readOnly ? (
@@ -798,7 +826,7 @@ function Editor({ initial }: { initial: EntryView }) {
                   type="button"
                   aria-selected={tab === name}
                   onClick={() => setTab(name)}
-                  className={`flex-1 px-3 py-2 ${tab === name ? 'border-b-2 border-sky-700 font-medium' : 'text-slate-600'}`}
+                  className={`flex-1 px-3 py-2 max-md:min-h-10 ${tab === name ? 'border-b-2 border-sky-700 font-medium' : 'text-slate-600'}`}
                 >
                   {name === 'block'
                     ? t('Block')
@@ -1724,7 +1752,7 @@ function EditorShell({ children }: { children: React.ReactNode }) {
   // The editor keeps the light palette: its canvas is a white page. It fills
   // the window and only its panels scroll, never the page behind them.
   return (
-    <div className="light-palette flex h-screen flex-col overflow-hidden bg-slate-100 text-slate-900">
+    <div className="light-palette flex h-screen flex-col overflow-hidden bg-slate-100 text-slate-900 max-md:h-dvh">
       {children}
     </div>
   );

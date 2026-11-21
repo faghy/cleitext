@@ -115,8 +115,9 @@ export function UsersPage() {
             <p className="text-sm text-slate-600">{t('No users found.')}</p>
           )}
           {members.data && shown.length > 0 && (
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 text-slate-600">
+            // Phones: each user is a card (no column headers; sorting stays on larger screens).
+            <table className="w-full text-left text-sm max-md:block" data-mobile="">
+              <thead className="border-b border-slate-200 text-slate-600 max-md:hidden">
                 <tr>
                   {header('name', t('Name'))}
                   {header('email', t('Email'))}
@@ -127,7 +128,7 @@ export function UsersPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="max-md:block">
                 {shown.map((member) => (
                   <MemberRow
                     key={member.id}
@@ -335,8 +336,8 @@ function MemberRow({
   const error = changeRole.error ?? remove.error;
 
   return (
-    <tr className="border-b border-slate-100 align-top">
-      <td className="py-2">
+    <tr className="border-b border-slate-100 align-top max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-x-3 max-md:gap-y-2 max-md:py-3">
+      <td className="py-2 max-md:w-full max-md:py-0">
         <span className="flex items-center gap-2">
           <Avatar name={member.displayName} url={member.avatarUrl} />
           <span>
@@ -358,8 +359,10 @@ function MemberRow({
           </span>
         </span>
       </td>
-      <td className="py-2">{member.email}</td>
-      <td className="py-2">
+      <td className="py-2 max-md:w-full max-md:py-0 max-md:break-all max-md:text-slate-600">
+        {member.email}
+      </td>
+      <td className="py-2 max-md:py-0">
         {canPromote && !isSelf ? (
           <RoleSelect
             label={t('Role of {name}', { name: member.displayName })}
@@ -373,15 +376,15 @@ function MemberRow({
         )}
         {error && <p className="mt-1 text-xs text-red-700">{errorMessage(error)}</p>}
       </td>
-      <td className="py-2">
+      <td className="py-2 max-md:py-0 max-md:text-slate-600">
         {member.status === 'invited' ? t('Invitation pending') : t(member.status)}
       </td>
-      <td className="py-2 text-right">
+      <td className="py-2 text-right max-md:ml-auto max-md:py-0">
         {!isSelf && (
           <Link
             to="/users/$id"
             params={{ id: member.id }}
-            className="mr-2 inline-block rounded px-2 py-1 text-sm text-sky-700 hover:underline"
+            className="mr-2 inline-block rounded px-2 py-1 text-sm text-sky-700 hover:underline max-md:py-2.5"
           >
             {t('Edit')}
           </Link>
