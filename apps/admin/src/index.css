@@ -203,3 +203,62 @@
 html {
   background-color: var(--color-slate-100);
 }
+
+/*
+ * Phones (below Tailwind's md, 768 px): the admin opens in the mobile app's
+ * in-app browser too. Desktop is untouched: every rule is inside this query.
+ */
+@media (max-width: 47.99rem) {
+  /* Fields at 16 px, or iOS zooms the page in on focus; at least 40 px tall to tap. */
+  :is(
+    input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']),
+    select,
+    textarea
+  ):not(.text-lg, .text-xl, .text-2xl, .text-3xl) {
+    font-size: 16px;
+  }
+  :is(
+    input:not(
+      [type='checkbox'],
+      [type='radio'],
+      [type='range'],
+      [type='color'],
+      [type='file'],
+      [type='hidden']
+    ),
+    select
+  ) {
+    min-height: 2.5rem;
+  }
+  /* Tables of the admin and of plugin pages that do not fit (marked by useWideTables)
+     scroll inside their own box, never the page. */
+  main table[data-wide] {
+    /* Also the box of hidden labels (sr-only) inside, which would widen the page. */
+    position: relative;
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  main :is(input, select, textarea) {
+    max-width: 100%;
+  }
+  /* Tab bars scroll sideways instead of widening the page. */
+  main [role='tablist'] {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  main [role='tablist'] > * {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  main pre {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  /* Long addresses, codes and keys wrap instead of widening the page. */
+  main :where(p, dd, li, code, h1, h2, h3) {
+    overflow-wrap: anywhere;
+  }
+}

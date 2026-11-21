@@ -225,7 +225,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
     const active = sort.by === by;
     return (
       <th
-        className="py-2 font-medium"
+        className={`py-2 font-medium ${by === 'title' ? '' : 'max-md:hidden'}`}
         aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
       >
         <button type="button" className="hover:text-sky-700" onClick={() => sortBy(by)}>
@@ -238,7 +238,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">{title}</h1>
         <Button variant="secondary" onClick={() => create.mutate()} disabled={create.isPending}>
           {t('Add New')}
@@ -257,7 +257,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
                 setSelected(new Set());
               }}
               aria-pressed={status === filter.status}
-              className={`rounded px-2 py-1 ${status === filter.status ? 'bg-slate-800 text-white' : 'text-sky-700 hover:underline'}`}
+              className={`rounded px-2 py-1 max-md:min-h-10 ${status === filter.status ? 'bg-slate-800 text-white' : 'text-sky-700 hover:underline'}`}
             >
               {t(filter.label)}
             </button>
@@ -265,7 +265,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
         </nav>
         <form
           role="search"
-          className="flex gap-2"
+          className="flex gap-2 max-md:w-full"
           onSubmit={(e) => {
             e.preventDefault();
             setQuery(search.trim());
@@ -279,7 +279,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="rounded border border-slate-300 px-2 py-1 text-sm"
+            className="rounded border border-slate-300 px-2 py-1 text-sm max-md:min-w-0 max-md:flex-1"
           />
           <Button variant="secondary" type="submit">
             {t('Search')}
@@ -289,7 +289,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
 
       <div className="flex flex-wrap items-center gap-2">
         <form
-          className="flex items-center gap-2"
+          className="flex flex-wrap items-center gap-2"
           aria-label={t('Bulk actions')}
           onSubmit={(e) => {
             e.preventDefault();
@@ -426,7 +426,8 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
         ) : items.length === 0 ? (
           <p className="text-sm text-slate-600">{t('Nothing found.')}</p>
         ) : (
-          <table className="w-full text-left text-sm">
+          // Phones: the title with its status and date below; the other columns are hidden.
+          <table className="w-full text-left text-sm" data-mobile="">
             <thead className="border-b border-slate-200 text-slate-600">
               <tr>
                 <th className="w-8 py-2">
@@ -440,14 +441,16 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
                   />
                 </th>
                 <SortHeader by="title" label={t('Title')} />
-                <th className="py-2 font-medium">{t('Author')}</th>
-                {multilingual && <th className="py-2 font-medium">{t('Language')}</th>}
+                <th className="py-2 font-medium max-md:hidden">{t('Author')}</th>
+                {multilingual && (
+                  <th className="py-2 font-medium max-md:hidden">{t('Language')}</th>
+                )}
                 {columns.map((column) => (
-                  <th key={column.key} className="py-2 font-medium">
+                  <th key={column.key} className="py-2 font-medium max-md:hidden">
                     {column.title}
                   </th>
                 ))}
-                <th className="py-2 font-medium">{t('Status')}</th>
+                <th className="py-2 font-medium max-md:hidden">{t('Status')}</th>
                 {hierarchical && <SortHeader by="order" label={t('Order')} />}
                 <SortHeader by="date" label={t('Date')} />
               </tr>
@@ -467,6 +470,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
                     <td className="py-2 align-top">
                       <input
                         type="checkbox"
+                        className="max-md:mt-1 max-md:size-5"
                         aria-label={t('Select {title}', { title: entry.title || t('(no title)') })}
                         checked={selected.has(entry.id)}
                         onChange={() => toggle(entry.id)}
@@ -487,19 +491,26 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
                           {t('unpublished changes')}
                         </span>
                       )}
+                      <div className="text-xs text-slate-600 md:hidden">
+                        {t(STATUS_LABELS[entry.status])}
+                        {' · '}
+                        {formatDate(entry.publishedAt ?? entry.scheduledAt ?? entry.updatedAt)}
+                        {entry.author && ` · ${entry.author.displayName}`}
+                        {multilingual && ` · ${entry.locale.toUpperCase()}`}
+                      </div>
                       {entry.status !== 'trashed' && (
-                        <div className="text-xs">
+                        <div className="text-xs max-md:flex max-md:gap-4">
                           <button
                             type="button"
-                            className="text-sky-700 hover:underline"
+                            className="text-sky-700 hover:underline max-md:min-h-10"
                             onClick={() => setEditing(entry.id)}
                           >
                             {t('Quick Edit')}
                           </button>
-                          {' · '}
+                          <span className="max-md:hidden">{' · '}</span>
                           <button
                             type="button"
-                            className="text-sky-700 hover:underline"
+                            className="text-sky-700 hover:underline max-md:min-h-10"
                             disabled={duplicate.isPending}
                             onClick={() => duplicate.mutate(entry.id)}
                           >
@@ -509,10 +520,12 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
                         </div>
                       )}
                     </td>
-                    <td className="py-2">{entry.author?.displayName ?? '—'}</td>
-                    {multilingual && <td className="py-2 uppercase">{entry.locale}</td>}
+                    <td className="py-2 max-md:hidden">{entry.author?.displayName ?? '—'}</td>
+                    {multilingual && (
+                      <td className="py-2 uppercase max-md:hidden">{entry.locale}</td>
+                    )}
                     {columns.map((column) => (
-                      <td key={column.key} className="py-2">
+                      <td key={column.key} className="py-2 max-md:hidden">
                         <PluginCell
                           column={column}
                           row={{
@@ -529,9 +542,9 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
                         />
                       </td>
                     ))}
-                    <td className="py-2">{t(STATUS_LABELS[entry.status])}</td>
-                    {hierarchical && <td className="py-2">{entry.position}</td>}
-                    <td className="py-2 text-slate-600">
+                    <td className="py-2 max-md:hidden">{t(STATUS_LABELS[entry.status])}</td>
+                    {hierarchical && <td className="py-2 max-md:hidden">{entry.position}</td>}
+                    <td className="py-2 text-slate-600 max-md:hidden">
                       {formatDate(entry.publishedAt ?? entry.scheduledAt ?? entry.updatedAt)}
                     </td>
                   </tr>

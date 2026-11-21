@@ -123,7 +123,7 @@ export function CommentsPage() {
             <button
               key={tab.value}
               type="button"
-              className={`rounded px-3 py-1 ${status === tab.value ? 'bg-sky-700 text-white' : 'bg-white text-slate-700 hover:bg-slate-100'}`}
+              className={`rounded px-3 py-1 max-md:min-h-10 ${status === tab.value ? 'bg-sky-700 text-white' : 'bg-white text-slate-700 hover:bg-slate-100'}`}
               aria-pressed={status === tab.value}
               onClick={() => {
                 setStatus(tab.value);
@@ -142,7 +142,7 @@ export function CommentsPage() {
           type="search"
           placeholder={t('Search comments')}
           aria-label={t('Search comments')}
-          className="rounded border border-slate-300 px-2 py-1 text-sm"
+          className="rounded border border-slate-300 px-2 py-1 text-sm max-md:w-full"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -199,7 +199,7 @@ export function CommentsPage() {
               >
                 <input
                   type="checkbox"
-                  className="mt-1"
+                  className="mt-1 max-md:size-5"
                   aria-label={t('Select')}
                   checked={selected.has(comment.id)}
                   onChange={(e) => {
@@ -266,7 +266,7 @@ export function CommentsPage() {
                   ) : (
                     <p className="whitespace-pre-wrap text-slate-900">{comment.content}</p>
                   )}
-                  <div className="flex flex-wrap gap-3 text-xs">
+                  <div className="flex flex-wrap gap-3 text-xs max-md:gap-x-5 max-md:text-sm max-md:[&_button]:min-h-10">
                     {comment.status !== 'approved' && (
                       <button
                         type="button"
