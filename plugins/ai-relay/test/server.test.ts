@@ -579,7 +579,7 @@ describe('chat jobs', () => {
     const relay = setUp();
     const { key } = (await relay.register()).body as { key: string };
     const job = (await relay.submit(key, question())).body as View;
-    for (let i = 0; i < 120; i++) await relay.poll(key, job.id, '198.51.100.7');
+    for (let i = 0; i < 600; i++) await relay.poll(key, job.id, '198.51.100.7');
     expect((await relay.poll(key, job.id, '198.51.100.7')).status).toBe(429);
   });
 });

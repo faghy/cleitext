@@ -47,8 +47,8 @@ const JOB_QUEUE_WAIT_MS = 180_000;
 const JOB_ABANDONED_MS = 30_000;
 /** An answered job is kept this long for its site to read it. */
 const JOB_KEEP_MS = 10 * 60_000;
-/** Polls of jobs per minute from one address (one every couple of seconds is expected). */
-const POLLS_PER_MINUTE = 120;
+/** Polls of jobs per minute from one address: many sites can share a server, each polling every couple of seconds. */
+const POLLS_PER_MINUTE = 600;
 
 export interface SiteRecord {
   /** SHA-256 of the relay key, hex. */

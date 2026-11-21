@@ -22,7 +22,7 @@ Chriss base, l'AI gratuita di ogni sito Cleitext. Installato su cleitext.com, ri
 
 Oltre un limite giornaliero: `429 { "error": "quota_exceeded", "limit": 20, "resetAt": "…", "scope": "site" | "global" }`, che il sito trasforma nell'invito a collegare il proprio servizio AI.
 
-Le risposte possono richiedere tempo (un modello piccolo su CPU legge un prompt lungo in decine di secondi): `chat/completions` e `register` usano il tempo dei job in background del core (`timeout: 'job'`, API dei plugin 1.79), e un proxy davanti al server deve permettere per loro richieste di qualche minuto. I job non ne hanno bisogno: ogni richiesta è breve, e un job aspetta il suo turno fino a tre minuti. Letture dei job: 120 al minuto da un indirizzo.
+Le risposte possono richiedere tempo (un modello piccolo su CPU legge un prompt lungo in decine di secondi): `chat/completions` e `register` usano il tempo dei job in background del core (`timeout: 'job'`, API dei plugin 1.79), e un proxy davanti al server deve permettere per loro richieste di qualche minuto. I job non ne hanno bisogno: ogni richiesta è breve, e un job aspetta il suo turno fino a tre minuti. Letture dei job: 600 al minuto da un indirizzo.
 
 ## Impostazioni
 

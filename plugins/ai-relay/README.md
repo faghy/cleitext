@@ -54,7 +54,7 @@ Chriss base, the free AI of every Cleitext site. Installed on cleitext.com, it a
 
 Over a daily limit: `429 { "error": "quota_exceeded", "limit": 20, "resetAt": "2026-11-22T00:00:00.000Z", "scope": "site" | "global" }`, which the site turns into an invitation to connect its own AI service. Other errors: `400 invalid_request`, `401 invalid_key`, `403 revoked` / `not_verified`, `413 prompt_too_long`, `429 rate_limited`, `502 upstream_error`, `503 disabled` / `busy` / `not_configured`.
 
-Answers may take long (a small model on a CPU reads a long prompt in tens of seconds): `chat/completions` and `register` use the background-job time of the core (`timeout: 'job'`, plugin API 1.79), and a proxy in front of the server must allow requests of a few minutes for them. The jobs need nothing of the kind: each request is short, and a job waits for its turn up to three minutes. Polls: 120 a minute from one address.
+Answers may take long (a small model on a CPU reads a long prompt in tens of seconds): `chat/completions` and `register` use the background-job time of the core (`timeout: 'job'`, plugin API 1.79), and a proxy in front of the server must allow requests of a few minutes for them. The jobs need nothing of the kind: each request is short, and a job waits for its turn up to three minutes. Polls: 600 a minute from one address.
 
 ## Settings
 
