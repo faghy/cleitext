@@ -22,6 +22,7 @@ import { isMedia } from '../core/media.js';
 import { reorder } from './tree.js';
 import { formatColor, hsvaToRgba, parseColor, rgbaToHsva, toHex, type Hsva } from './color.js';
 import { VirtualGrid } from './virtual-grid.js';
+import { useFloating } from './floating.js';
 import { RichText } from './rich-text.js';
 import {
   OPTIONAL_DEVICES,
@@ -499,6 +500,8 @@ export function ColorPicker({
   const ref = useRef<HTMLSpanElement>(null);
   const close = useCallback(() => setOpen(null), []);
   useClickAway(ref, open !== null, close);
+  const pop = useRef<HTMLDivElement>(null);
+  useFloating(ref, pop, open);
   const global = GLOBAL_RE.exec(value)?.[1];
   const globalColor = global ? kit.colors.find((c) => c.id === global) : undefined;
   const shown = globalColor?.value ?? value;
@@ -532,6 +535,7 @@ export function ColorPicker({
       )}
       {open === 'picker' && (
         <ColorPopover
+          popRef={pop}
           value={shown}
           global={globalColor?.title ?? null}
           onChange={onChange}
@@ -540,6 +544,7 @@ export function ColorPicker({
       )}
       {open === 'globals' && (
         <div
+          ref={pop}
           className="fre-popover fre-popover--globals"
           role="listbox"
           aria-label={t('Global colors')}
@@ -573,11 +578,13 @@ export function ColorPicker({
 }
 
 function ColorPopover({
+  popRef,
   value,
   global,
   onChange,
   onClose,
 }: {
+  popRef: React.RefObject<HTMLDivElement | null>;
   value: string;
   /** The global color in use (its name), shown above the picker. */
   global: string | null;
@@ -617,7 +624,7 @@ function ColorPopover({
   };
   const Dropper = eyeDropper();
   return (
-    <div className="fre-popover fre-picker" role="dialog" aria-label={t('Color')}>
+    <div ref={popRef} className="fre-popover fre-picker" role="dialog" aria-label={t('Color')}>
       {global && <p className="fre-popover__title">{t('Global: {name}', { name: global })}</p>}
       <div
         ref={box}
