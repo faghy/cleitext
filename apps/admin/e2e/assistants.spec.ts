@@ -290,7 +290,8 @@ test('Chriss opens from the round button on every screen, and stays open', async
     // Still open on another screen, with the same conversation.
     await page.getByRole('link', { name: 'Media', exact: true }).first().click();
     await expect(panel.getByText('is a draft.')).toBeVisible();
-    // Escape closes it, back to the button.
+    // Escape in the panel closes it, back to the button.
+    await panel.getByLabel('Your request').focus();
     await page.keyboard.press('Escape');
     await expect(panel).toBeHidden();
     await expect(bubble).toBeFocused();
