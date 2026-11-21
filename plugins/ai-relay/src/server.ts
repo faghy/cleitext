@@ -24,6 +24,7 @@ import {
   settingsOf,
   siteOriginOf,
   Window,
+  type ChatRequest,
   type RelaySettings,
 } from './limits';
 
@@ -37,6 +38,17 @@ const REGISTER_PER_HOUR = 10;
 const TOUCH_MS = 10 * 60_000;
 /** The longest wait in the queue for a turn upstream. */
 const QUEUE_WAIT_MS = 90_000;
+/**
+ * The longest wait of a job in the queue: its site asks for it every couple
+ * of seconds and gives up after five minutes, answer included.
+ */
+const JOB_QUEUE_WAIT_MS = 180_000;
+/** A waiting job nobody asked about for this long is dropped at its turn. */
+const JOB_ABANDONED_MS = 30_000;
+/** An answered job is kept this long for its site to read it. */
+const JOB_KEEP_MS = 10 * 60_000;
+/** Polls of jobs per minute from one address (one every couple of seconds is expected). */
+const POLLS_PER_MINUTE = 120;
 
 export interface SiteRecord {
   /** SHA-256 of the relay key, hex. */
@@ -50,6 +62,46 @@ export interface Usage {
   day: string;
   total: number;
   sites: Record<string, { questions: number; requests: number }>;
+}
+
+/** A chat request answered in the background (`/v1/chat/jobs`, AI Relay 1.1). */
+interface Job {
+  id: string;
+  siteId: string;
+  origin: string;
+  status: 'queued' | 'running' | 'done' | 'error';
+  /** The last time its site asked about it. */
+  polledAt: number;
+  finishedAt: number | null;
+  result?: Record<string, unknown>;
+  error?: { error: string; message: string };
+}
+
+/** The state of a job as its site reads it. */
+export interface JobView {
+  id: string;
+  status: Job['status'];
+  /** While queued: the requests ahead of it before its turn. */
+  position?: number;
+  /** When done: the `chat.completion` object. */
+  result?: Record<string, unknown>;
+  /** When failed: why (`upstream_error`, `not_configured`, `busy`). */
+  error?: { error: string; message: string };
+  /** The site's questions today. */
+  limit: number;
+  remaining: number;
+  resetAt: string;
+}
+
+/** A chat request that passed the checks. */
+interface Admitted {
+  config: RelaySettings;
+  siteId: string;
+  origin: string;
+  record: SiteRecord;
+  parsed: ChatRequest;
+  /** Gives the counted request back (once). */
+  refund: () => void;
 }
 
 /** `GET /admin`: what the page shows. */
@@ -96,16 +148,20 @@ export function setupAiRelay(ctx: PluginContext, options: { now?: () => number }
   const now = options.now ?? Date.now;
   const perIp = new Window(60_000);
   const registrations = new Window(3600_000);
+  const polls = new Window(60_000);
   const state = new Map<string, Promise<{ sites: Record<string, SiteRecord>; usage: Usage }>>();
   const writes = new Map<string, Promise<void>>();
   let inFlight = 0;
-  const waiting: ((go: boolean) => void)[] = [];
+  /** Requests waiting for a turn upstream, in order; a job's carries its id. */
+  const waiting: { go: (ok: boolean) => void; job?: string }[] = [];
+  /** The jobs (`/v1/chat/jobs`), by id: waiting, running, or answered (kept a while). */
+  const jobs = new Map<string, Job>();
 
   /**
    * A turn upstream: at once while fewer than `concurrency` run, else in a
-   * queue of `queue` for a minute at most; false when there is no room.
+   * queue of `queue` for `waitMs` at most; false when there is no room.
    */
-  function turn(config: RelaySettings): Promise<boolean> {
+  function turn(config: RelaySettings, waitMs = QUEUE_WAIT_MS, job?: string): Promise<boolean> {
     if (inFlight < config.concurrency) {
       inFlight++;
       return Promise.resolve(true);
@@ -113,23 +169,47 @@ export function setupAiRelay(ctx: PluginContext, options: { now?: () => number }
     if (waiting.length >= config.queue) return Promise.resolve(false);
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
-        const index = waiting.indexOf(go);
+        const index = waiting.indexOf(entry);
         if (index >= 0) waiting.splice(index, 1);
         resolve(false);
-      }, QUEUE_WAIT_MS);
-      const go = (ok: boolean) => {
-        clearTimeout(timer);
-        resolve(ok);
+      }, waitMs);
+      timer.unref?.();
+      const entry = {
+        go: (ok: boolean) => {
+          clearTimeout(timer);
+          resolve(ok);
+        },
+        ...(job ? { job } : {}),
       };
-      waiting.push(go);
+      waiting.push(entry);
     });
   }
+
+  /** There is a turn now or a place in the queue. */
+  const room = (config: RelaySettings) =>
+    inFlight < config.concurrency || waiting.length < config.queue;
 
   /** The turn is over: the next in the queue goes (keeping the slot), or the slot is freed. */
   function done() {
     const next = waiting.shift();
-    if (next) next(true);
+    if (next) next.go(true);
     else inFlight--;
+  }
+
+  /**
+   * Requests ahead of a waiting job before its turn: those before it in the
+   * queue and the one answered now; 0 when it is next.
+   */
+  function positionOf(job: string): number {
+    const index = waiting.findIndex((entry) => entry.job === job);
+    return index < 0 ? 0 : index + 1;
+  }
+
+  /** Answered jobs are kept `JOB_KEEP_MS`, then forgotten. */
+  function sweep() {
+    for (const [id, job] of jobs) {
+      if (job.finishedAt !== null && now() - job.finishedAt > JOB_KEEP_MS) jobs.delete(id);
+    }
   }
 
   ctx.access.defineCapability(CAPABILITY, {
@@ -273,7 +353,17 @@ export function setupAiRelay(ctx: PluginContext, options: { now?: () => number }
     return found;
   }
 
-  async function complete(request: RouteRequest): Promise<RouteResponse> {
+  /**
+   * The checks of a chat request (service on, address, key, format, today's
+   * allowance), then the request counted: an answer to send at once, or what
+   * the request needs to go upstream, with `refund` to give it back.
+   * `ready` makes the last checks of the caller just before the request is
+   * counted (nothing waits in between).
+   */
+  async function admit(
+    request: RouteRequest,
+    ready: (origin: string, config: RelaySettings) => RouteResponse | null = () => null,
+  ): Promise<RouteResponse | Admitted> {
     const config = await settings(request.siteId);
     if (!config.enabled) return problem(503, 'disabled', 'The free service is turned off.');
     if (!perIp.take(request.ip || '?', config.ipPerMinute, now()))
@@ -314,42 +404,69 @@ export function setupAiRelay(ctx: PluginContext, options: { now?: () => number }
     if (mine.requests >= config.siteDaily * config.stepsPerQuestion)
       return exceeded(config.siteDaily, 'site');
     if (usage.total >= config.globalDaily) return exceeded(config.siteDaily, 'global');
+    const refused = ready(origin, config);
+    if (refused) return refused;
 
     // Taken now, given back if the provider fails or there is no turn.
     const question = parsed.question ? 1 : 0;
     mine.questions += question;
     mine.requests += 1;
     usage.total += 1;
-    if (!(await turn(config))) {
+    let given = false;
+    const refund = () => {
+      if (given) return;
+      given = true;
       mine.questions -= question;
       mine.requests -= 1;
       usage.total -= 1;
-      return problem(
-        503,
-        'busy',
-        'The free service is busy: try again in a moment.',
-        {},
-        {
-          'retry-after': '30',
-        },
-      );
-    }
+    };
+    return { config, origin, record, parsed, siteId: request.siteId, refund };
+  }
+
+  /** The site's questions used today. */
+  async function usedBy(siteId: string, origin: string) {
+    return (await today(siteId)).sites[origin]?.questions ?? 0;
+  }
+
+  const busy = () =>
+    problem(
+      503,
+      'busy',
+      'The free service is busy: try again in a moment.',
+      {},
+      {
+        'retry-after': '30',
+      },
+    );
+
+  /**
+   * The request upstream, with the turn already taken (and given back here):
+   * the `chat.completion` object, or the error to answer.
+   */
+  async function upstream(
+    admitted: Admitted,
+  ): Promise<
+    | { ok: true; body: Record<string, unknown> }
+    | { ok: false; status: number; error: string; message: string }
+  > {
+    const { parsed, record, origin, siteId, refund } = admitted;
     try {
-      const answer = await chat(request.siteId, {
+      const chat = ctx.ai?.chat;
+      if (!chat) throw new Error('No AI provider');
+      const answer = await chat(siteId, {
         messages: parsed.messages,
         ...(parsed.tools ? { tools: parsed.tools } : {}),
         ...(parsed.toolChoice ? { toolChoice: parsed.toolChoice } : {}),
         maxTokens: parsed.maxTokens,
         ...(parsed.temperature !== undefined ? { temperature: parsed.temperature } : {}),
       });
-      void persist(request.siteId, USAGE_KEY);
+      void persist(siteId, USAGE_KEY);
       if (!record.lastUsedAt || now() - Date.parse(record.lastUsedAt) > TOUCH_MS) {
         record.lastUsedAt = new Date(now()).toISOString();
-        void persist(request.siteId, SITES_KEY);
+        void persist(siteId, SITES_KEY);
       }
       return {
-        status: 200,
-        headers: quotaHeaders(config, mine.questions),
+        ok: true,
         body: {
           id: `chatcmpl-${randomBytes(12).toString('hex')}`,
           object: 'chat.completion',
@@ -375,17 +492,172 @@ export function setupAiRelay(ctx: PluginContext, options: { now?: () => number }
         },
       };
     } catch (error) {
-      mine.questions -= question;
-      mine.requests -= 1;
-      usage.total -= 1;
+      refund();
       // Only why, never the texts.
       ctx.log.warn(`ai-relay: the AI provider ${failureOf(error)} for ${origin}`);
       return failureOf(error) === 'no provider'
-        ? problem(503, 'not_configured', 'The free service is not ready.')
-        : problem(502, 'upstream_error', 'The free service could not answer: try again later.');
+        ? {
+            ok: false,
+            status: 503,
+            error: 'not_configured',
+            message: 'The free service is not ready.',
+          }
+        : {
+            ok: false,
+            status: 502,
+            error: 'upstream_error',
+            message: 'The free service could not answer: try again later.',
+          };
     } finally {
       done();
     }
+  }
+
+  /** `POST /v1/chat/completions`: the answer in the same request. */
+  async function complete(request: RouteRequest): Promise<RouteResponse> {
+    const admitted = await admit(request);
+    if (!('parsed' in admitted)) return admitted;
+    if (!(await turn(admitted.config))) {
+      admitted.refund();
+      return busy();
+    }
+    const outcome = await upstream(admitted);
+    if (!outcome.ok) return problem(outcome.status, outcome.error, outcome.message);
+    return {
+      status: 200,
+      headers: quotaHeaders(admitted.config, await usedBy(request.siteId, admitted.origin)),
+      body: outcome.body,
+    };
+  }
+
+  /** What a site reads of its job, with its questions left today. */
+  async function jobView(job: Job, config: RelaySettings): Promise<JobView> {
+    const used = await usedBy(job.siteId, job.origin);
+    return {
+      id: job.id,
+      status: job.status,
+      ...(job.status === 'queued' ? { position: positionOf(job.id) } : {}),
+      ...(job.result ? { result: job.result } : {}),
+      ...(job.error ? { error: job.error } : {}),
+      limit: config.siteDaily,
+      remaining: Math.max(0, config.siteDaily - used),
+      resetAt: new Date(resetOf(now())).toISOString(),
+    };
+  }
+
+  /** A job answered: kept for its site to read, for `JOB_KEEP_MS`. */
+  function finish(job: Job, outcome: Pick<Job, 'result' | 'error'>) {
+    job.status = outcome.error ? 'error' : 'done';
+    Object.assign(job, outcome);
+    job.finishedAt = now();
+  }
+
+  /** Runs a job in the background, in the same queue as the other requests. */
+  async function run(job: Job, admitted: Admitted) {
+    const { refund } = admitted;
+    try {
+      if (!(await turn(admitted.config, JOB_QUEUE_WAIT_MS, job.id))) {
+        refund();
+        finish(job, {
+          error: { error: 'busy', message: 'The free service is busy: try again in a moment.' },
+        });
+        return;
+      }
+      // Its site stopped asking (closed the chat): the turn goes to the next one.
+      if (now() - job.polledAt > JOB_ABANDONED_MS) {
+        refund();
+        done();
+        finish(job, { error: { error: 'abandoned', message: 'Nobody waited for the answer.' } });
+        return;
+      }
+      job.status = 'running';
+      const outcome = await upstream(admitted);
+      finish(
+        job,
+        outcome.ok
+          ? { result: outcome.body }
+          : { error: { error: outcome.error, message: outcome.message } },
+      );
+    } catch (error) {
+      refund();
+      ctx.log.warn(`ai-relay: a job failed for ${job.origin}: ${failureOf(error)}`);
+      finish(job, {
+        error: {
+          error: 'upstream_error',
+          message: 'The free service could not answer: try again later.',
+        },
+      });
+    }
+  }
+
+  /**
+   * `POST /v1/chat/jobs`: the same checks as a chat completion, the question
+   * counted now, and at once `202 { id, status: "queued", position }`; the
+   * answer is read with `GET /v1/chat/jobs/:id`. One job at a time per site.
+   */
+  async function submit(request: RouteRequest): Promise<RouteResponse> {
+    sweep();
+    const admitted = await admit(request, (origin, config) => {
+      const active = [...jobs.values()].find(
+        (job) =>
+          job.siteId === request.siteId &&
+          job.origin === origin &&
+          (job.status === 'queued' || job.status === 'running'),
+      );
+      if (active)
+        return problem(
+          409,
+          'job_active',
+          'This site already has a request in progress: wait for its answer.',
+          { id: active.id },
+          { 'retry-after': '5' },
+        );
+      return room(config) ? null : busy();
+    });
+    if (!('parsed' in admitted)) return admitted;
+    const job: Job = {
+      id: `job_${randomBytes(16).toString('base64url')}`,
+      siteId: request.siteId,
+      origin: admitted.origin,
+      status: 'queued',
+      polledAt: now(),
+      finishedAt: null,
+    };
+    jobs.set(job.id, job);
+    const used = await usedBy(request.siteId, admitted.origin);
+    const view = await jobView(job, admitted.config);
+    // In the background: not tied to this request, which answers at once.
+    // Its turn is taken, or its place in the queue, before this line ends.
+    void run(job, admitted);
+    view.position = positionOf(job.id);
+    return { status: 202, headers: quotaHeaders(admitted.config, used), body: view };
+  }
+
+  /** `GET /v1/chat/jobs/:id`: the state of a job of the same site. */
+  async function poll(request: RouteRequest): Promise<RouteResponse> {
+    sweep();
+    if (!polls.take(request.ip || '?', POLLS_PER_MINUTE, now()))
+      return problem(
+        429,
+        'rate_limited',
+        'Too many requests: wait a minute.',
+        {},
+        {
+          'retry-after': '60',
+        },
+      );
+    const found = await authenticate(request);
+    if ('error' in found) return found.error;
+    const job = jobs.get(request.params.id ?? '');
+    if (!job || job.siteId !== request.siteId || job.origin !== found.origin)
+      return problem(404, 'not_found', 'This request is not known, or its answer expired.');
+    job.polledAt = now();
+    const config = await settings(request.siteId);
+    return {
+      status: 200,
+      headers: quotaHeaders(config, await usedBy(request.siteId, found.origin)),
+      body: await jobView(job, config),
+    };
   }
 
   // Called by the sites' servers: anonymous, no origin check; a key or a challenge.
@@ -404,6 +676,10 @@ export function setupAiRelay(ctx: PluginContext, options: { now?: () => number }
     timeout: 'job',
     handler: complete,
   });
+  // The same answer in the background (AI Relay 1.1): each request is short,
+  // so proxies that cut long requests (100 seconds at Cloudflare) are no problem.
+  ctx.routes.api({ method: 'POST', path: '/v1/chat/jobs', webhook: true, handler: submit });
+  ctx.routes.api({ method: 'GET', path: '/v1/chat/jobs/:id', webhook: true, handler: poll });
   ctx.routes.api({
     method: 'GET',
     path: '/v1/models',

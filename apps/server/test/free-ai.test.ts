@@ -13,6 +13,7 @@ import type { DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { FastifyRequest } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { appVersion } from '../src/common/version.js';
 import { ChatService, FREE_TOOLS, trimForFree } from '../src/mcp/chat.service.js';
 import { OAuthService } from '../src/mcp/oauth.service.js';
 import { chatInput } from '../src/plugins/plugin-context.js';
@@ -44,6 +45,14 @@ const asked: { authorization?: string; body: Record<string, unknown> }[] = [];
 let remaining = 2;
 /** `/usage` fails (the chat then learns of the quota from the answer). */
 let usageFails = false;
+/** Every request the relay got: path, user agent, how long it was held. */
+const calls: { method: string; path: string; userAgent?: string; ms: number }[] = [];
+/** The jobs of the fake relay: the states a poll walks through, the last the answer. */
+const jobs = new Map<string, { states: Record<string, unknown>[] }>();
+/** The states before the answer of the next job (the default: running once). */
+let nextStates: Record<string, unknown>[] | null = null;
+/** The next job fails upstream. */
+let nextFails = false;
 
 function events(body: string) {
   return body
@@ -55,13 +64,20 @@ function events(body: string) {
 beforeAll(async () => {
   relay = createServer((req, res) => {
     let data = '';
+    const started = Date.now();
     req.on('data', (chunk) => (data += chunk));
     req.on('end', async () => {
+      const path = req.url?.replace(/^\/relay/, '');
       const json = (status: number, body: unknown, headers: Record<string, string> = {}) => {
+        calls.push({
+          method: req.method ?? '',
+          path: path ?? '',
+          ...(req.headers['user-agent'] ? { userAgent: req.headers['user-agent'] } : {}),
+          ms: Date.now() - started,
+        });
         res.writeHead(status, { 'content-type': 'application/json', ...headers });
         res.end(JSON.stringify(body));
       };
-      const path = req.url?.replace(/^\/relay/, '');
       if (req.method === 'POST' && path === '/register') {
         const body = JSON.parse(data) as { origin: string; secret: string };
         // What the real relay does over https: reads the site's challenge.
@@ -85,51 +101,84 @@ beforeAll(async () => {
           resetAt: '2026-11-22T00:00:00.000Z',
         });
       }
-      if (req.method === 'POST' && path === '/v1/chat/completions') {
-        const body = JSON.parse(data) as Record<string, unknown>;
+      /** The answer of a chat request: status, body, quota headers. */
+      const answerOf = (body: Record<string, unknown>) => {
         asked.push({ authorization: req.headers.authorization, body });
-        const messages = body.messages as { role: string }[];
-        if (messages.at(-1)!.role === 'user') {
+        const messages = body.messages as { role: string; content?: string }[];
+        const last = messages.at(-1)!;
+        if (last.role === 'user') {
           if (remaining === 0)
-            return json(429, {
-              error: 'quota_exceeded',
-              limit: 20,
-              resetAt: '2026-11-22T00:00:00.000Z',
-            });
+            return {
+              status: 429,
+              body: {
+                error: 'quota_exceeded',
+                limit: 20,
+                resetAt: '2026-11-22T00:00:00.000Z',
+              } as Record<string, unknown>,
+            };
           remaining--;
         }
         // A tool first when asked, then the text.
-        const last = messages.at(-1) as { role: string; content?: string };
         if (last.role === 'user' && last.content === 'Tool please')
-          return json(200, {
-            choices: [
-              {
-                message: {
-                  role: 'assistant',
-                  content: null,
-                  tool_calls: [
-                    {
-                      id: 't1',
-                      type: 'function',
-                      function: { name: 'list_entries', arguments: '{"type":"page"}' },
-                    },
-                  ],
+          return {
+            status: 200,
+            body: {
+              choices: [
+                {
+                  message: {
+                    role: 'assistant',
+                    content: null,
+                    tool_calls: [
+                      {
+                        id: 't1',
+                        type: 'function',
+                        function: { name: 'list_entries', arguments: '{"type":"page"}' },
+                      },
+                    ],
+                  },
                 },
-              },
-            ],
-          });
-        return json(
-          200,
-          {
+              ],
+            } as Record<string, unknown>,
+          };
+        return {
+          status: 200,
+          body: {
             model: 'chriss-base',
             choices: [{ message: { role: 'assistant', content: 'Ciao!' }, finish_reason: 'stop' }],
-          },
-          {
-            'x-ratelimit-limit': '20',
-            'x-ratelimit-remaining': String(remaining),
-            'x-ratelimit-reset': String(Date.UTC(2026, 10, 22) / 1000),
-          },
-        );
+          } as Record<string, unknown>,
+        };
+      };
+      const quota = () => ({ limit: 20, remaining, resetAt: '2026-11-22T00:00:00.000Z' });
+      const quotaHeaders = () => ({
+        'x-ratelimit-limit': '20',
+        'x-ratelimit-remaining': String(remaining),
+        'x-ratelimit-reset': String(Date.UTC(2026, 10, 22) / 1000),
+      });
+      if (req.method === 'POST' && path === '/v1/chat/completions') {
+        const answer = answerOf(JSON.parse(data) as Record<string, unknown>);
+        return json(answer.status, answer.body, answer.status === 200 ? quotaHeaders() : {});
+      }
+      if (req.method === 'POST' && path === '/v1/chat/jobs') {
+        const answer = answerOf(JSON.parse(data) as Record<string, unknown>);
+        if (answer.status !== 200) return json(answer.status, answer.body);
+        const id = `job_${jobs.size + 1}`;
+        const last = nextFails
+          ? {
+              status: 'error',
+              error: { error: 'upstream_error', message: 'The free service could not answer.' },
+            }
+          : { status: 'done', result: answer.body };
+        jobs.set(id, { states: [...(nextStates ?? [{ status: 'running' }]), last] });
+        nextStates = null;
+        nextFails = false;
+        return json(202, { id, status: 'queued', position: 0, ...quota() }, quotaHeaders());
+      }
+      const polled = /^\/v1\/chat\/jobs\/([\w-]+)$/.exec(path ?? '');
+      if (req.method === 'GET' && polled) {
+        const job = jobs.get(polled[1]!);
+        if (!job) return json(404, { error: 'not_found' });
+        const state = job.states.length > 1 ? job.states.shift()! : job.states[0]!;
+        return json(200, { id: polled[1], ...state, ...quota() }, quotaHeaders());
       }
       res.writeHead(404).end();
     });
@@ -253,6 +302,75 @@ describe('Chriss base', () => {
     expect(JSON.stringify([next.messages[0], next.tools])).toBe(
       JSON.stringify([body.messages[0], body.tools]),
     );
+  });
+
+  it('asks as a job, reads it every couple of seconds and says the place in the queue', async () => {
+    remaining = 3;
+    let from = calls.length;
+    nextStates = [
+      { status: 'queued', position: 2 },
+      { status: 'queued', position: 2 },
+      { status: 'queued', position: 1 },
+      { status: 'running' },
+    ];
+    const answer = await editor.post('/api/v1/assistants/chat', {
+      messages: [{ role: 'user', content: 'Ciao' }],
+    });
+    const lines = events(answer.body).filter((l) => l.type !== 'ping');
+    expect(lines.filter((l) => l.type === 'queue')).toEqual([
+      { type: 'queue', position: 2 },
+      { type: 'queue', position: 1 },
+    ]);
+    expect(lines.findIndex((l) => l.type === 'reading')).toBeLessThan(
+      lines.findIndex((l) => l.type === 'queue'),
+    );
+    expect(lines).toContainEqual({ type: 'text', text: 'Ciao!' });
+    expect(lines).toContainEqual({
+      type: 'quota',
+      remaining: 2,
+      limit: 20,
+      resetAt: '2026-11-22T00:00:00.000Z',
+    });
+    // One submission, then short polls; never the long chat completions request.
+    const these = calls.slice(from).filter((c) => c.path !== '/usage');
+    expect(these.filter((c) => c.method === 'POST').map((c) => c.path)).toEqual(['/v1/chat/jobs']);
+    expect(these.filter((c) => c.method === 'GET').length).toBe(5);
+    expect(these.every((c) => c.ms < 3000)).toBe(true);
+
+    // Plugins on Chriss base (ctx.ai.complete, ctx.ai.chat) go the same way.
+    from = calls.length;
+    const text = await app
+      .get(ChatService)
+      .generate(site.id, { messages: [{ role: 'user', content: 'Ciao' }] });
+    expect(text).toMatchObject({ text: 'Ciao!', model: 'chriss-base', finishReason: 'stop' });
+    const round = await app.get(ChatService).round(site.id, {
+      messages: [{ role: 'user', content: 'Tool please' }],
+      tools: [{ type: 'function', function: { name: 'list_entries' } }],
+    });
+    expect(round.message.tool_calls).toHaveLength(1);
+    expect(calls.slice(from).some((c) => c.path === '/v1/chat/completions')).toBe(false);
+    remaining = 2;
+  });
+
+  it('reports a job that failed at the service', async () => {
+    remaining = 2;
+    nextFails = true;
+    const answer = await editor.post('/api/v1/assistants/chat', {
+      messages: [{ role: 'user', content: 'Ciao' }],
+    });
+    const failed = events(answer.body).find((l) => l.type === 'error');
+    expect(failed?.message).toContain('The free service could not answer.');
+    remaining = 2;
+  });
+
+  it('tells the relay who calls, with the core version', () => {
+    // Registration, usage, jobs and polls.
+    expect(new Set(calls.map((c) => c.path.replace(/job_\d+/, ':id')))).toEqual(
+      new Set(['/register', '/usage', '/v1/chat/jobs', '/v1/chat/jobs/:id']),
+    );
+    const agents = new Set(calls.map((c) => c.userAgent));
+    expect(calls.length).toBeGreaterThan(0);
+    expect([...agents]).toEqual([`Cleitext/${appVersion()} (+https://cleitext.com)`]);
   });
 
   it('turns the end of the free requests into the invitation', async () => {

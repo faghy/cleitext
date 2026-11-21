@@ -122,6 +122,8 @@ export function AssistantChat({
   const [quota, setQuota] = useState<FreeAiQuota | null>(null);
   // Chriss base is reading the request (a small model: up to a minute or two).
   const [reading, setReading] = useState(false);
+  // Chriss base: the requests ahead of this one at the free service.
+  const [queued, setQueued] = useState<number | null>(null);
   const abort = useRef<AbortController | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
@@ -170,7 +172,13 @@ export function AssistantChat({
         '/assistants/chat',
         { messages, publish, ...(entryId ? { entryId } : {}) },
         (event) => {
-          if (event.type !== 'ping') setReading(event.type === 'reading');
+          if (event.type === 'queue') {
+            setReading(true);
+            setQueued(event.position);
+          } else if (event.type !== 'ping') {
+            setReading(event.type === 'reading');
+            setQueued(null);
+          }
           if (event.type === 'tool') {
             updateLast((turn) => ({
               ...turn,
@@ -216,6 +224,7 @@ export function AssistantChat({
     } finally {
       setBusy(false);
       setReading(false);
+      setQueued(null);
       abort.current = null;
     }
   };
@@ -267,7 +276,9 @@ export function AssistantChat({
                   {turn.text && <RichText text={turn.text} />}
                   {reading && busy && index === saved.turns.length - 1 && (
                     <p className="text-slate-500" role="status">
-                      {t('Chriss is reading… The free service can take a minute or two.')}
+                      {queued !== null && queued > 0
+                        ? t('In the queue: {count} ahead of you.', { count: queued })
+                        : t('Chriss is reading… The free service can take a minute or two.')}
                     </p>
                   )}
                   {turn.error && <Alert>{t(turn.error)}</Alert>}

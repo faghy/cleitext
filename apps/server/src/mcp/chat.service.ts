@@ -14,6 +14,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service.js';
 import { seal, unseal } from '../common/secrets.js';
+import { relayUserAgent } from '../common/version.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
 import {
@@ -133,8 +134,20 @@ const FREE_MAX_TOKENS = 1024;
  * the tools, about 6 000 tokens, within the relay's limit (22 000 characters).
  */
 const FREE_MAX_HISTORY = 16_000;
-/** Chriss base may wait in the relay's queue, then read for minutes. */
-const FREE_TIMEOUT_MS = 280_000;
+/**
+ * Chriss base may wait in the relay's queue, then read for minutes: its
+ * answer is asked for as a job (`POST <relay>/v1/chat/jobs`) and read every
+ * couple of seconds, so no single request lasts long (proxies such as
+ * Cloudflare cut those over 100 seconds), for this long at most.
+ */
+const FREE_JOB_MS = 300_000;
+/** The first look at a job, then the next ones. */
+const FREE_FIRST_POLL_MS = 1_000;
+const FREE_POLL_MS = 2_000;
+/** Each request to the relay, short. */
+const FREE_REQUEST_MS = 15_000;
+/** The provider of a plugin's `ctx.ai.chat` (e.g. the relay's own): a small model may read for minutes. */
+const ROUND_TIMEOUT_MS = 280_000;
 
 /**
  * The conversation within the budget of Chriss base: the oldest questions
@@ -278,8 +291,17 @@ export function providerFailure(status: number, text: string, baseUrl: string): 
   if (quota) return quota;
   let detail = text.slice(0, 500);
   try {
-    const parsed = JSON.parse(text) as { error?: { message?: string } | string };
-    detail = typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message ?? detail);
+    const parsed = JSON.parse(text) as {
+      error?: { message?: string } | string;
+      detail?: unknown;
+    };
+    // The relay's `{ error: "busy", detail: "…" }`: its sentence.
+    detail =
+      typeof parsed.error === 'string'
+        ? typeof parsed.detail === 'string' && parsed.detail
+          ? parsed.detail
+          : parsed.error
+        : (parsed.error?.message ?? detail);
   } catch {
     // Not JSON: the start of the body is shown.
   }
@@ -325,6 +347,54 @@ interface ChatAnswer {
   }[];
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
+
+/** The text of a chat completions answer, for `ctx.ai.complete`. */
+function generated(
+  data: ChatAnswer,
+  model: string,
+): {
+  text: string;
+  model: string;
+  usage: { input: number; output: number } | null;
+  finishReason?: string;
+} {
+  const content = data.choices?.[0]?.message?.content;
+  if (typeof content !== 'string') throw new Error('The AI provider gave no answer.');
+  const finish = data.choices?.[0]?.finish_reason;
+  return {
+    text: content,
+    // `length`: the answer was cut at maxTokens (plugin API 1.68).
+    ...(typeof finish === 'string' && finish ? { finishReason: finish } : {}),
+    model: data.model ?? model,
+    usage: data.usage
+      ? { input: data.usage.prompt_tokens ?? 0, output: data.usage.completion_tokens ?? 0 }
+      : null,
+  };
+}
+
+/** The free requests left, from a job of the relay (`limit`, `remaining`, `resetAt`). */
+function jobQuota(body: { limit?: unknown; remaining?: unknown; resetAt?: unknown }) {
+  if (typeof body.remaining !== 'number' || !Number.isFinite(body.remaining)) return null;
+  return {
+    remaining: Math.max(0, Math.floor(body.remaining)),
+    limit: typeof body.limit === 'number' && body.limit > 0 ? Math.floor(body.limit) : null,
+    resetAt: typeof body.resetAt === 'string' ? body.resetAt : null,
+  } satisfies FreeAiQuota;
+}
+
+/** A job of the relay, as far as it is read. */
+interface JobAnswer {
+  id?: unknown;
+  status?: unknown;
+  position?: unknown;
+  result?: ChatAnswer;
+  error?: { error?: unknown; message?: unknown };
+  limit?: unknown;
+  remaining?: unknown;
+  resetAt?: unknown;
+}
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 @Injectable()
 export class ChatService {
@@ -451,7 +521,11 @@ export class ChatService {
     if (!provider?.free || !provider.apiKey) return { available: true, host, active: false };
     try {
       const response = await fetch(`${this.relay}/usage`, {
-        headers: { accept: 'application/json', authorization: `Bearer ${provider.apiKey}` },
+        headers: {
+          accept: 'application/json',
+          authorization: `Bearer ${provider.apiKey}`,
+          'user-agent': relayUserAgent(),
+        },
         signal: AbortSignal.timeout(10_000),
         redirect: 'error',
       });
@@ -520,7 +594,11 @@ export class ChatService {
     try {
       const response = await fetch(`${this.relay}/register`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json',
+          'user-agent': relayUserAgent(),
+        },
         body: JSON.stringify({ origin, secret }),
         signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
         redirect: 'error',
@@ -650,6 +728,8 @@ tell them to reload the editor to see it.`
             ...(provider.free ? trimForFree(messages) : messages),
           ],
           tools,
+          // Its place in the relay's queue, when it changes.
+          (position) => emit({ type: 'queue', position }),
         );
         reply = answer.message;
         // Chriss base: the free requests left today.
@@ -738,6 +818,15 @@ tell them to reload the editor to see it.`
     if (!provider) {
       throw new Error('No AI provider is set for this site (Admin → Chriss → Settings).');
     }
+    if (provider.free) {
+      // Chriss base: as a job of the relay, like the chat.
+      const { data } = await this.request(provider, {
+        messages: input.messages,
+        ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
+        ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
+      });
+      return generated(data, provider.model);
+    }
     const send = (temperature: number | undefined) =>
       reach(provider.baseUrl, {
         method: 'POST',
@@ -763,23 +852,7 @@ tell them to reload the editor to see it.`
     if (!response.ok) {
       throw providerFailure(response.status, text, provider.baseUrl);
     }
-    const data = JSON.parse(text) as {
-      model?: string;
-      choices?: { message?: { content?: string | null }; finish_reason?: string | null }[];
-      usage?: { prompt_tokens?: number; completion_tokens?: number };
-    };
-    const content = data.choices?.[0]?.message?.content;
-    if (typeof content !== 'string') throw new Error('The AI provider gave no answer.');
-    const finish = data.choices?.[0]?.finish_reason;
-    return {
-      text: content,
-      // `length`: the answer was cut at maxTokens (plugin API 1.68).
-      ...(typeof finish === 'string' && finish ? { finishReason: finish } : {}),
-      model: data.model ?? (input.model || provider.model),
-      usage: data.usage
-        ? { input: data.usage.prompt_tokens ?? 0, output: data.usage.completion_tokens ?? 0 }
-        : null,
-    };
+    return generated(JSON.parse(text) as ChatAnswer, input.model || provider.model);
   }
 
   /** A short question to the saved provider (Admin → Chriss → Test the connection). */
@@ -863,13 +936,17 @@ tell them to reload the editor to see it.`
     if (!provider) {
       throw new Error('No AI provider is set for this site (Admin → Chriss → Settings).');
     }
-    const { data } = await this.request(provider, {
-      messages: input.messages,
-      ...(input.tools?.length ? { tools: input.tools } : {}),
-      ...(input.tools?.length && input.toolChoice ? { tool_choice: input.toolChoice } : {}),
-      ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
-      ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
-    });
+    const { data } = await this.request(
+      provider,
+      {
+        messages: input.messages,
+        ...(input.tools?.length ? { tools: input.tools } : {}),
+        ...(input.tools?.length && input.toolChoice ? { tool_choice: input.toolChoice } : {}),
+        ...(input.maxTokens ? { max_tokens: input.maxTokens } : {}),
+        ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
+      },
+      { timeoutMs: ROUND_TIMEOUT_MS },
+    );
     const choice = data.choices?.[0];
     const message = choice?.message;
     if (!message) throw new Error('The AI provider gave no answer.');
@@ -909,7 +986,9 @@ tell them to reload the editor to see it.`
   private async request(
     provider: Provider,
     body: Record<string, unknown>,
+    options: { timeoutMs?: number; onQueue?: (position: number) => void } = {},
   ): Promise<{ data: ChatAnswer; quota: FreeAiQuota | null }> {
+    if (provider.free) return this.requestJob(provider, body, options.onQueue);
     const response = await reach(provider.baseUrl, {
       method: 'POST',
       headers: {
@@ -917,7 +996,7 @@ tell them to reload the editor to see it.`
         ...(provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {}),
       },
       body: JSON.stringify({ model: provider.model, ...body }),
-      signal: AbortSignal.timeout(provider.free ? FREE_TIMEOUT_MS : PROVIDER_TIMEOUT_MS),
+      signal: AbortSignal.timeout(options.timeoutMs ?? PROVIDER_TIMEOUT_MS),
     });
     const text = await response.text();
     if (!response.ok) {
@@ -932,19 +1011,133 @@ tell them to reload the editor to see it.`
     return { data, quota: quotaOf(response.headers) };
   }
 
+  /**
+   * Chriss base: the request as a job of the relay (`POST …/chat/jobs`,
+   * answered at once), then its state every couple of seconds
+   * (`GET …/chat/jobs/:id`) until the answer, for five minutes at most.
+   * No request lasts long, whatever proxy stands in front of the relay.
+   */
+  private async requestJob(
+    provider: Provider,
+    body: Record<string, unknown>,
+    onQueue?: (position: number) => void,
+  ): Promise<{ data: ChatAnswer; quota: FreeAiQuota | null }> {
+    const deadline = Date.now() + FREE_JOB_MS;
+    const headers = {
+      accept: 'application/json',
+      'user-agent': relayUserAgent(),
+      ...(provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {}),
+    };
+    const late = () => new Error('The free service did not answer in time: try again in a moment.');
+    let lastPosition: number | null = null;
+    /** The place in the queue, said when it changes. */
+    const place = (job: JobAnswer) => {
+      // 0: its turn now, nobody ahead.
+      if (job.status !== 'queued' || typeof job.position !== 'number' || job.position < 1) return;
+      if (job.position === lastPosition) return;
+      lastPosition = job.position;
+      onQueue?.(job.position);
+    };
+
+    // The submission; while another request of this site is answered, again in a moment.
+    let job: JobAnswer;
+    for (;;) {
+      let response: Response;
+      try {
+        response = await fetch(`${provider.baseUrl}/chat/jobs`, {
+          method: 'POST',
+          headers: { ...headers, 'content-type': 'application/json' },
+          body: JSON.stringify({ model: provider.model, ...body }),
+          signal: AbortSignal.timeout(FREE_REQUEST_MS),
+          redirect: 'error',
+        });
+      } catch (error) {
+        throw new Error('The free service could not be reached: try again in a moment.', {
+          cause: error,
+        });
+      }
+      const text = await response.text();
+      if (response.status === 409 && Date.now() + FREE_POLL_MS < deadline) {
+        await pause(FREE_POLL_MS);
+        continue;
+      }
+      if (!response.ok) throw providerFailure(response.status, text, provider.baseUrl);
+      try {
+        job = JSON.parse(text) as JobAnswer;
+      } catch {
+        throw new Error('The AI provider gave no answer.');
+      }
+      if (typeof job.id !== 'string' || !job.id) throw new Error('The AI provider gave no answer.');
+      break;
+    }
+    const id = job.id as string;
+    let quota = jobQuota(job);
+    place(job);
+
+    let wait = FREE_FIRST_POLL_MS;
+    while (job.status !== 'done' && job.status !== 'error') {
+      if (Date.now() + wait > deadline) throw late();
+      await pause(wait);
+      wait = FREE_POLL_MS;
+      let response: Response;
+      try {
+        response = await fetch(`${provider.baseUrl}/chat/jobs/${encodeURIComponent(id)}`, {
+          headers,
+          signal: AbortSignal.timeout(FREE_REQUEST_MS),
+          redirect: 'error',
+        });
+      } catch {
+        // A poll lost on the way: the next one asks again.
+        continue;
+      }
+      const text = await response.text();
+      // Busy for a moment (a proxy, a restart): asked again.
+      if (response.status >= 500 || response.status === 429) continue;
+      if (response.status === 404) throw new Error('The free service lost the answer: ask again.');
+      if (!response.ok) throw providerFailure(response.status, text, provider.baseUrl);
+      try {
+        job = JSON.parse(text) as JobAnswer;
+      } catch {
+        continue;
+      }
+      quota = jobQuota(job) ?? quota;
+      place(job);
+    }
+    if (job.status === 'error') {
+      const why = typeof job.error?.error === 'string' ? job.error.error : 'upstream_error';
+      const message =
+        typeof job.error?.message === 'string' && job.error.message
+          ? job.error.message
+          : 'The free service could not answer: try again later.';
+      throw providerFailure(
+        why === 'busy' || why === 'not_configured' ? 503 : 502,
+        JSON.stringify({ error: why, detail: message }),
+        provider.baseUrl,
+      );
+    }
+    if (!job.result || typeof job.result !== 'object')
+      throw new Error('The AI provider gave no answer.');
+    return { data: job.result, quota };
+  }
+
   private async complete(
     provider: Provider,
     messages: AssistantChatMessage[] | Record<string, unknown>[],
     tools: unknown[],
+    onQueue?: (position: number) => void,
   ): Promise<{
     message: { content?: string | null; tool_calls?: ToolCall[] };
     quota: FreeAiQuota | null;
   }> {
-    const { data, quota } = await this.request(provider, {
-      messages,
-      tools,
-      ...(provider.free ? { max_tokens: FREE_MAX_TOKENS } : {}),
-    });
+    const { data, quota } = await this.request(
+      provider,
+      {
+        messages,
+        tools,
+        ...(provider.free ? { max_tokens: FREE_MAX_TOKENS } : {}),
+      },
+      { onQueue },
+    );
     const message = data.choices?.[0]?.message;
     if (!message) throw new Error('The AI provider gave no answer.');
     return { message, quota };

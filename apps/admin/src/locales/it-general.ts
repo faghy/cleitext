@@ -650,4 +650,5 @@ export const itGeneral: Messages = {
   'Set up Chriss': 'Configura Chriss',
   'Chriss is reading… The free service can take a minute or two.':
     'Chriss sta leggendo… Il servizio gratuito può impiegare un minuto o due.',
+  'In the queue: {count} ahead of you.': 'In coda: {count} davanti a te.',
 };

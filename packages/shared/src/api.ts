@@ -228,6 +228,11 @@ export type AssistantChatEvent =
     }
   /** Chriss base: a request is on its way; a small model reads it slowly (core 0.117). */
   | { type: 'reading' }
+  /**
+   * Chriss base: the request waits its turn at the free service, with
+   * `position` requests ahead of it; sent when the place changes (core 0.117.1).
+   */
+  | { type: 'queue'; position: number }
   /** Chriss base: the free requests left today, after each answer of the service. */
   | ({ type: 'quota' } & FreeAiQuota)
   | { type: 'ping' };

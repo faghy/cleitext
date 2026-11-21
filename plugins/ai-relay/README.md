@@ -26,6 +26,24 @@ Chriss base, the free AI of every Cleitext site. Installed on cleitext.com, it a
 
    The answer is a `chat.completion` with `model: "chriss-base"`, and the headers `x-ratelimit-limit`, `x-ratelimit-remaining` (questions left today) and `x-ratelimit-reset` (Unix seconds, next UTC midnight).
 
+   Since AI Relay 1.1 (core 0.117.1) sites ask as a **job** instead, so no request lasts long (a proxy such as Cloudflare cuts the ones over 100 seconds, while a small model on a CPU may take minutes):
+
+   ```http
+   POST /api/v1/ext/ai-relay/v1/chat/jobs
+   authorization: Bearer cxai_…
+
+   { "model": "chriss-base", "messages": [...], "tools": [...], "max_tokens": 1024 }
+   ```
+
+   Same body, limits and checks as `chat/completions`, the question counted at once; errors (`413 prompt_too_long`, `429 quota_exceeded`, `503 busy`…) come back at once too. Otherwise, within a moment: `202 { "id": "job_…", "status": "queued", "position": 0, "limit": 20, "remaining": 19, "resetAt": "…" }`. The site then asks every couple of seconds:
+
+   ```http
+   GET /api/v1/ext/ai-relay/v1/chat/jobs/job_…
+   authorization: Bearer cxai_…
+   ```
+
+   `{ "id", "status": "queued" | "running" | "done" | "error", "position"?, "result"?, "error"?, "limit", "remaining", "resetAt" }`: `position` (while queued) is the number of requests ahead of it (0: its turn now); `result` (done) is the `chat.completion` object above; `error` (error) is `{ "error": "upstream_error" | "not_configured" | "busy" | "abandoned", "message" }`, and the question is given back. A site has one job at a time (another one: `409 job_active` with its `id`); a job of another site, an unknown one or one answered more than 10 minutes ago: `404 not_found`. A waiting job nobody asked about for 30 seconds is dropped at its turn. The job runs in the same queue as `chat/completions`, in the background, not tied to the request; `chat/completions` keeps working as before.
+
 3. `GET /api/v1/ext/ai-relay/usage` (same key) answers `{ limit, used, remaining, resetAt }`; `GET /api/v1/ext/ai-relay/v1/models` lists `chriss-base`.
 
 ## Limits
@@ -36,7 +54,7 @@ Chriss base, the free AI of every Cleitext site. Installed on cleitext.com, it a
 
 Over a daily limit: `429 { "error": "quota_exceeded", "limit": 20, "resetAt": "2026-11-22T00:00:00.000Z", "scope": "site" | "global" }`, which the site turns into an invitation to connect its own AI service. Other errors: `400 invalid_request`, `401 invalid_key`, `403 revoked` / `not_verified`, `413 prompt_too_long`, `429 rate_limited`, `502 upstream_error`, `503 disabled` / `busy` / `not_configured`.
 
-Requests may take long (a small model on a CPU reads a long prompt in tens of seconds): the routes use the background-job time of the core (`timeout: 'job'`, plugin API 1.79). Proxies in front of the server must allow requests of a few minutes on `/api/v1/ext/ai-relay/`.
+Answers may take long (a small model on a CPU reads a long prompt in tens of seconds): `chat/completions` and `register` use the background-job time of the core (`timeout: 'job'`, plugin API 1.79), and a proxy in front of the server must allow requests of a few minutes for them. The jobs need nothing of the kind: each request is short, and a job waits for its turn up to three minutes. Polls: 120 a minute from one address.
 
 ## Settings
 

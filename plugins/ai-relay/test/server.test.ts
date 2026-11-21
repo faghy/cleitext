@@ -91,10 +91,23 @@ function setUp(
   };
   const ask = (key: string, body: unknown, ip?: string) =>
     call('POST /v1/chat/completions', body, { authorization: `Bearer ${key}` }, ip);
+  const submit = (key: string, body: unknown, ip?: string) =>
+    call('POST /v1/chat/jobs', body, { authorization: `Bearer ${key}` }, ip);
+  const poll = (key: string, id: string, ip = '203.0.113.5') =>
+    routes.get('GET /v1/chat/jobs/:id')!({
+      siteId: 's',
+      body: undefined,
+      params: { id },
+      headers: { authorization: `Bearer ${key}` },
+      ip,
+      query: {},
+    });
   return {
     call,
     register,
     ask,
+    submit,
+    poll,
     routes,
     storage,
     fetched,
@@ -388,6 +401,186 @@ describe('chat completions', () => {
       object: 'list',
       data: [{ id: 'chriss-base', object: 'model', owned_by: 'cleitext' }],
     });
+  });
+});
+
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+/** A provider that answers only when told to. */
+function held() {
+  const pending: { resolve: () => void; fail: () => void }[] = [];
+  const provider = () =>
+    new Promise((resolve, reject) => {
+      pending.push({
+        resolve: () =>
+          resolve({ message: { role: 'assistant', content: 'ok' }, model: 'm', usage: null }),
+        fail: () => reject(new Error('The AI provider answered 500: crashed.')),
+      });
+    });
+  return { pending, provider };
+}
+
+describe('chat jobs', () => {
+  type View = {
+    id: string;
+    status: string;
+    position?: number;
+    result?: { object: string; choices: { message: { content: string } }[] };
+    error?: { error: string; message: string };
+    limit: number;
+    remaining: number;
+    resetAt: string;
+  };
+
+  it('answers 202 at once, then the result when asked, with the questions left', async () => {
+    const { pending, provider } = held();
+    const relay = setUp(provider);
+    const { key } = (await relay.register()).body as { key: string };
+    const submitted = await relay.submit(key, question());
+    expect(submitted.status).toBe(202);
+    const job = submitted.body as View;
+    expect(job).toMatchObject({ status: 'queued', position: 0, limit: 20, remaining: 19 });
+    expect(job.id).toMatch(/^job_[\w-]{22}$/);
+    expect(submitted.headers).toMatchObject({ 'x-ratelimit-remaining': '19' });
+    // Short routes: the time of a normal request.
+    expect(relay.routes.get('POST /v1/chat/jobs')!.timeout).toBeUndefined();
+    expect(relay.routes.get('GET /v1/chat/jobs/:id')!.timeout).toBeUndefined();
+    await tick();
+    expect((await relay.poll(key, job.id)).body).toMatchObject({ status: 'running' });
+    pending[0]!.resolve();
+    await tick();
+    const answered = (await relay.poll(key, job.id)).body as View;
+    expect(answered).toMatchObject({
+      status: 'done',
+      remaining: 19,
+      resetAt: '2026-11-22T00:00:00.000Z',
+      result: {
+        object: 'chat.completion',
+        model: 'chriss-base',
+        choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
+      },
+    });
+    expect(answered.position).toBeUndefined();
+    // Kept ten minutes, then forgotten.
+    relay.advance(9 * 60_000);
+    expect((await relay.poll(key, job.id)).status).toBe(200);
+    relay.advance(2 * 60_000);
+    expect((await relay.poll(key, job.id)).body).toMatchObject({ error: 'not_found' });
+    const everything = JSON.stringify([...relay.storage.values()]) + relay.logs.join('\n');
+    expect(everything).not.toContain('orari');
+  });
+
+  it('shows a job only to its own site', async () => {
+    const { provider } = held();
+    const relay = setUp(provider);
+    const { key } = (await relay.register()).body as { key: string };
+    const other = ((await relay.register('https://sito-due.it')).body as { key: string }).key;
+    const job = (await relay.submit(key, question())).body as View;
+    expect((await relay.poll(other, job.id)).status).toBe(404);
+    expect((await relay.poll(`cxai_${'z'.repeat(43)}`, job.id)).status).toBe(401);
+    expect((await relay.poll(key, 'job_unknown')).status).toBe(404);
+  });
+
+  it('checks like a chat completion, at once', async () => {
+    const relay = setUp();
+    await relay.call('PUT /admin/settings', { siteDaily: 1 });
+    const { key } = (await relay.register()).body as { key: string };
+    expect((await relay.submit(key, question('x'.repeat(30_000)))).body).toMatchObject({
+      error: 'prompt_too_long',
+    });
+    expect((await relay.submit(key, { messages: [] })).status).toBe(400);
+    const job = (await relay.submit(key, question())).body as View;
+    await tick();
+    expect((await relay.poll(key, job.id)).body).toMatchObject({ status: 'done', remaining: 0 });
+    expect((await relay.submit(key, question())).body).toMatchObject({
+      error: 'quota_exceeded',
+      limit: 1,
+      scope: 'site',
+    });
+  });
+
+  it('runs one job per site, in the queue with the others, saying the place', async () => {
+    const { pending, provider } = held();
+    const relay = setUp(provider);
+    await relay.call('PUT /admin/settings', { queue: 2, ipPerMinute: 100 });
+    const { key } = (await relay.register()).body as { key: string };
+    const two = ((await relay.register('https://sito-due.it')).body as { key: string }).key;
+    const three = ((await relay.register('https://sito-tre.it')).body as { key: string }).key;
+    const four = ((await relay.register('https://sito-quattro.it')).body as { key: string }).key;
+    const first = (await relay.submit(key, question())).body as View;
+    await tick();
+    // The same site again: wait for the first.
+    const again = await relay.submit(key, question());
+    expect(again).toMatchObject({ status: 409, body: { error: 'job_active', id: first.id } });
+    // A synchronous request waits in the same queue, ahead of the next job.
+    const sync = relay.ask(two, question());
+    await tick();
+    const second = (await relay.submit(three, question())).body as View;
+    expect(second).toMatchObject({ status: 'queued', position: 2 });
+    // The queue is full.
+    expect(await relay.submit(four, question())).toMatchObject({
+      status: 503,
+      body: { error: 'busy' },
+    });
+    pending[0]!.resolve();
+    await tick();
+    expect((await relay.poll(three, second.id)).body).toMatchObject({ position: 1 });
+    pending[1]!.resolve();
+    expect((await sync).status).toBe(200);
+    await tick();
+    expect((await relay.poll(three, second.id)).body).toMatchObject({ status: 'running' });
+    pending[2]!.resolve();
+    await tick();
+    expect((await relay.poll(three, second.id)).body).toMatchObject({ status: 'done' });
+    // Once answered, the site may ask again.
+    expect((await relay.submit(key, question())).status).toBe(202);
+  });
+
+  it('gives the question back when the provider fails', async () => {
+    const { pending, provider } = held();
+    const relay = setUp(provider);
+    const { key } = (await relay.register()).body as { key: string };
+    const job = (await relay.submit(key, question())).body as View;
+    await tick();
+    pending[0]!.fail();
+    await tick();
+    await tick();
+    expect((await relay.poll(key, job.id)).body).toMatchObject({
+      status: 'error',
+      error: { error: 'upstream_error' },
+      remaining: 20,
+    });
+    expect(relay.logs.join('\n')).toContain('answered 500');
+  });
+
+  it('drops a waiting job nobody asks about any more, giving the question back', async () => {
+    const { pending, provider } = held();
+    const relay = setUp(provider);
+    await relay.call('PUT /admin/settings', { ipPerMinute: 100 });
+    const { key } = (await relay.register()).body as { key: string };
+    const two = ((await relay.register('https://sito-due.it')).body as { key: string }).key;
+    await relay.submit(key, question());
+    await tick();
+    const waiting = (await relay.submit(two, question())).body as View;
+    // Its site closed the chat: nobody polls it for a minute.
+    relay.advance(60_000);
+    pending[0]!.resolve();
+    await tick();
+    await tick();
+    expect(pending).toHaveLength(1);
+    expect((await relay.poll(two, waiting.id)).body).toMatchObject({
+      status: 'error',
+      error: { error: 'abandoned' },
+      remaining: 20,
+    });
+  });
+
+  it('limits the polls of one address', async () => {
+    const relay = setUp();
+    const { key } = (await relay.register()).body as { key: string };
+    const job = (await relay.submit(key, question())).body as View;
+    for (let i = 0; i < 120; i++) await relay.poll(key, job.id, '198.51.100.7');
+    expect((await relay.poll(key, job.id, '198.51.100.7')).status).toBe(429);
   });
 });
 

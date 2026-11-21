@@ -1,7 +1,7 @@
 {
   "slug": "ai-relay",
   "name": "AI Relay",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "apiVersion": "^1.79",
   "description": "Chriss base, the free AI of every Cleitext site: answers sites' chat requests with this site's own AI provider, with a small daily allowance per site. Meant for cleitext.com.",
   "author": "Cleitext",
