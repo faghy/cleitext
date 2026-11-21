@@ -21,7 +21,7 @@ import {
   type MenuNode,
 } from '../admin-menu';
 import { MenuIcon } from '../components/menu-icons';
-import { useWideTables } from '../components/wide-tables';
+import { PHONE_QUERY, useWideTables } from '../components/wide-tables';
 import { UPDATES_QUERY } from './updates';
 import { useCatalogUpdates } from '../components/catalog';
 
@@ -270,6 +270,17 @@ export function AdminLayout() {
     }, 100);
     return () => clearInterval(timer);
   }, [pathname, hash]);
+  // Phones: the chosen tab of a sideways-scrolling tab bar is brought into view.
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function' || !window.matchMedia(PHONE_QUERY).matches) return;
+    const frame = requestAnimationFrame(() => {
+      for (const selected of content.current?.querySelectorAll(
+        '[role="tablist"] [aria-selected="true"]',
+      ) ?? [])
+        selected.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pathname, tab]);
   const current = items
     .filter((item) =>
       item.to === '/'
