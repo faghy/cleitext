@@ -1,8 +1,11 @@
 /** Push notifications of the official app: devices, status, and what the relay is sent. */
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { pushDevices, users, withSiteContext, type DatabaseClient } from '@cleitext/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { appVersion } from '../src/common/version.js';
 import { resetLimits } from '../src/community/limits.js';
 import { PushService, type RelayPayload } from '../src/push/push.service.js';
 import {
@@ -230,5 +233,35 @@ describe('push devices', () => {
     const theirs = (await author.get('/api/v1/push/devices')).json() as { id: string }[];
     expect((await author.delete(`/api/v1/push/devices/${theirs[0]!.id}`)).statusCode).toBe(204);
     expect((await author.get('/api/v1/push/devices')).json()).toEqual([]);
+  });
+});
+
+describe('the call to the relay', () => {
+  it('says who calls, with the core version', async () => {
+    const seen: Record<string, string | string[] | undefined>[] = [];
+    const server = createServer((req, res) => {
+      seen.push(req.headers);
+      req.resume();
+      req.on('end', () => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end('{"invalid":[]}');
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const port = (server.address() as AddressInfo).port;
+      // The service's own transport, not the one the tests above replaced.
+      const service = new PushService(null as never, null as never, null as never);
+      await service.transport(
+        `http://127.0.0.1:${port}/send`,
+        {} as RelayPayload,
+        'https://site.example',
+      );
+      expect(seen[0]!['user-agent']).toBe(`Cleitext/${appVersion()} (+https://cleitext.com)`);
+      expect(appVersion()).toMatch(/^\d+\.\d+\.\d+/);
+      expect(seen[0]!['x-cleitext-site']).toBe('https://site.example');
+    } finally {
+      server.close();
+    }
   });
 });

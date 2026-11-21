@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import {
   listMySites,
   roles,
@@ -20,7 +18,7 @@ import { LanguagesService } from '../content/languages.service.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { DATABASE } from '../database/database.module.js';
 import { avatarUrl } from '../profile/avatar.js';
-import { appRoot } from '../install/token.js';
+import { appVersion } from '../common/version.js';
 
 /** Loads who a user is on a given site: profile, role and capabilities. */
 @Injectable()
@@ -178,22 +176,6 @@ export class IdentityService {
       version: appVersion(),
     };
   }
-}
-
-let version: string | undefined;
-/** The running Cleitext version (the root package.json), read once. */
-function appVersion(): string {
-  if (version === undefined) {
-    try {
-      const pkg = JSON.parse(readFileSync(join(appRoot(), 'package.json'), 'utf8')) as {
-        version?: string;
-      };
-      version = pkg.version ?? 'dev';
-    } catch {
-      version = 'dev';
-    }
-  }
-  return version;
 }
 
 /** The `defaultEditors` setting as stored, keeping only valid pairs. */

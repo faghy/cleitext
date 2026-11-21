@@ -4,6 +4,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { IdentityService } from '../auth/identity.service.js';
 import type { AuthContext } from '../common/request-context.js';
+import { relayUserAgent } from '../common/version.js';
 import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
 
@@ -73,7 +74,11 @@ export class PushService {
   ): Promise<{ invalid: string[] }> => {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-cleitext-site': origin },
+      headers: {
+        'content-type': 'application/json',
+        'x-cleitext-site': origin,
+        'user-agent': relayUserAgent(),
+      },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
       redirect: 'error',
