@@ -7,6 +7,7 @@ import {
   portalRole,
   sealKey,
   seatsInUse,
+  testSiteKind,
   unsealKey,
 } from './licensing';
 import { parsePartner } from './partners-admin';
@@ -83,6 +84,62 @@ describe('seats are sites', () => {
     expect(decideActivation({ ...input, seats: 2 })).toEqual({ kind: 'full' });
     expect(decideActivation({ ...input, seats: 3 })).toEqual({ kind: 'add', newSeat: true });
     expect(decideActivation({ ...input, seats: 0 })).toEqual({ kind: 'add', newSeat: true });
+  });
+});
+
+describe('test copies and our own sites take no seat', () => {
+  const prod = { siteOrigin: 'https://www.cimone.example', productSlug: 'zenit-pro' };
+  const staging = { siteOrigin: 'https://staging.cimone.example', productSlug: 'zenit-pro' };
+
+  it('knows local addresses and staging copies of a site of the license', () => {
+    const all = [prod.siteOrigin, staging.siteOrigin];
+    expect(testSiteKind('http://localhost:3000', [])).toBe('local');
+    expect(testSiteKind('https://shop.test', [])).toBe('local');
+    expect(testSiteKind(staging.siteOrigin, all)).toBe('staging');
+    expect(testSiteKind('https://dev.cimone.example', ['https://cimone.example'])).toBe('staging');
+    // Alone, or of another domain: a real site.
+    expect(testSiteKind(staging.siteOrigin, [staging.siteOrigin])).toBeNull();
+    expect(testSiteKind('https://staging.other.example', all)).toBeNull();
+    expect(testSiteKind('https://shop.cimone.example', all)).toBeNull();
+  });
+
+  it('staging first, then the real site on a one-site license', () => {
+    expect(seatsInUse([staging])).toBe(1);
+    const input = { licenseSlug: 'zenit-pro', slug: 'zenit-pro', seats: 1 };
+    expect(decideActivation({ ...input, active: [staging], origin: prod.siteOrigin })).toEqual({
+      kind: 'add',
+      newSeat: false,
+    });
+    expect(decideActivation({ ...input, active: [prod], origin: staging.siteOrigin })).toEqual({
+      kind: 'add',
+      newSeat: false,
+    });
+    expect(seatsInUse([prod, staging])).toBe(1);
+  });
+
+  it('two test copies at most are free', () => {
+    const copies = ['staging', 'dev', 'test'].map((l) => ({
+      siteOrigin: `https://${l}.cimone.example`,
+      productSlug: null,
+    }));
+    expect(seatsInUse([prod, ...copies])).toBe(2);
+    expect(seatsInUse([prod, { siteOrigin: 'http://localhost:4000', productSlug: null }])).toBe(1);
+  });
+
+  it('our own sites are not counted', () => {
+    const ours = (o: string) => o.endsWith('.2clic.example');
+    const site = { siteOrigin: 'https://client.2clic.example', productSlug: null };
+    expect(seatsInUse([site, prod], ours)).toBe(1);
+    expect(
+      decideActivation({
+        active: [prod],
+        licenseSlug: 'zenit-pro',
+        slug: 'zenit-pro',
+        seats: 1,
+        origin: site.siteOrigin,
+        internal: ours,
+      }),
+    ).toEqual({ kind: 'add', newSeat: false });
   });
 });
 

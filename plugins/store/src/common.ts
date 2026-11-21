@@ -1,9 +1,10 @@
 import type { PluginContext } from '@cleitext/plugin-sdk';
 import { and, eq, isNull } from 'drizzle-orm';
 import { newToken } from './keys';
-import { coversSlug, seatsInUse, type ActiveActivation } from './licensing';
+import { classify, classifyOrigin, parsePatterns } from './internal';
+import { coversSlug, seatsInUse, type ActiveActivation, type InternalOf } from './licensing';
 import type { PackageSource } from './packages';
-import { activations, products, type License, type Product } from './schema';
+import { activations, installs, products, type License, type Product } from './schema';
 
 /** What the license server and the portal share. */
 
@@ -69,9 +70,33 @@ export async function activeOf(
   );
 }
 
+/** Internal or external, for every site (Store 1.6): by hand, by report, or by the list. */
+export async function classifier(ctx: PluginContext, siteId: string) {
+  const patterns = parsePatterns((await ctx.settings.get(siteId)).internal_hosts);
+  const rows = await ctx.db.transaction(siteId, (tx) =>
+    tx
+      .select({
+        origin: installs.origin,
+        installId: installs.installId,
+        serverHost: installs.serverHost,
+        serverIp: installs.serverIp,
+        internal: installs.internal,
+      })
+      .from(installs),
+  );
+  const map = classify(patterns, rows);
+  return (origin: string) => map.get(origin) ?? classifyOrigin(patterns, origin);
+}
+
+/** Our own sites, which take no seat. */
+export async function internalOf(ctx: PluginContext, siteId: string): Promise<InternalOf> {
+  const kind = await classifier(ctx, siteId);
+  return (origin) => kind(origin).internal;
+}
+
 /** Seats in use: sites, whatever the number of products each one activated. */
 export async function seatsUsed(ctx: PluginContext, siteId: string, licenseId: string) {
-  return seatsInUse(await activeOf(ctx, siteId, licenseId));
+  return seatsInUse(await activeOf(ctx, siteId, licenseId), await internalOf(ctx, siteId));
 }
 
 /** Whether `license` is valid for the product `slug` (itself, or covered by its bundle). */

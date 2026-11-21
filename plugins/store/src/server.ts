@@ -32,6 +32,8 @@ import {
   productOf,
   SEAL_KEY,
   seatsUsed,
+  classifier,
+  internalOf,
   SIGNING_KEY,
   SLUG_RE,
   source,
@@ -39,8 +41,8 @@ import {
   VERSION_RE,
 } from './common';
 import { isZip, latestOf, parseServerReport, safeFilename } from './downloads';
-import { decideActivation, discounted, sealKey } from './licensing';
-import { classify, classifyOrigin, DEFAULT_INTERNAL_HOSTS, parsePatterns } from './internal';
+import { decideActivation, discounted, sealKey, seatsInUse } from './licensing';
+import { DEFAULT_INTERNAL_HOSTS } from './internal';
 import { cancelPending, linkLicense, linksOf, resolvePending } from './order-links';
 import { findRelease, packageLocation } from './packages';
 import { registerPartners } from './partners-admin';
@@ -542,6 +544,7 @@ export default definePlugin({
           return fail(400, `This key is for another product (${license.productSlug}).`);
         }
         const token = newToken();
+        const internal = await internalOf(ctx, request.siteId);
         const outcome = await ctx.db.transaction(request.siteId, async (tx) => {
           // Serializes activations of a license, so seats are never exceeded.
           await tx.execute(
@@ -557,6 +560,7 @@ export default definePlugin({
             .where(and(eq(activations.licenseId, license.id), isNull(activations.deactivatedAt)));
           // Seats are sites: a site using several products of a bundle holds one.
           const decision = decideActivation({
+            internal,
             active,
             licenseSlug: license.productSlug,
             origin,
@@ -969,22 +973,7 @@ export default definePlugin({
     });
 
     /** Internal or external, for every reported site (1.6). */
-    const classified = async (siteId: string) => {
-      const patterns = parsePatterns((await ctx.settings.get(siteId)).internal_hosts);
-      const rows = await ctx.db.transaction(siteId, (tx) =>
-        tx
-          .select({
-            origin: installs.origin,
-            installId: installs.installId,
-            serverHost: installs.serverHost,
-            serverIp: installs.serverIp,
-            internal: installs.internal,
-          })
-          .from(installs),
-      );
-      const map = classify(patterns, rows);
-      return (origin: string) => map.get(origin) ?? classifyOrigin(patterns, origin);
-    };
+    const classified = (siteId: string) => classifier(ctx, siteId);
 
     admin('GET', '/admin/installs', async (request) => {
       const days = Math.min(Math.max(Number(request.query.days) || 90, 1), RETENTION_DAYS);
@@ -1278,14 +1267,18 @@ export default definePlugin({
       const kind = await classified(request.siteId);
       const links = await linksOf(ctx, request.siteId, ids);
       return {
-        body: rows.map(({ license, used }) => {
+        body: rows.map(({ license }) => {
           const origins = sites.filter((s) => s.licenseId === license.id).map((s) => s.origin);
           const internal = origins.filter((o) => kind(o).internal).length;
           return {
             ...license,
             keyHash: undefined,
             keySealed: undefined,
-            used,
+            // Seats: our own sites and test copies take none.
+            used: seatsInUse(
+              origins.map((siteOrigin) => ({ siteOrigin, productSlug: null })),
+              (o) => kind(o).internal,
+            ),
             sites: { internal, external: origins.length - internal },
             links: (links.get(license.id) ?? []).map(({ siteId: _site, ...link }) => link),
           };

@@ -1,6 +1,6 @@
 import type { PluginContext, RouteRequest, RouteResponse } from '@cleitext/plugin-sdk';
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm';
-import { EMAIL_RE, fail, text } from './common';
+import { EMAIL_RE, fail, internalOf, text } from './common';
 import { seatsInUse } from './licensing';
 import { activations, licenses, partners } from './schema';
 
@@ -33,6 +33,7 @@ export function registerPartners(ctx: PluginContext, admin: Admin): void {
   /** Licenses an agency manages or holds, with the sites using each. */
   async function licensesOf(siteId: string, emails: string[]) {
     if (emails.length === 0) return [];
+    const internal = await internalOf(ctx, siteId);
     return ctx.db.transaction(siteId, async (tx) => {
       const rows = await tx
         .select()
@@ -54,7 +55,7 @@ export function registerPartners(ctx: PluginContext, admin: Admin): void {
         const mine = active.filter((a) => a.licenseId === license.id);
         return {
           ...license,
-          used: seatsInUse(mine),
+          used: seatsInUse(mine, internal),
           sites: [...new Set(mine.map((a) => a.siteOrigin))].sort(),
         };
       });

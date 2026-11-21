@@ -1,8 +1,17 @@
 import type { PluginContext, RouteRequest, RouteResponse } from '@cleitext/plugin-sdk';
 import { and, desc, eq, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm';
-import { coveredProducts, EMAIL_RE, ownSecret, SEAL_KEY, SLUG_RE, source, text } from './common';
+import {
+  coveredProducts,
+  EMAIL_RE,
+  internalOf,
+  ownSecret,
+  SEAL_KEY,
+  SLUG_RE,
+  source,
+  text,
+} from './common';
 import { limiter, newToken, sha256 } from './keys';
-import { maskKey, portalRole, seatsInUse, unsealKey } from './licensing';
+import { freeTestSites, maskKey, portalRole, seatsInUse, unsealKey } from './licensing';
 import { latestAllowed, listReleases, packageLocation } from './packages';
 import { renewLink } from './renew-link';
 import { activations, downloads, licenses, portalTokens, products, type Product } from './schema';
@@ -61,6 +70,8 @@ const S = {
     sites: 'Sites using it',
     noSites: 'No site uses it yet.',
     lastSeen: 'last seen {date}',
+    testSite: 'test copy, takes no seat',
+    ourSite: 'on our servers, takes no seat',
     free: 'Free this seat',
     freeConfirm:
       'The site keeps what it installed; it gets no more updates until the key is entered again.',
@@ -106,6 +117,8 @@ const S = {
     sites: 'Siti che la usano',
     noSites: 'Ancora nessun sito la usa.',
     lastSeen: 'ultimo contatto {date}',
+    testSite: 'copia di prova, non occupa posti',
+    ourSite: 'sui nostri server, non occupa posti',
     free: 'Libera il posto',
     freeConfirm:
       'Il sito tiene ciò che ha installato; non riceve aggiornamenti finché la chiave non viene inserita di nuovo.',
@@ -209,6 +222,7 @@ export function registerPortal(ctx: PluginContext): void {
       tx.select().from(products).orderBy(products.name),
     );
     const bySlug = new Map(all.map((p) => [p.slug, p]));
+    const internal = await internalOf(ctx, request.siteId);
     const ids = rows.map((l) => l.id);
     const active = ids.length
       ? await ctx.db.transaction(request.siteId, (tx) =>
@@ -240,7 +254,8 @@ export function registerPortal(ctx: PluginContext): void {
       const name = escapeHtml(product?.name ?? license.productSlug);
       const covered: Product[] = product ? coveredProducts(product, all) : [];
       const mine = active.filter((a) => a.licenseId === license.id);
-      const used = seatsInUse(mine);
+      const used = seatsInUse(mine, internal);
+      const testCopies = freeTestSites(mine, internal);
       const now = new Date();
       const updates = license.updatesUntil
         ? fill(license.updatesUntil > now ? t.until : t.ended, {
@@ -284,7 +299,13 @@ export function registerPortal(ctx: PluginContext): void {
           role === 'manager'
             ? `<form method="post" action="${prefix}/free-seat" class="store-portal-inline"><input type="hidden" name="license" value="${license.id}"><input type="hidden" name="site" value="${escapeHtml(origin)}"><button type="submit" title="${escapeHtml(t.freeConfirm)}">${escapeHtml(t.free)}</button></form>`
             : '';
-        return `<li><a href="${escapeHtml(origin)}" rel="noopener">${escapeHtml(origin)}</a> · ${escapeHtml(names.join(', '))} · <small>${fill(t.lastSeen, { date: seen.toLocaleDateString(locale) })}</small> ${free}</li>`;
+        // Sites that take no seat, said so: test copies and our own sites.
+        const noSeat = testCopies.has(origin)
+          ? ` <small class="store-portal-tag">${escapeHtml(t.testSite)}</small>`
+          : internal(origin)
+            ? ` <small class="store-portal-tag">${escapeHtml(t.ourSite)}</small>`
+            : '';
+        return `<li><a href="${escapeHtml(origin)}" rel="noopener">${escapeHtml(origin)}</a>${noSeat} · ${escapeHtml(names.join(', '))} · <small>${fill(t.lastSeen, { date: seen.toLocaleDateString(locale) })}</small> ${free}</li>`;
       });
       const downloadable =
         license.status === 'active' ? (product?.bundle ? covered : product ? [product] : []) : [];
@@ -611,4 +632,5 @@ const STYLE = `<style>
 .store-portal-key{user-select:all;font-weight:600}
 .store-portal-notice{padding:.75rem 1rem;border-left:4px solid currentColor}
 .store-portal-bad{color:#b91c1c}
+.store-portal-tag{color:#047857}
 </style>`;

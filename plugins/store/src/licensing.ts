@@ -36,9 +36,69 @@ export interface ActiveActivation {
   productSlug: string | null;
 }
 
-/** Seats in use: sites, not products (one site using 3 products of a bundle is 1 seat). */
-export function seatsInUse(active: ActiveActivation[]): number {
-  return new Set(active.map((a) => a.siteOrigin)).size;
+/** Test sites that never take a seat, per license. */
+export const FREE_TEST_SITES = 2;
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])$|\.(test|local|localhost)$/;
+const TEST_LABELS = new Set(['staging', 'stage', 'dev', 'test']);
+
+function hostOf(origin: string): string | null {
+  try {
+    return new URL(origin).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+const withoutWww = (host: string) => host.replace(/^www\./, '');
+
+/**
+ * Whether `origin` is a test copy among the sites of a license: a local
+ * address, or a staging./stage./dev./test. subdomain of another site of the
+ * same license (staging.example.com next to example.com or www.example.com).
+ */
+export function testSiteKind(
+  origin: string,
+  origins: Iterable<string>,
+): 'local' | 'staging' | null {
+  const host = hostOf(origin);
+  if (!host) return null;
+  if (LOCAL_HOST.test(host)) return 'local';
+  const [label, ...rest] = host.split('.');
+  if (!label || !TEST_LABELS.has(label) || rest.length < 2) return null;
+  const parent = rest.join('.');
+  for (const other of origins) {
+    const h = hostOf(other);
+    if (h && h !== host && withoutWww(h) === parent) return 'staging';
+  }
+  return null;
+}
+
+/** Whether a site is one of ours (Store 1.6 internal sites): it never takes a seat. */
+export type InternalOf = (origin: string) => boolean;
+const noneInternal: InternalOf = () => false;
+
+/** The sites of a license that are test copies, up to FREE_TEST_SITES (the oldest first). */
+export function freeTestSites(
+  active: ActiveActivation[],
+  internal: InternalOf = noneInternal,
+): Set<string> {
+  const origins = [...new Set(active.map((a) => a.siteOrigin))];
+  return new Set(
+    origins
+      .filter((o) => !internal(o) && testSiteKind(o, origins) !== null)
+      .slice(0, FREE_TEST_SITES),
+  );
+}
+
+/**
+ * Seats in use: sites, not products (one site using 3 products of a bundle is
+ * 1 seat). Our own sites and test copies of a site of the license take none.
+ */
+export function seatsInUse(
+  active: ActiveActivation[],
+  internal: InternalOf = noneInternal,
+): number {
+  const origins = [...new Set(active.map((a) => a.siteOrigin))].filter((o) => !internal(o));
+  return origins.length - freeTestSites(active, internal).size;
 }
 
 export type ActivationDecision =
@@ -55,6 +115,8 @@ export function decideActivation(input: {
   origin: string;
   slug: string;
   seats: number;
+  /** Our own sites: no seat. */
+  internal?: InternalOf;
 }): ActivationDecision {
   const index = input.active.findIndex(
     (a) => a.siteOrigin === input.origin && (a.productSlug ?? input.licenseSlug) === input.slug,
@@ -63,8 +125,13 @@ export function decideActivation(input: {
   if (input.active.some((a) => a.siteOrigin === input.origin)) {
     return { kind: 'add', newSeat: false };
   }
-  if (input.seats > 0 && seatsInUse(input.active) >= input.seats) return { kind: 'full' };
-  return { kind: 'add', newSeat: true };
+  // Counted with the new site: a staging copy is free, and the real site frees its staging copy.
+  const after = seatsInUse(
+    [...input.active, { siteOrigin: input.origin, productSlug: input.slug }],
+    input.internal,
+  );
+  if (input.seats > 0 && after > input.seats) return { kind: 'full' };
+  return { kind: 'add', newSeat: after > seatsInUse(input.active, input.internal) };
 }
 
 /**
