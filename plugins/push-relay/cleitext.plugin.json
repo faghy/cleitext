@@ -1,0 +1,14 @@
+{
+  "slug": "push-relay",
+  "name": "Push Relay",
+  "version": "1.0.0",
+  "apiVersion": "^1.78",
+  "description": "Sends the push notifications of the official Cleitext app for every Cleitext site, through Firebase Cloud Messaging. Meant for cleitext.com: it holds the Firebase service account, so sites never need one.",
+  "author": "Cleitext",
+  "homepage": "https://cleitext.com",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "permissions": ["routes:admin", "settings:own", "network"],
+  "capabilities": ["manage_push_relay"]
+}
