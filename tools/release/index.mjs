@@ -74,6 +74,7 @@ const SEPARATE = [
   'disbigle',
   'zaphook',
   'push-relay',
+  'ai-relay',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {
