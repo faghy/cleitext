@@ -26,7 +26,7 @@ Chriss base, the free AI of every Cleitext site. Installed on cleitext.com, it a
 
    The answer is a `chat.completion` with `model: "chriss-base"`, and the headers `x-ratelimit-limit`, `x-ratelimit-remaining` (questions left today) and `x-ratelimit-reset` (Unix seconds, next UTC midnight).
 
-   Since AI Relay 1.1 (core 0.117.1) sites ask as a **job** instead, so no request lasts long (a proxy such as Cloudflare cuts the ones over 100 seconds, while a small model on a CPU may take minutes):
+   Since AI Relay 1.1 (core 0.117.0) sites ask as a **job** instead, so no request lasts long (a proxy such as Cloudflare cuts the ones over 100 seconds, while a small model on a CPU may take minutes):
 
    ```http
    POST /api/v1/ext/ai-relay/v1/chat/jobs

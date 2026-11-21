@@ -411,7 +411,7 @@ Base: `/api/v1`. Il formato è JSON. Gli errori seguono RFC 9457. La paginazione
 - `GET /push/devices` → i dispositivi della persona. `PUT /push/devices/:id` `{ "events": [...] }` → il dispositivo. `DELETE /push/devices/:id` → `204`.
 - `GET /push/status` → `{ "enabled": true, "events": ["comment.pending", "shop.order"] }`: se il server invia notifiche, e gli eventi che questa persona può ricevere (sua capability, plugin attivo).
 - Eventi: `comment.pending` (un commento attende la moderazione; `moderate_comments`), `form.message` (Moduli; `manage_forms`), `shop.order` (Cleishop, nuovo ordine; `manage_shop`). Testi nella lingua della persona; il telefono riceve `data: { type, siteUrl, adminPath, id }`.
-- Il server invia `{ tokens, title, body, data }` con `x-cleitext-site: <origine del sito>` e `user-agent: Cleitext/<versione> (+https://cleitext.com)` (core 0.117.1) a `CLEITEXT_PUSH_RELAY` (di base `https://cleitext.com/api/v1/ext/push-relay/send`, il plugin Push Relay), dopo la richiesta e senza rallentarla, e dimentica i token che il relay indica come `invalid`.
+- Il server invia `{ tokens, title, body, data }` con `x-cleitext-site: <origine del sito>` e `user-agent: Cleitext/<versione> (+https://cleitext.com)` (core 0.117.0) a `CLEITEXT_PUSH_RELAY` (di base `https://cleitext.com/api/v1/ext/push-relay/send`, il plugin Push Relay), dopo la richiesta e senza rallentarla, e dimentica i token che il relay indica come `invalid`.
 
 ### 6.5 Delivery (sola lettura, headless)
 

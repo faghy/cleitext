@@ -25,7 +25,7 @@ test('upload, describe, search and filter media', async ({ page }) => {
   await page.goto('/cl-admin/media');
   // Bytes after the end of the JPEG make this file unique (duplicates are reused).
   const unique = Buffer.concat([sample, Buffer.from(stamp)]);
-  await page.locator('input[type=file]').setInputFiles({
+  await page.locator('input[type=file]').first().setInputFiles({
     name,
     mimeType: 'image/jpeg',
     buffer: unique,
@@ -61,11 +61,14 @@ test('upload, describe, search and filter media', async ({ page }) => {
   await expect(page.getByText('Not used in any entry.')).toBeVisible();
 
   // The same file again is not added twice.
-  await page.locator('input[type=file]').setInputFiles({
-    name: `again-${name}`,
-    mimeType: 'image/jpeg',
-    buffer: unique,
-  });
+  await page
+    .locator('input[type=file]')
+    .first()
+    .setInputFiles({
+      name: `again-${name}`,
+      mimeType: 'image/jpeg',
+      buffer: unique,
+    });
   await expect(page.getByText(`again-${name} is already in the library as ${name}`)).toBeVisible();
 
   // The type filter hides it among documents.

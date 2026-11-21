@@ -99,7 +99,9 @@ export function ChrissBubble({ pathname }: { pathname: string }) {
     // Into the panel: the request box when there, else the panel itself.
     const frame = requestAnimationFrame(() => {
       const target = panel.current?.querySelector<HTMLElement>('textarea') ?? panel.current ?? null;
-      if (target && !panel.current?.contains(document.activeElement)) target.focus();
+      // The panel itself had the focus while the chat loaded: on to the box now.
+      const active = document.activeElement;
+      if (target && (!panel.current?.contains(active) || active === panel.current)) target.focus();
     });
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && panel.current?.contains(document.activeElement)) {

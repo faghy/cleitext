@@ -230,7 +230,7 @@ export type AssistantChatEvent =
   | { type: 'reading' }
   /**
    * Chriss base: the request waits its turn at the free service, with
-   * `position` requests ahead of it; sent when the place changes (core 0.117.1).
+   * `position` requests ahead of it; sent when the place changes (core 0.117.0).
    */
   | { type: 'queue'; position: number }
   /** Chriss base: the free requests left today, after each answer of the service. */

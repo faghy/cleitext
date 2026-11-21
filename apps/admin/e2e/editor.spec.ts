@@ -33,7 +33,7 @@ test('write, classify, revise, translate and schedule a post', async ({ page }) 
 
   // An image in the media library.
   await page.goto('/cl-admin/media');
-  await page.locator('input[type=file]').setInputFiles(sample);
+  await page.locator('input[type=file]').first().setInputFiles(sample);
   await expect(page.locator('ul img').first()).toBeVisible();
 
   // 1. Write and save.
