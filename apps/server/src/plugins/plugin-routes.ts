@@ -21,12 +21,17 @@ export function routeRequest(
     upload?: UploadedFile | null;
     /** The address to read the query from, when not the request's (plugin API 1.58). */
     url?: string;
+    /**
+     * Webhook routes get the `authorization` header (plugin API 1.79): the
+     * caller's own credential for the plugin, e.g. `Bearer <key>`.
+     */
+    authorization?: boolean;
   } = {},
 ): RouteRequest {
   const url = new URL(options.url ?? request.url, 'http://local');
   const headers: Record<string, string | undefined> = {};
   for (const [name, value] of Object.entries(request.headers)) {
-    if (name === 'cookie' || name === 'authorization') continue;
+    if (name === 'cookie' || (name === 'authorization' && !options.authorization)) continue;
     headers[name] = Array.isArray(value) ? value.join(', ') : value;
   }
   const auth = options.anonymous ? null : request.auth;
@@ -197,10 +202,13 @@ export class PluginRoutes {
           route.handler(
             routeRequest(request, site.id, path, params, {
               anonymous: route.webhook === true,
+              authorization: route.webhook === true,
               plugin: plugin.slug,
               ...(upload !== undefined ? { upload } : {}),
             }),
           ),
+        // A route waiting on a slow service may take a job's time (plugin API 1.79).
+        { timeout: route.timeout === 'job' ? 'job' : 'interactive' },
       );
       if (!outcome.ok) return problem(reply, 500, 'Internal Server Error');
       if (!route.webhook) setPluginCookies(request, reply, slug, outcome.value.cookies);

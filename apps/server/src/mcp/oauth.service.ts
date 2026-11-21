@@ -111,6 +111,18 @@ export class OAuthService {
     return client;
   }
 
+  /** Whether an API token was issued to the official app (its OAuth sign-in), core 0.118. */
+  async isAppToken(siteId: string, tokenId: string): Promise<boolean> {
+    const [row] = await this.run(siteId, (tx) =>
+      tx
+        .select({ redirectUris: oauthClients.redirectUris })
+        .from(apiTokens)
+        .innerJoin(oauthClients, eq(oauthClients.clientId, apiTokens.oauthClientId))
+        .where(eq(apiTokens.id, tokenId)),
+    );
+    return row ? isAppClient(row) : false;
+  }
+
   async client(siteId: string, clientId: string): Promise<OAuthClient | null> {
     const [row] = await this.run(siteId, (tx) =>
       tx.select().from(oauthClients).where(eq(oauthClients.clientId, clientId)),

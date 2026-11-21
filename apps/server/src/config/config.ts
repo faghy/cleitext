@@ -98,6 +98,8 @@ const envSchema = z.object({
   INSTALL_REPORT_URL: z.union([z.url({ protocol: /^https?$/ }), z.literal('')]).optional(),
   /** The relay of the app's push notifications; empty turns them off. */
   CLEITEXT_PUSH_RELAY: z.union([z.url({ protocol: /^https?$/ }), z.literal('')]).optional(),
+  /** The relay of Chriss base, the free AI of Cleitext sites; empty hides the preset. */
+  CLEITEXT_AI_RELAY: z.union([z.url({ protocol: /^https?$/ }), z.literal('')]).optional(),
   /** Where updates come from (GitHub owner/name); empty turns the update check off. */
   UPDATES_REPO: z
     .string()
@@ -146,6 +148,8 @@ export interface AppConfig {
   installReport: { url: string };
   /** Push notifications of the official app: where they are sent ('' = off). */
   push: { relayUrl: string };
+  /** Chriss base, the free AI (the ai-relay plugin of cleitext.com): its address ('' = no preset). */
+  ai: { relayUrl: string };
   /** Folder of the built admin, if the server serves it (production). */
   admin: { path: string | null };
   pageCache: { maxEntries: number; ttlSeconds: number };
@@ -215,6 +219,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       // Tests never reach cleitext.com unless they say where.
       relayUrl: e.CLEITEXT_PUSH_RELAY ?? (e.NODE_ENV === 'test' ? '' : DEFAULT_PUSH_RELAY_URL),
     },
+    ai: {
+      // Tests never reach cleitext.com unless they say where.
+      relayUrl: (
+        e.CLEITEXT_AI_RELAY ?? (e.NODE_ENV === 'test' ? '' : DEFAULT_AI_RELAY_URL)
+      ).replace(/\/+$/, ''),
+    },
     admin: { path: adminPath(e.ADMIN_PATH) },
     pageCache: { maxEntries: e.PAGE_CACHE_MAX_ENTRIES, ttlSeconds: e.PAGE_CACHE_TTL_SECONDS },
     // Development and tests only: production refuses to start without one.
@@ -245,6 +255,9 @@ export const DEFAULT_INSTALL_REPORT_URL = 'https://cleitext.com/api/v1/ext/store
 
 /** The relay of push notifications on cleitext.com (the push-relay plugin). */
 export const DEFAULT_PUSH_RELAY_URL = 'https://cleitext.com/api/v1/ext/push-relay/send';
+
+/** Chriss base, the free AI of Cleitext sites (the ai-relay plugin on cleitext.com). */
+export const DEFAULT_AI_RELAY_URL = 'https://cleitext.com/api/v1/ext/ai-relay';
 
 /** The official catalog and its signing key (in @cleitext/shared: the CLI reads them too). */
 export { DEFAULT_CATALOG_KEY, DEFAULT_CATALOG_URL };

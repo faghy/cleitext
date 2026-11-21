@@ -698,6 +698,7 @@ defineBlock<{ gap: number; image?: string }>({
 - Plugin API 1.75: `ctx.mail.send({ …, notification: true })` marks a notice for the staff (a new submission, a new order…): it does not go to people who turned notifications off in their profile (Profile → Notifications). Leave it out for what a person asked for, such as receipts and confirmations.
 - Plugin API 1.77: media items have a title and a description per language, like the alternative text and the caption (Media page, entry editor's featured image box). A block's `context.media` items carry `title`, the title in the page's language (empty when unset; the core renders it as the image's `title` attribute), and `ctx.media.get` returns `title`, `caption` and `description` by language.
 - Plugin API 1.78: `ctx.push.notify` sends push notifications of the official app (`form.message` from Forms, `shop.order` from Cleishop). See [App notifications](#app-notifications-plugin-api-178).
+- Plugin API 1.79: `ctx.ai.chat(siteId, { messages, tools?, toolChoice?, maxTokens?, temperature? })` runs one round of a conversation with tools on the site's AI provider and returns `{ message, finishReason?, model, usage }` (the plugin runs the tool calls itself); permission `ai`. API routes take `timeout: 'job'` to wait up to a background job's time (5 minutes) instead of 5 seconds, e.g. for an AI answer. Webhook routes (`webhook: true`) get the `authorization` header. The official AI Relay plugin uses all three for Chriss base, the free AI of Cleitext sites.
 - Plugin API 1.76: a block's `load` gets `context.block`, the block itself with the blocks it holds (read only), so a container can decide from what is inside it (e.g. hide itself when a list it holds is empty).
 - Plugin API 1.72: `ctx.terms.copy` takes `slug`. Slugs of German content write ä ö ü as ae oe ue (core 0.99).
 - Plugin API 1.71: `ctx.content.create` takes `terms` and `featuredMediaId`.
@@ -880,6 +881,8 @@ ctx.routes.api({
 ```
 
 The official **Store** plugin uses them for the license server of paid themes.
+
+Webhook routes also get the `authorization` header (plugin API 1.79; other routes never see it), so a caller can send its own key as `Authorization: Bearer …`. A route that waits on a slow service declares `timeout: 'job'` (plugin API 1.79): it may then take a background job's time (`PLUGIN_JOB_TIMEOUT_MS`, 5 minutes) instead of the interactive 5 seconds. Keep it for calls that really need it, such as an AI answer, and put a limit on how many run at once.
 
 **Uploads** (plugin API 1.7): `await request.file()` returns the `file` field of a `multipart/form-data` request as `{ filename, mime, data }` (a `Buffer`), or `null`; files over the server's upload limit (`MEDIA_MAX_BYTES`) get a 413. In the admin, `uploadFile(file, { path: '/ext/<slug>/…', onProgress })` from the admin SDK sends it with the CSRF token and reports the progress. Since plugin API 1.56 the text fields sent in the same form come as `file.fields` (`{ name: value }`, absent when there are none), and `uploadFile(file, { fields: { name: value } })` sends them, as the WordPress Importer's list of users and roles (`users`); the server takes at most 5 fields and one file per request.
 
@@ -1360,6 +1363,24 @@ const { text, model, usage } = await ctx.ai!.complete!(siteId, {
   maxTokens: 2000,
   temperature: 0.6,
 });
+```
+
+**A round with tools** (plugin API 1.79, permission `ai`): `ctx.ai.chat` sends messages and tools in the chat completions format and returns the provider's answer, a text or tool calls, which the plugin runs before asking again with their results (`role: 'tool'`). Up to 400 messages and 128 tools; `maxTokens` at most 32 000. As with `complete`, the key stays the core's.
+
+```ts
+const { message, finishReason } = await ctx.ai!.chat!(siteId, {
+  messages: [{ role: 'user', content: 'How many products are low on stock?' }],
+  tools: [
+    {
+      type: 'function',
+      function: { name: 'low_stock', parameters: { type: 'object', properties: {} } },
+    },
+  ],
+  maxTokens: 500,
+});
+for (const call of message.tool_calls ?? []) {
+  // Run call.function.name with JSON.parse(call.function.arguments), then send the result back.
+}
 ```
 
 ## 10. Your own tables

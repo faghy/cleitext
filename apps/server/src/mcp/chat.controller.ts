@@ -6,8 +6,10 @@ import {
   type AiProviderView,
   type AssistantChatEvent,
   type AssistantChatMessage,
+  type FreeAiStatus,
 } from '@cleitext/shared';
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -29,6 +31,7 @@ import { PluginHost } from '../plugins/plugin-host.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { ChatService, type ChatEntry } from './chat.service.js';
 import { siteOrigin } from './origin.js';
+import { OAuthService } from './oauth.service.js';
 import { editorOf } from './tools.js';
 
 /** Admin → Chriss → Chat (RF-AI-03), and its AI provider. */
@@ -39,6 +42,7 @@ export class ChatController {
     private readonly adapter: HttpAdapterHost,
     private readonly plugins: PluginHost,
     private readonly settings: SettingsService,
+    private readonly oauth: OAuthService,
   ) {}
 
   /** The provider: set by super admins, since the server calls the address they give. */
@@ -91,6 +95,30 @@ export class ChatController {
     }
   }
 
+  /** Chriss base, the free AI: offered by this server, in use, today's requests left. */
+  @Get('provider/free')
+  @RequireCapability('manage_plugins')
+  freeStatus(@CurrentSite() site: SiteContext): Promise<FreeAiStatus> {
+    return this.chat.freeStatus(site.id);
+  }
+
+  /** Chooses Chriss base: the site registers with the relay and keeps its key. */
+  @Post('provider/free')
+  @HttpCode(200)
+  @RequireCapability('manage_plugins')
+  async activateFree(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Req() request: FastifyRequest,
+  ): Promise<AiProviderView | null> {
+    try {
+      await this.chat.activateFree(site.id, auth.userId, siteOrigin(request), request.ip);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : String(error));
+    }
+    return this.chat.view(site.id);
+  }
+
   @Delete('provider')
   @HttpCode(204)
   @RequireCapability('manage_plugins')
@@ -115,14 +143,38 @@ export class ChatController {
     @Req() request: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    if (auth.apiToken) throw new ForbiddenException('The chat is for the admin: use MCP instead.');
+    // The admin (session), or the official app with its OAuth token (core 0.118):
+    // other API tokens use MCP.
+    const token = auth.apiToken;
+    if (token) {
+      if (!(await this.oauth.isAppToken(site.id, token.id)))
+        throw new ForbiddenException('The chat is for the admin: use MCP instead.');
+      if (!token.scopes.includes('write'))
+        throw new ForbiddenException('The chat needs a token that may write.');
+    }
     const input = parseBody(assistantChatRequestSchema, body);
     const scopes = ['read', 'write'];
-    if (input.publish && auth.capabilities.includes('publish_entries')) scopes.push('publish');
+    if (
+      input.publish &&
+      auth.capabilities.includes('publish_entries') &&
+      (!token || token.scopes.includes('publish'))
+    )
+      scopes.push('publish');
     const credentials: Record<string, string> = { origin: siteOrigin(request) };
-    for (const name of ['cookie', CSRF_HEADER]) {
+    // The tools act as the token, or as the session.
+    for (const name of token ? ['authorization'] : ['cookie', CSRF_HEADER]) {
       const value = request.headers[name];
       if (typeof value === 'string') credentials[name] = value;
+    }
+    // Chriss base with no free question left: a plain 429 before the stream.
+    const quota = await this.chat.freeQuotaExceeded(site.id);
+    if (quota) {
+      reply
+        .code(429)
+        .header('retry-after', String(quota.retryAfter))
+        .type('application/json')
+        .send({ error: 'quota_exceeded', limit: quota.limit, resetAt: quota.resetAt });
+      return;
     }
     const ctx = apiContext(
       this.adapter.httpAdapter.getInstance<FastifyInstance>(),

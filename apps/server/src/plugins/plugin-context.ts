@@ -26,6 +26,8 @@ import {
   type DocumentImportOptions,
   type DynamicContext,
   type DynamicSourceInfo,
+  type AiChatInput,
+  type AiChatResult,
   type AiCompleteInput,
   type AiCompleteResult,
 } from '@cleitext/plugin-sdk';
@@ -51,6 +53,7 @@ import type { PushNotice } from '../push/push.service.js';
 export interface PluginServices {
   /** A text from the site's AI provider (plugin API 1.64). */
   aiComplete(siteId: string, input: AiCompleteInput): Promise<AiCompleteResult>;
+  aiChat(siteId: string, input: AiChatInput): Promise<AiChatResult>;
   /** Custom fields (plugin API 1.47). */
   fieldGroups(siteId: string, object?: FieldObject): Promise<FieldGroupView[]>;
   /** The fields of a plugin block (plugin API 1.49). */
@@ -1011,6 +1014,11 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
             : {}),
         });
       },
+      async chat(siteId, input) {
+        require('ai');
+        assertSiteId(siteId);
+        return services().aiChat(siteId, chatInput(input));
+      },
     },
 
     conversions: {
@@ -1051,5 +1059,90 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         return services().importDocument(siteId, document, options);
       },
     },
+  };
+}
+
+/**
+ * The input of `ctx.ai.chat` (plugin API 1.79), checked: messages and tools
+ * in the chat completions format, nothing else sent to the provider.
+ */
+export function chatInput(input: AiChatInput): AiChatInput {
+  const text = (value: unknown, max: number) =>
+    typeof value === 'string' ? value.slice(0, max) : '';
+  const raw = Array.isArray(input?.messages) ? input.messages.slice(-400) : [];
+  const messages: AiChatInput['messages'] = [];
+  for (const m of raw as unknown as Record<string, unknown>[]) {
+    if (!m || typeof m !== 'object') continue;
+    if (m.role === 'system' || m.role === 'user') {
+      if (typeof m.content === 'string')
+        messages.push({ role: m.role, content: text(m.content, 200_000) });
+    } else if (m.role === 'assistant') {
+      const calls = Array.isArray(m.tool_calls)
+        ? (m.tool_calls as Record<string, unknown>[])
+            .filter(
+              (c) =>
+                c &&
+                typeof c.id === 'string' &&
+                typeof (c.function as { name?: unknown } | undefined)?.name === 'string',
+            )
+            .slice(0, 64)
+            .map((c) => {
+              const fn = c.function as { name: string; arguments?: unknown };
+              return {
+                id: text(c.id, 200),
+                type: 'function' as const,
+                function: { name: text(fn.name, 200), arguments: text(fn.arguments, 200_000) },
+              };
+            })
+        : [];
+      messages.push({
+        role: 'assistant',
+        content: typeof m.content === 'string' ? text(m.content, 200_000) : null,
+        ...(calls.length > 0 ? { tool_calls: calls } : {}),
+      });
+    } else if (m.role === 'tool' && typeof m.tool_call_id === 'string') {
+      messages.push({
+        role: 'tool',
+        tool_call_id: text(m.tool_call_id, 200),
+        content: text(m.content, 200_000),
+      });
+    }
+  }
+  if (messages.length === 0) throw new Error('ctx.ai.chat: give at least one message.');
+  const tools = (Array.isArray(input.tools) ? input.tools : [])
+    .filter(
+      (t) =>
+        t &&
+        t.type === 'function' &&
+        typeof t.function?.name === 'string' &&
+        /^[\w-]{1,64}$/.test(t.function.name),
+    )
+    .slice(0, 128)
+    .map((t) => ({
+      type: 'function' as const,
+      function: {
+        name: t.function.name,
+        ...(typeof t.function.description === 'string'
+          ? { description: t.function.description.slice(0, 4000) }
+          : {}),
+        ...(t.function.parameters && typeof t.function.parameters === 'object'
+          ? { parameters: t.function.parameters }
+          : {}),
+      },
+    }));
+  const maxTokens = Number(input.maxTokens);
+  const temperature = Number(input.temperature);
+  return {
+    messages,
+    ...(tools.length > 0 ? { tools } : {}),
+    ...(input.toolChoice && ['auto', 'none', 'required'].includes(input.toolChoice)
+      ? { toolChoice: input.toolChoice }
+      : {}),
+    ...(Number.isFinite(maxTokens) && maxTokens > 0
+      ? { maxTokens: Math.min(Math.round(maxTokens), 32_000) }
+      : {}),
+    ...(input.temperature !== undefined && Number.isFinite(temperature)
+      ? { temperature: Math.min(Math.max(temperature, 0), 2) }
+      : {}),
   };
 }

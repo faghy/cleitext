@@ -1268,9 +1268,17 @@ export interface ApiRoute {
    * Called by other servers (payment webhooks, license clients; plugin API
    * 1.10): anonymous, no origin check, no session even with a cookie. The
    * handler must authenticate the caller itself, e.g. with a signature over
-   * `rawBody`.
+   * `rawBody`, or with the `authorization` header, which these routes get
+   * (plugin API 1.79; other routes never see it).
    */
   webhook?: boolean;
+  /**
+   * How long the handler may take (plugin API 1.79): `interactive` (the
+   * default, 5 seconds) or `job` (the time of a background job, 5 minutes),
+   * for a route that waits on a slow service, e.g. an AI answer. Missing on
+   * older cores, where every route has the interactive time.
+   */
+  timeout?: 'interactive' | 'job';
   handler: RouteHandler;
 }
 
@@ -1883,6 +1891,57 @@ export interface AiApi {
    * Missing on older cores.
    */
   complete?(siteId: string, input: AiCompleteInput): Promise<AiCompleteResult>;
+  /**
+   * One round of a conversation with tools (plugin API 1.79, needs `ai`):
+   * the site's AI provider gets the messages and the tools in the chat
+   * completions format and answers with text or with tool calls, which the
+   * plugin runs itself. As `complete`, the provider's key stays the core's.
+   * Throws when the site has no provider or it fails. Missing on older cores.
+   */
+  chat?(siteId: string, input: AiChatInput): Promise<AiChatResult>;
+}
+
+/** A call to a tool, in the chat completions format (plugin API 1.79). */
+export interface AiToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+}
+
+/** A message of `ctx.ai.chat`, in the chat completions format (plugin API 1.79). */
+export type AiChatMessage =
+  | { role: 'system' | 'user'; content: string }
+  | { role: 'assistant'; content: string | null; tool_calls?: AiToolCall[] }
+  | { role: 'tool'; tool_call_id: string; content: string };
+
+/** A tool the model may call (plugin API 1.79): a JSON schema of its arguments. */
+export interface AiChatTool {
+  type: 'function';
+  function: { name: string; description?: string; parameters?: Record<string, unknown> };
+}
+
+export interface AiChatInput {
+  /** Up to 400 messages. */
+  messages: AiChatMessage[];
+  /** Up to 128 tools. */
+  tools?: AiChatTool[];
+  /** `auto` when left out. */
+  toolChoice?: 'auto' | 'none' | 'required';
+  /** At most this many tokens in the answer (32 000 at most). */
+  maxTokens?: number;
+  /** 0 to 2; the provider's default when left out. */
+  temperature?: number;
+}
+
+export interface AiChatResult {
+  /** The answer: a text, tool calls, or both. */
+  message: { role: 'assistant'; content: string | null; tool_calls?: AiToolCall[] };
+  /** `stop`, `tool_calls`, `length`…, as the provider says. */
+  finishReason?: string;
+  /** The model that answered. */
+  model: string;
+  /** Tokens used, when the provider says. */
+  usage: { input: number; output: number } | null;
 }
 
 export interface AiCompleteInput {

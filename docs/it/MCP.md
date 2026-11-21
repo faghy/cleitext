@@ -70,6 +70,12 @@ La pagina **Chriss** ha anche una **Chat con Chriss** (e l'editor dei contenuti 
 
 La chat ha bisogno di un **fornitore di IA**, configurato da un super admin in fondo alla pagina: qualunque servizio con un'API chat completions compatibile con OpenAI (l'indirizzo, come `https://api.openai.com/v1`, `https://openrouter.ai/api/v1` o `http://localhost:11434/v1` per Ollama, un modello che sappia usare gli strumenti, e la chiave). La chiave è salvata cifrata e non viene più mostrata; il fornitore addebita l'uso all'account della chiave. La conversazione resta nella scheda del browser finché non ne inizi una nuova.
 
+**Chriss base** è il modo più rapido per iniziare: un super admin fa clic su **Attiva** e il sito usa l'AI gratuita di cleitext.com, con un modello piccolo e un limite giornaliero (20 domande per impostazione predefinita; la chat mostra quante ne restano). I testi vengono elaborati su cleitext.com e non vengono salvati. Quando le richieste gratuite del giorno finiscono, la chat invita a collegare il tuo servizio AI. Con Chriss base la chat invia solo gli strumenti essenziali e un prompt breve, e le risposte sono più corte.
+
+**Chriss in ogni schermata**: un pulsante rotondo in basso a destra dell'admin apre la stessa chat in un pannello (un foglio a tutta altezza sul telefono) che resta aperto mentre ti sposti nell'admin; Esc lo chiude. Non compare nella pagina di Chriss.
+
+Anche l'app ufficiale Cleitext può usare la chat, con il token del suo accesso (scope `write`; `publish` solo con quello scope e il permesso di pubblicare): `POST /api/v1/assistants/chat` con `Authorization: Bearer …` risponde con lo stesso flusso di righe JSON. Gli altri token API vengono rifiutati (gli assistenti usano MCP). Con Chriss base e nessuna domanda rimasta la risposta è `429 {"error":"quota_exceeded","limit":20,"resetAt":"…"}`; quando il servizio lo dice durante una risposta, il flusso contiene `{"type":"error","error":"quota_exceeded","limit":20,"resetAt":"…","message":"…"}`, e dopo ogni risposta `{"type":"quota","remaining":19,"limit":20,"resetAt":"…"}`.
+
 ## Per chi crea temi e plugin
 
 Aggiungi `aiGuide` (Markdown) alla definizione del tema: come si costruiscono le pagine con il tema, le sue sezioni e classi e quando usarle. Gli assistenti la leggono con `get_block_guide`, insieme ai pattern del sito: è il modo migliore per farli costruire nello stile del tema.

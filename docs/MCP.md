@@ -70,6 +70,12 @@ The **Chriss** page also has a **Chat with Chriss** (and the entry editor an **A
 
 The chat needs an **AI provider**, set by a super admin at the bottom of the page: any service with an OpenAI-compatible chat completions API (the address, such as `https://api.openai.com/v1`, `https://openrouter.ai/api/v1` or `http://localhost:11434/v1` for Ollama, a model that can use tools, and the key). The key is stored encrypted and never shown again; the provider bills the use to the key's account. The conversation stays in the browser tab until you start a new one.
 
+**Chriss base** is the quickest start: a super admin clicks **Activate** and the site uses the free AI of cleitext.com, with a small model and a daily limit (20 questions by default; the chat shows how many are left). The texts are processed on cleitext.com and not stored. When the free requests of the day are used up, the chat invites you to connect your own AI service. With Chriss base the chat sends only the essential tools and a short prompt, and answers are shorter.
+
+**Chriss on every screen**: a round button at the bottom right of the admin opens the same chat in a panel (a full-height sheet on phones) that stays open while you move around the admin; Esc closes it. It is not shown on the Chriss page itself.
+
+The official Cleitext app can use the chat too, with its own sign-in token (`write` scope; `publish` only with that scope and the permission to publish): `POST /api/v1/assistants/chat` with `Authorization: Bearer …` answers the same stream of JSON lines. Other API tokens are refused (assistants use MCP). With Chriss base and no question left, the answer is `429 {"error":"quota_exceeded","limit":20,"resetAt":"…"}`; when the service says so during an answer, the stream has `{"type":"error","error":"quota_exceeded","limit":20,"resetAt":"…","message":"…"}`, and after each answer `{"type":"quota","remaining":19,"limit":20,"resetAt":"…"}`.
+
 ## For theme and plugin authors
 
 Add `aiGuide` (Markdown) to the theme definition: how pages are built with the theme, its sections and classes and when to use them. Assistants read it with `get_block_guide`, together with the patterns of the site — the best way to make them build in the theme's style.

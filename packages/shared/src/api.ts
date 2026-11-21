@@ -142,6 +142,30 @@ export interface AiProviderView {
   baseUrl: string;
   model: string;
   hasKey: boolean;
+  /** Chriss base, the free AI with a daily limit (core 0.118). */
+  free?: boolean;
+}
+
+/** The free requests of Chriss base left today. */
+export interface FreeAiQuota {
+  remaining: number;
+  limit: number | null;
+  /** When they start again (ISO date); null when the service does not say. */
+  resetAt: string | null;
+}
+
+/** Admin → Chriss: Chriss base, the free AI of Cleitext sites (core 0.118). */
+export interface FreeAiStatus {
+  /** The server offers it (CLEITEXT_AI_RELAY is not empty). */
+  available: boolean;
+  /** Where the texts are processed, e.g. `cleitext.com`. */
+  host?: string;
+  /** It is the site's AI provider. */
+  active: boolean;
+  /** Today's requests, when the service answers. */
+  quota?: FreeAiQuota;
+  /** Why they could not be read. */
+  error?: string;
 }
 
 export const aiProviderRequestSchema = z.object({
@@ -191,7 +215,21 @@ export type AssistantChatEvent =
   | { type: 'tool-done'; name: string; ok: boolean }
   | { type: 'text'; text: string }
   | { type: 'done'; messages: AssistantChatMessage[] }
-  | { type: 'error'; message: string }
+  | {
+      type: 'error';
+      message: string;
+      /**
+       * `quota_exceeded`: the free requests of Chriss base are used up for
+       * today, with the daily limit and when they start again (core 0.118).
+       */
+      error?: 'quota_exceeded';
+      limit?: number | null;
+      resetAt?: string | null;
+    }
+  /** Chriss base: a request is on its way; a small model reads it slowly (core 0.118). */
+  | { type: 'reading' }
+  /** Chriss base: the free requests left today, after each answer of the service. */
+  | ({ type: 'quota' } & FreeAiQuota)
   | { type: 'ping' };
 
 /** What an assistant asks for on /oauth/authorize, shown on the consent screen. */

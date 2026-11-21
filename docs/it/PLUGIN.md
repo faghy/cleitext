@@ -740,6 +740,8 @@ ctx.routes.api({
 
 Il plugin ufficiale **Store** le usa per il server delle licenze dei temi a pagamento.
 
+Le rotte webhook ricevono anche l'header `authorization` (API dei plugin 1.79; le altre rotte non lo vedono mai), così chi chiama può inviare la propria chiave come `Authorization: Bearer …`. Una rotta che aspetta un servizio lento dichiara `timeout: 'job'` (API dei plugin 1.79): può allora durare quanto un job in background (`PLUGIN_JOB_TIMEOUT_MS`, 5 minuti) invece dei 5 secondi interattivi. Usalo solo per le chiamate che ne hanno davvero bisogno, come una risposta dell'AI, e limita quante ne girano insieme.
+
 **Caricamenti** (API dei plugin 1.7): `await request.file()` restituisce il campo `file` di una richiesta `multipart/form-data` come `{ filename, mime, data }` (un `Buffer`), oppure `null`; i file oltre il limite del server (`MEDIA_MAX_BYTES`) ricevono un 413. Nell'admin, `uploadFile(file, { path: '/ext/<slug>/…', onProgress })` dell'admin SDK lo invia con il token CSRF e riporta l'avanzamento. Dall'API dei plugin 1.56 i campi di testo inviati nello stesso modulo arrivano in `file.fields` (`{ nome: valore }`, assente se non ce ne sono), e `uploadFile(file, { fields: { nome: valore } })` li invia, come l'elenco di utenti e ruoli del WordPress Importer (`users`); il server accetta al massimo 5 campi e un file per richiesta.
 
 ## 9. Impostazioni, capability, cache, mail
@@ -1208,6 +1210,26 @@ ctx.ai?.registerTool({
     return data;
   },
 });
+```
+
+**Testi dal fornitore AI del sito** (API dei plugin 1.64, permesso `ai`): `ctx.ai.complete(siteId, { messages, maxTokens?, temperature?, model? })` chiede un testo al fornitore che un super admin ha impostato per Chriss, senza strumenti, e restituisce `{ text, model, usage, finishReason? }`. Il plugin non vede mai la chiave.
+
+**Un giro con gli strumenti** (API dei plugin 1.79, permesso `ai`): `ctx.ai.chat(siteId, { messages, tools?, toolChoice?, maxTokens?, temperature? })` invia messaggi e strumenti nel formato chat completions e restituisce `{ message, finishReason?, model, usage }`: un testo o delle chiamate agli strumenti, che il plugin esegue prima di chiedere di nuovo con i risultati (`role: 'tool'`). Fino a 400 messaggi e 128 strumenti; `maxTokens` al massimo 32 000. Il plugin ufficiale AI Relay lo usa per Chriss base, l'AI gratuita dei siti Cleitext.
+
+```ts
+const { message } = await ctx.ai!.chat!(siteId, {
+  messages: [{ role: 'user', content: 'Quanti prodotti stanno finendo?' }],
+  tools: [
+    {
+      type: 'function',
+      function: { name: 'low_stock', parameters: { type: 'object', properties: {} } },
+    },
+  ],
+  maxTokens: 500,
+});
+for (const call of message.tool_calls ?? []) {
+  // Esegui call.function.name con JSON.parse(call.function.arguments), poi rimanda il risultato.
+}
 ```
 
 ## 10. Le tue tabelle

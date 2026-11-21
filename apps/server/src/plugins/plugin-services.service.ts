@@ -108,7 +108,12 @@ import { phpMetaValue, phpUnserialize } from '@cleitext/plugin-sdk';
 import { PluginHost, type LoadedPlugin } from './plugin-host.service.js';
 import { PushService, type PushNotice } from '../push/push.service.js';
 import { ChatService } from '../mcp/chat.service.js';
-import type { AiCompleteInput, AiCompleteResult } from '@cleitext/plugin-sdk';
+import type {
+  AiChatInput,
+  AiChatResult,
+  AiCompleteInput,
+  AiCompleteResult,
+} from '@cleitext/plugin-sdk';
 import { themeDirectories, themeFor } from '../public/themes.js';
 import { readThemeFile, themeFiles } from '../themes/theme-files.js';
 
@@ -147,6 +152,11 @@ export class PluginServicesProvider implements PluginServices {
 
   aiComplete(siteId: string, input: AiCompleteInput): Promise<AiCompleteResult> {
     return this.chat.generate(siteId, input);
+  }
+
+  /** One round with tools (plugin API 1.79). */
+  aiChat(siteId: string, input: AiChatInput): Promise<AiChatResult> {
+    return this.chat.round(siteId, input);
   }
 
   // ---- Options pages (plugin API 1.48) --------------------------------------------------

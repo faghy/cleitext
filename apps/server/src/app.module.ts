@@ -10,6 +10,7 @@ import { LicensesController, PluginLicensesController } from './catalog/licenses
 import { LicensesService } from './catalog/licenses.service.js';
 import { McpController } from './mcp/mcp.controller.js';
 import { AssistantsController } from './mcp/assistants.controller.js';
+import { AiRelayController } from './mcp/ai-relay.controller.js';
 import { ChatController } from './mcp/chat.controller.js';
 import { ChatService } from './mcp/chat.service.js';
 import { OAuthController } from './mcp/oauth.controller.js';
@@ -161,6 +162,7 @@ export class AppModule {
         OAuthController,
         AssistantsController,
         ChatController,
+        AiRelayController,
         CommentsController,
         FieldGroupsController,
         OptionsPagesController,
