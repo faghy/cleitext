@@ -336,11 +336,19 @@ describe('Store', () => {
   it('activates the key on the customer site; its seat is taken', async () => {
     const activated = await root.request('PUT', '/api/v1/licenses/vivid', { key: lastKey });
     expect(activated.statusCode, activated.body).toBe(200);
+    // This test site is a local address: it takes no seat (Store 1.6.3).
     expect(activated.json()).toMatchObject({
-      seats: { used: 1, total: 1 },
+      seats: { used: 0, total: 1 },
       renewUrl: expect.stringContaining('checkout%5Bcustom%5D%5Blicense%5D='),
     });
     expect((await root.post('/api/v1/themes/vivid/activate')).statusCode).toBe(200);
+    // A real site takes the one seat.
+    const live = await call('POST', '/activate', {
+      key: lastKey,
+      slug: 'vivid',
+      siteOrigin: 'https://customer.example',
+    });
+    expect(live.status).toBe(200);
 
     // Another site cannot use the same key.
     const elsewhere = await call('POST', '/activate', {
