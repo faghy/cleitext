@@ -142,7 +142,7 @@ export interface AiProviderView {
   baseUrl: string;
   model: string;
   hasKey: boolean;
-  /** Chriss base, the free AI with a daily limit (core 0.118). */
+  /** Chriss base, the free AI with a daily limit (core 0.117). */
   free?: boolean;
 }
 
@@ -154,7 +154,7 @@ export interface FreeAiQuota {
   resetAt: string | null;
 }
 
-/** Admin → Chriss: Chriss base, the free AI of Cleitext sites (core 0.118). */
+/** Admin → Chriss: Chriss base, the free AI of Cleitext sites (core 0.117). */
 export interface FreeAiStatus {
   /** The server offers it (CLEITEXT_AI_RELAY is not empty). */
   available: boolean;
@@ -220,13 +220,13 @@ export type AssistantChatEvent =
       message: string;
       /**
        * `quota_exceeded`: the free requests of Chriss base are used up for
-       * today, with the daily limit and when they start again (core 0.118).
+       * today, with the daily limit and when they start again (core 0.117).
        */
       error?: 'quota_exceeded';
       limit?: number | null;
       resetAt?: string | null;
     }
-  /** Chriss base: a request is on its way; a small model reads it slowly (core 0.118). */
+  /** Chriss base: a request is on its way; a small model reads it slowly (core 0.117). */
   | { type: 'reading' }
   /** Chriss base: the free requests left today, after each answer of the service. */
   | ({ type: 'quota' } & FreeAiQuota)

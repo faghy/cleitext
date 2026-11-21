@@ -311,7 +311,7 @@ function FreeAiNotice({ host }: { host: string }) {
 }
 
 /**
- * Chriss base in one click (core 0.118): the site registers with the relay
+ * Chriss base in one click (core 0.117): the site registers with the relay
  * and uses it as its provider. Never chosen without this click.
  */
 function FreeAiOffer({ replacing = false }: { replacing?: boolean }) {

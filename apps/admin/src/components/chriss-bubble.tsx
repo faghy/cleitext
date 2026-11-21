@@ -54,7 +54,7 @@ function ChrissIcon({ size = 26 }: { size?: number }) {
 }
 
 /**
- * Chriss on every screen of the admin (core 0.118): a round button at the
+ * Chriss on every screen of the admin (core 0.117): a round button at the
  * bottom right opens the chat in a panel (a full-height sheet on phones),
  * which stays open while moving around the admin. Not on the Chriss page,
  * where the chat already is; the full-screen editors are outside this layout

@@ -608,7 +608,7 @@ export const itGeneral: Messages = {
     'L’editor con cui si aprono i nuovi contenuti. Ogni contenuto mantiene l’editor con cui è stato creato, e può comunque cambiarlo dal suo editor.',
   'Ask Chriss': 'Chiedi a Chriss',
   'About “{title}”, made with {editor}.': 'Su “{title}”, fatto con {editor}.',
-  // Chriss base, the free AI, and Chriss on every screen (core 0.118).
+  // Chriss base, the free AI, and Chriss on every screen (core 0.117).
   "You used today's free requests: connect your own AI service to continue without limits.":
     'Hai usato le richieste gratuite di oggi: collega il tuo servizio AI per continuare senza limiti.',
   'Connect your AI service': 'Collega il tuo servizio AI',

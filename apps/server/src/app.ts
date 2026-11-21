@@ -54,7 +54,7 @@ export async function createApp(config: AppConfig): Promise<NestFastifyApplicati
       '.well-known/oauth-protected-resource',
       '.well-known/oauth-protected-resource/mcp',
       '.well-known/oauth-authorization-server',
-      // The challenge of a registration with the relay of Chriss base (core 0.118).
+      // The challenge of a registration with the relay of Chriss base (core 0.117).
       '.well-known/cleitext-ai-relay',
     ],
   });

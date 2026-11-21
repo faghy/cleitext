@@ -1,5 +1,5 @@
 /**
- * Chriss base, the free AI (core 0.118): the site registers with the relay
+ * Chriss base, the free AI (core 0.117): the site registers with the relay
  * (a fake one here) through /.well-known/cleitext-ai-relay, keeps the key as
  * its provider's, gets the reduced tools and the short prompt, sees the
  * requests left and the invitation when they are used up. Also `ctx.ai.chat`
@@ -368,7 +368,7 @@ describe('the conversation sent to Chriss base', () => {
   });
 });
 
-describe('the chat from the official app (core 0.118)', () => {
+describe('the chat from the official app (core 0.117)', () => {
   /** An OAuth token, as the app (or an assistant) gets it at sign-in. */
   async function token(redirect: string, scopes: string[]) {
     const oauth = app.get(OAuthService);

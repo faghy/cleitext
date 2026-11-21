@@ -4,7 +4,7 @@ import { NoCsrf, Public } from '../common/decorators.js';
 import { ChatService } from './chat.service.js';
 
 /**
- * `/.well-known/cleitext-ai-relay` (core 0.118): while the site registers
+ * `/.well-known/cleitext-ai-relay` (core 0.117): while the site registers
  * with the relay of Chriss base, the SHA-256 of the one-time secret it sent
  * there, so the relay knows the site asking is the one at this address.
  * 404 at any other time.

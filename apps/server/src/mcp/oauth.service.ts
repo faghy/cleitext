@@ -111,7 +111,7 @@ export class OAuthService {
     return client;
   }
 
-  /** Whether an API token was issued to the official app (its OAuth sign-in), core 0.118. */
+  /** Whether an API token was issued to the official app (its OAuth sign-in), core 0.117. */
   async isAppToken(siteId: string, tokenId: string): Promise<boolean> {
     const [row] = await this.run(siteId, (tx) =>
       tx

@@ -143,7 +143,7 @@ export class ChatController {
     @Req() request: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    // The admin (session), or the official app with its OAuth token (core 0.118):
+    // The admin (session), or the official app with its OAuth token (core 0.117):
     // other API tokens use MCP.
     const token = auth.apiToken;
     if (token) {
