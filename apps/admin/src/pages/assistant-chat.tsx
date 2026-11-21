@@ -3,10 +3,12 @@ import {
   type AssistantChatEvent,
   type AssistantChatMessage,
   type EntryView,
+  type FreeAiQuota,
 } from '@cleitext/shared';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { api, apiStream, errorMessage } from '../api';
+import { api, ApiError, apiStream, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button, useT } from '../components/ui';
 import { siteEditors, usePluginAdmin } from '../plugins';
@@ -27,11 +29,46 @@ const STEP_LABELS: Record<string, string> = {
   set_menu: 'Updating a menu',
 };
 
+const ASSISTANTS_PATH: string = '/assistants';
+
 interface Turn {
   role: 'user' | 'assistant';
   text: string;
   steps?: { name: string; ok?: boolean }[];
   error?: string;
+  /** The free requests of Chriss base are used up: the invitation instead of the error. */
+  quotaExceeded?: boolean;
+}
+
+/** Chriss base used up for today: connect an own AI service (super admins) or ask for it. */
+function QuotaInvitation({ onNavigate }: { onNavigate?: () => void }) {
+  const { t } = useT();
+  const me = useMe();
+  const canSet = me.capabilities.includes('manage_plugins');
+  return (
+    <div
+      role="alert"
+      className="space-y-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900"
+    >
+      <p>
+        {t(
+          "You used today's free requests: connect your own AI service to continue without limits.",
+        )}
+      </p>
+      {canSet ? (
+        <Link
+          to={ASSISTANTS_PATH}
+          hash="ai-provider"
+          onClick={onNavigate}
+          className="inline-block rounded bg-sky-700 px-3 py-1.5 font-medium text-white hover:bg-sky-800"
+        >
+          {t('Connect your AI service')}
+        </Link>
+      ) : (
+        <p className="text-xs">{t('Ask a super admin to connect your AI service.')}</p>
+      )}
+    </div>
+  );
 }
 
 interface Saved {
@@ -47,9 +84,15 @@ interface Saved {
 export function AssistantChat({
   suggestion,
   entryId = null,
+  compact = false,
+  onNavigate,
 }: {
   suggestion: { text: string; at: number } | null;
   entryId?: string | null;
+  /** In the floating panel: the conversation fills the height, fewer extras. */
+  compact?: boolean;
+  /** A link of the chat leads elsewhere in the admin (the panel closes on phones). */
+  onNavigate?: () => void;
 }) {
   const { t } = useT();
   const me = useMe();
@@ -75,6 +118,10 @@ export function AssistantChat({
   const [publish, setPublish] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  // Chriss base: the free requests left today, as the last answer said.
+  const [quota, setQuota] = useState<FreeAiQuota | null>(null);
+  // Chriss base is reading the request (a small model: up to a minute or two).
+  const [reading, setReading] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
@@ -123,6 +170,7 @@ export function AssistantChat({
         '/assistants/chat',
         { messages, publish, ...(entryId ? { entryId } : {}) },
         (event) => {
+          if (event.type !== 'ping') setReading(event.type === 'reading');
           if (event.type === 'tool') {
             updateLast((turn) => ({
               ...turn,
@@ -142,24 +190,38 @@ export function AssistantChat({
             }));
           } else if (event.type === 'done') {
             setSaved((current) => ({ ...current, messages: event.messages }));
+          } else if (event.type === 'quota') {
+            setQuota({ remaining: event.remaining, limit: event.limit, resetAt: event.resetAt });
           } else if (event.type === 'error') {
-            updateLast((turn) => ({ ...turn, error: event.message }));
+            updateLast((turn) =>
+              event.error === 'quota_exceeded'
+                ? { ...turn, quotaExceeded: true }
+                : { ...turn, error: event.message },
+            );
           }
         },
         abort.current.signal,
       );
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+      if (
+        error instanceof ApiError &&
+        (error.problem as { error?: unknown }).error === 'quota_exceeded'
+      ) {
+        // Known before asking (429): the invitation in place of the answer.
+        updateLast((turn) => ({ ...turn, quotaExceeded: true }));
+        setQuota((q) => (q ? { ...q, remaining: 0 } : q));
+      } else if (!(error instanceof DOMException && error.name === 'AbortError')) {
         setFailure(errorMessage(error));
       }
     } finally {
       setBusy(false);
+      setReading(false);
       abort.current = null;
     }
   };
 
   return (
-    <div className="space-y-4 text-sm">
+    <div className={`text-sm ${compact ? 'flex h-full min-h-0 flex-col gap-3' : 'space-y-4'}`}>
       {entry.data && (
         <p className="rounded border border-sky-200 bg-sky-50 px-3 py-2 text-sky-900">
           {t('About “{title}”, made with {editor}.', {
@@ -175,7 +237,9 @@ export function AssistantChat({
           )}
         </p>
       ) : (
-        <div className="max-h-[32rem] space-y-3 overflow-y-auto rounded border border-slate-200 bg-slate-50 p-3">
+        <div
+          className={`space-y-3 overflow-y-auto rounded border border-slate-200 bg-slate-50 p-3 ${compact ? 'min-h-0 flex-1' : 'max-h-[32rem]'}`}
+        >
           {saved.turns.map((turn, index) => (
             <div
               key={index}
@@ -201,10 +265,21 @@ export function AssistantChat({
                     </ul>
                   )}
                   {turn.text && <RichText text={turn.text} />}
-                  {turn.error && <Alert>{t(turn.error)}</Alert>}
-                  {!turn.text && !turn.error && busy && index === saved.turns.length - 1 && (
-                    <p className="text-slate-500">{t('Chriss is thinking…')}</p>
+                  {reading && busy && index === saved.turns.length - 1 && (
+                    <p className="text-slate-500" role="status">
+                      {t('Chriss is reading… The free service can take a minute or two.')}
+                    </p>
                   )}
+                  {turn.error && <Alert>{t(turn.error)}</Alert>}
+                  {turn.quotaExceeded && <QuotaInvitation onNavigate={onNavigate} />}
+                  {!turn.text &&
+                    !turn.error &&
+                    !turn.quotaExceeded &&
+                    !reading &&
+                    busy &&
+                    index === saved.turns.length - 1 && (
+                      <p className="text-slate-500">{t('Chriss is thinking…')}</p>
+                    )}
                 </>
               )}
             </div>
@@ -268,8 +343,13 @@ export function AssistantChat({
               {t('It may also publish')}
             </label>
           )}
-          <span className="text-xs text-slate-500">{t('Ctrl+Enter to send')}</span>
+          {!compact && <span className="text-xs text-slate-500">{t('Ctrl+Enter to send')}</span>}
         </div>
+        {quota && (
+          <p className="text-xs text-slate-500" data-testid="free-quota">
+            {t('Free requests left today: {count}', { count: String(quota.remaining) })}
+          </p>
+        )}
       </form>
     </div>
   );

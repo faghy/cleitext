@@ -608,4 +608,46 @@ export const itGeneral: Messages = {
     'L’editor con cui si aprono i nuovi contenuti. Ogni contenuto mantiene l’editor con cui è stato creato, e può comunque cambiarlo dal suo editor.',
   'Ask Chriss': 'Chiedi a Chriss',
   'About “{title}”, made with {editor}.': 'Su “{title}”, fatto con {editor}.',
+  // Chriss base, the free AI, and Chriss on every screen (core 0.118).
+  "You used today's free requests: connect your own AI service to continue without limits.":
+    'Hai usato le richieste gratuite di oggi: collega il tuo servizio AI per continuare senza limiti.',
+  'Connect your AI service': 'Collega il tuo servizio AI',
+  'Ask a super admin to connect your AI service.':
+    'Chiedi a un super admin di collegare il vostro servizio AI.',
+  'Free requests left today: {count}': 'Richieste gratuite rimaste oggi: {count}',
+  'Free requests left today: {count} of {limit}.':
+    'Richieste gratuite rimaste oggi: {count} su {limit}.',
+  'Chriss base is free, with a daily limit of requests. What you write to Chriss is processed on the Cleitext server ({host}) and is not stored. For more, connect your own AI service.':
+    'Chriss base è gratis, con un limite di richieste al giorno. Quello che scrivi a Chriss viene elaborato sul server di Cleitext ({host}) e non viene salvato. Per avere di più, collega il tuo servizio AI.',
+  'Chriss base (free)': 'Chriss base (gratis)',
+  'Start right away, without accounts or keys: Chriss answers with a basic AI.':
+    'Inizia subito, senza account né chiavi: Chriss risponde con un’AI di base.',
+  'Use Chriss base instead of your AI provider? Its settings are replaced.':
+    'Usare Chriss base al posto del tuo fornitore AI? Le sue impostazioni vengono sostituite.',
+  'Chriss base (free) is active.': 'Chriss base (gratis) è attivo.',
+  'To continue without limits, enter the address and key of your AI service below.':
+    'Per continuare senza limiti, inserisci qui sotto l’indirizzo e la chiave del tuo servizio AI.',
+  'Chriss base is not available on this server.': 'Chriss base non è disponibile su questo server.',
+  'The free service could not be reached.': 'Il servizio gratuito non è raggiungibile.',
+  'The free service could not be reached: try again later.':
+    'Il servizio gratuito non è raggiungibile: riprova più tardi.',
+  'The free service needs the site at a public https address.':
+    'Il servizio gratuito richiede che il sito sia a un indirizzo https pubblico.',
+  'The site could not be verified at its address: it must be reachable from the internet over https.':
+    'Non è stato possibile verificare il sito al suo indirizzo: deve essere raggiungibile da internet in https.',
+  'This site may not use the free service any more.':
+    'Questo sito non può più usare il servizio gratuito.',
+  'The free service is turned off.': 'Il servizio gratuito è spento.',
+  'Too many registrations: try again later.': 'Troppe registrazioni: riprova più tardi.',
+  'The free service is busy: try again in a moment.':
+    'Il servizio gratuito è occupato: riprova tra un momento.',
+  'The free service is not ready.': 'Il servizio gratuito non è pronto.',
+  'Close the chat': 'Chiudi la chat',
+  'Open the Chriss page': 'Apri la pagina di Chriss',
+  'Drag to resize': 'Trascina per ridimensionare',
+  'Chriss is not set up yet: choose a free or your own AI service.':
+    'Chriss non è ancora configurato: scegli il servizio gratuito o il tuo servizio AI.',
+  'Set up Chriss': 'Configura Chriss',
+  'Chriss is reading… The free service can take a minute or two.':
+    'Chriss sta leggendo… Il servizio gratuito può impiegare un minuto o due.',
 };

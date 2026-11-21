@@ -11,6 +11,7 @@ import { MAINTENANCE_QUERY_KEY } from './settings';
 import { taxonomiesQuery, taxonomyLabel } from './terms';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { CommandPalette, useCommandPaletteShortcut } from '../components/command-palette';
+import { ChrissBubble } from '../components/chriss-bubble';
 import { usePluginMenu } from '../plugins';
 import {
   currentTop,
@@ -636,11 +637,12 @@ export function AdminLayout() {
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
         <main
           ref={content}
-          className="p-6 max-md:px-3 max-md:pt-4 max-md:pr-[max(0.75rem,env(safe-area-inset-right))] max-md:pb-[max(1.5rem,env(safe-area-inset-bottom))] max-md:pl-[max(0.75rem,env(safe-area-inset-left))]"
+          className="p-6 max-md:px-3 max-md:pt-4 max-md:pr-[max(0.75rem,env(safe-area-inset-right))] max-md:pb-[max(6rem,calc(env(safe-area-inset-bottom)+5rem))] md:pb-24 max-md:pl-[max(0.75rem,env(safe-area-inset-left))]"
         >
           <Outlet />
         </main>
       </div>
+      <ChrissBubble pathname={pathname} />
     </div>
   );
 }

@@ -250,3 +250,58 @@ test('the chat opened from an entry knows the entry and its editor', async ({ pa
   }
   expect(appErrors(errors)).toEqual([]);
 });
+
+test('Chriss opens from the round button on every screen, and stays open', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const provider = fakeProvider();
+  await new Promise<void>((resolve) => provider.listen(0, '127.0.0.1', resolve));
+  const port = (provider.address() as AddressInfo).port;
+  await page.goto('/cl-admin/login');
+  await signIn(page);
+  await page.waitForURL('**/cl-admin/');
+  const call = (method: string, body?: unknown) =>
+    page.evaluate(
+      async ({ method, body }) => {
+        const { token } = await (await fetch('/api/v1/auth/csrf')).json();
+        await fetch('/api/v1/assistants/provider', {
+          method,
+          headers: {
+            'x-csrf-token': token,
+            ...(!body ? {} : { 'content-type': 'application/json' }),
+          },
+          ...(body ? { body: JSON.stringify(body) } : {}),
+        });
+      },
+      { method, body },
+    );
+  await call('PUT', { baseUrl: `http://127.0.0.1:${port}/v1`, model: 'test-model' });
+  try {
+    await page.goto('/cl-admin/pages');
+    const bubble = page.getByRole('button', { name: 'Ask Chriss' });
+    await bubble.click();
+    const panel = page.getByRole('dialog', { name: 'Chriss' });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByLabel('Your request')).toBeFocused();
+    await panel.getByLabel('Your request').fill('Make a page.');
+    await panel.getByRole('button', { name: 'Send' }).click();
+    await expect(panel.getByText('is a draft.')).toBeVisible();
+
+    // Still open on another screen, with the same conversation.
+    await page.getByRole('link', { name: 'Media', exact: true }).first().click();
+    await expect(panel.getByText('is a draft.')).toBeVisible();
+    // Escape closes it, back to the button.
+    await page.keyboard.press('Escape');
+    await expect(panel).toBeHidden();
+    await expect(bubble).toBeFocused();
+
+    // Not on the Chriss page, where the chat already is.
+    await page.goto('/cl-admin/assistants');
+    await expect(page.getByRole('button', { name: 'Ask Chriss' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'New conversation' }).click();
+  } finally {
+    await call('DELETE');
+    provider.close();
+  }
+  expect(appErrors(errors)).toEqual([]);
+});

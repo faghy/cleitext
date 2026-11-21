@@ -1,4 +1,9 @@
-import type { AiProviderView, ApiTokenView, AssistantsStatus } from '@cleitext/shared';
+import type {
+  AiProviderView,
+  ApiTokenView,
+  AssistantsStatus,
+  FreeAiStatus,
+} from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
@@ -61,11 +66,15 @@ export function AssistantsPage() {
           {status.data.chat ? (
             <AssistantChat suggestion={suggestion} entryId={entryId} />
           ) : (
-            <p className="text-sm text-slate-600">
-              {isSuperAdmin
-                ? t('To chat with Chriss, set up an AI provider at the bottom of this page.')
-                : t('To chat with Chriss, a super admin has to set up an AI provider.')}
-            </p>
+            <div className="space-y-4">
+              {/* A site without a provider: Chriss base is proposed first. */}
+              {isSuperAdmin && <FreeAiOffer />}
+              <p className="text-sm text-slate-600">
+                {isSuperAdmin
+                  ? t('To chat with Chriss, set up an AI provider at the bottom of this page.')
+                  : t('To chat with Chriss, a super admin has to set up an AI provider.')}
+              </p>
+            </div>
           )}
         </Card>
       )}
@@ -279,6 +288,101 @@ function OwnAssistantCard({
   );
 }
 
+const FREE_QUERY = ['assistants', 'provider', 'free'];
+
+function useFreeAi() {
+  return useQuery({
+    queryKey: FREE_QUERY,
+    queryFn: () => api<FreeAiStatus>('GET', '/assistants/provider/free'),
+  });
+}
+
+/** What Chriss base is, in plain words: where the texts go, and the limit. */
+function FreeAiNotice({ host }: { host: string }) {
+  const { t } = useT();
+  return (
+    <p className="text-xs text-slate-600">
+      {t(
+        'Chriss base is free, with a daily limit of requests. What you write to Chriss is processed on the Cleitext server ({host}) and is not stored. For more, connect your own AI service.',
+        { host },
+      )}
+    </p>
+  );
+}
+
+/**
+ * Chriss base in one click (core 0.118): the site registers with the relay
+ * and uses it as its provider. Never chosen without this click.
+ */
+function FreeAiOffer({ replacing = false }: { replacing?: boolean }) {
+  const { t } = useT();
+  const queryClient = useQueryClient();
+  const free = useFreeAi();
+  const activate = useMutation({
+    mutationFn: () => api<AiProviderView>('POST', '/assistants/provider/free', {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['assistants'] }),
+  });
+  if (!free.data?.available || free.data.active) return null;
+  return (
+    <div
+      className="space-y-2 rounded border border-sky-200 bg-sky-50 p-3 text-sm"
+      data-testid="free-ai-offer"
+    >
+      <p className="font-semibold text-slate-800">{t('Chriss base (free)')}</p>
+      <p className="text-slate-700">
+        {t('Start right away, without accounts or keys: Chriss answers with a basic AI.')}
+      </p>
+      <FreeAiNotice host={free.data.host ?? 'cleitext.com'} />
+      {activate.error && <Alert>{t(errorMessage(activate.error))}</Alert>}
+      <Button
+        disabled={activate.isPending}
+        onClick={() => {
+          if (
+            !replacing ||
+            window.confirm(
+              t('Use Chriss base instead of your AI provider? Its settings are replaced.'),
+            )
+          )
+            activate.mutate();
+        }}
+      >
+        {activate.isPending ? t('Activating…') : t('Activate')}
+      </Button>
+    </div>
+  );
+}
+
+/** Chriss base in use: the requests left today, and the way to an own service. */
+function FreeAiActive() {
+  const { t } = useT();
+  const free = useFreeAi();
+  if (!free.data?.active) return null;
+  const quota = free.data.quota;
+  return (
+    <div
+      className="space-y-2 rounded border border-sky-200 bg-sky-50 p-3 text-sm"
+      data-testid="free-ai-active"
+    >
+      <p className="font-semibold text-slate-800">{t('Chriss base (free) is active.')}</p>
+      {quota && (
+        <p>
+          {quota.limit !== null
+            ? t('Free requests left today: {count} of {limit}.', {
+                count: String(quota.remaining),
+                limit: String(quota.limit),
+              })
+            : t('Free requests left today: {count}', { count: String(quota.remaining) })}
+        </p>
+      )}
+      {free.data.error && <p className="text-amber-800">{t(free.data.error)}</p>}
+      <FreeAiNotice host={free.data.host ?? 'cleitext.com'} />
+      <p className="text-xs text-slate-600">
+        {t('To continue without limits, enter the address and key of your AI service below.')}
+      </p>
+    </div>
+  );
+}
+
 /** The AI provider of the chat: super admins only, as the server calls its address. */
 function ProviderCard() {
   const { t } = useT();
@@ -379,7 +483,10 @@ function ProviderForm({
   const problem = error ?? save.error ?? remove.error ?? test.error;
 
   return (
-    <Card title={t('AI provider for the chat')}>
+    <Card title={t('AI provider for the chat')} id="ai-provider">
+      <div className="mb-4 max-w-2xl">
+        {initial?.free ? <FreeAiActive /> : initial && <FreeAiOffer replacing />}
+      </div>
       <form
         className="max-w-2xl space-y-3 text-sm"
         onSubmit={(e) => {
