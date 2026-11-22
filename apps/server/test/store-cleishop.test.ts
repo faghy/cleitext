@@ -60,6 +60,8 @@ const billing = {
   'billing.phone': '019 123456',
   payment: 'bacs',
   terms: '1',
+  // Licenses are digital: supplied now, without the withdrawal (Cleishop 1.25).
+  digitalConsent: '1',
 };
 
 /** Buys through a link (as the renewal email's), pays by bank transfer: the order id. */

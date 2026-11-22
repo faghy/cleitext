@@ -203,6 +203,10 @@ const IT: Record<string, string> = {
   'Seven letters or digits': 'Sette lettere o cifre',
   'Not a valid address': 'Indirizzo non valido',
   'Accept the terms to place the order.': 'Accetta i termini per effettuare l’ordine.',
+  'I ask for the digital products to be supplied right away, and I acknowledge that I thereby lose the right of withdrawal.':
+    'Chiedo che i prodotti digitali mi siano forniti subito e prendo atto che così perdo il diritto di recesso.',
+  'Confirm that you want the digital products now.':
+    'Conferma che vuoi ricevere subito i prodotti digitali.',
   'Choose a way to pay.': 'Scegli come pagare.',
   'Some products changed: check your cart.':
     'Alcuni prodotti sono cambiati: controlla il carrello.',

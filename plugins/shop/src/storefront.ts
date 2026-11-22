@@ -1,5 +1,6 @@
 import type { PluginContext, RouteRequest, RouteResponse } from '@cleitext/plugin-sdk';
 import { and, eq } from 'drizzle-orm';
+import { noteIn, termsIn } from './localized';
 import {
   checkAddress,
   checkInvoice,
@@ -40,6 +41,7 @@ import {
   cartPage,
   checkoutPage,
   emptyAddress,
+  EU_COUNTRIES,
   moneyFormatter,
   receivedPage,
   type CheckoutValues,
@@ -82,8 +84,12 @@ export interface StoreSettings {
   pricesIncludeTax: boolean;
   phoneRequired: boolean;
   termsUrl: string;
-  /** Text under the ways to pay at checkout (1.20). */
+  /** The terms page in other languages, one per line: `en https://…` (1.25). */
+  termsUrls?: string;
+  /** Text under the ways to pay at checkout (1.20); `[en]` lines start a language's text (1.25). */
   checkoutNote?: string;
+  /** Cart and checkout show the SKU under the name (1.25); else the short description. */
+  showSku?: boolean;
   /** Where the shop is: taxes until the customer gives an address. */
   baseCountry: string;
   /** The cart shows the shipping methods for a country and postcode (1.15). */
@@ -103,12 +109,18 @@ const DEFAULT_TITLES: Record<PaymentId, string> = {
 };
 
 /** The store's settings with the texts of the ways to pay in a language. */
-export const inLanguage = <S extends Pick<StoreSettings, 'payments'>>(
+export const inLanguage = <
+  S extends Pick<StoreSettings, 'payments'> &
+    Partial<Pick<StoreSettings, 'termsUrl' | 'termsUrls' | 'checkoutNote'>>,
+>(
   store: S,
   locale: string,
 ): S => ({
   ...store,
   payments: localizePayments(store.payments, locale),
+  // The note and the terms page in the customer's language (1.25).
+  ...(store.checkoutNote ? { checkoutNote: noteIn(store.checkoutNote, locale) } : {}),
+  ...(store.termsUrl ? { termsUrl: termsIn(store.termsUrl, store.termsUrls ?? '', locale) } : {}),
 });
 
 /** The default name of a way to pay, in the customer's language. */
@@ -401,6 +413,7 @@ export function registerStorefront(
           notices,
           coupons: couponViews(cart.quote),
           needsShipping: cart.quote.shippingSetUp,
+          showSku: values.showSku === true,
           ...(express ? { express } : {}),
           ...(values.shippingInCart !== false && cart.quote.shippingSetUp
             ? {
@@ -830,6 +843,7 @@ export function registerStorefront(
       payment: text(body, 'payment', 40),
       rate: text(body, 'rate', 40),
       terms: text(body, 'terms', 1) === '1',
+      digitalConsent: text(body, 'digitalConsent', 1) === '1',
       newsletter: text(body, NEWSLETTER_FIELD, 1) === '1',
     };
   };
@@ -945,6 +959,7 @@ export function registerStorefront(
         }),
         termsUrl: store.termsUrl,
         ...(store.checkoutNote ? { checkoutNote: store.checkoutNote } : {}),
+        showSku: store.showSku === true,
         phoneRequired: store.phoneRequired,
         countries: await countriesOf(request.siteId, store.baseCountry),
         ...(notice ? { notice } : {}),
@@ -997,6 +1012,7 @@ export function registerStorefront(
       payment: '',
       rate: ship.rate,
       terms: false,
+      digitalConsent: false,
     };
   };
 
@@ -1215,6 +1231,12 @@ export function registerStorefront(
     const method = chosen ? { id: chosen, title: paymentTitle(store, chosen, t) } : undefined;
     if (!method) errors.payment = 'Choose a way to pay.';
     if (store.termsUrl && !values.terms) errors.terms = 'Accept the terms to place the order.';
+    // Digital products only, in the EU: the customer asks for them now, losing the withdrawal (1.25).
+    if (!values.digitalConsent && EU_COUNTRIES.has(store.baseCountry)) {
+      const lines = (await currentCart(request, store, t)).lines;
+      if (lines.length > 0 && lines.every((line) => line.virtual))
+        errors.digitalConsent = 'Confirm that you want the digital products now.';
+    }
     if (Object.keys(errors).length > 0)
       return renderCheckout(request, values, errors, t('Please correct the fields marked below.'));
 

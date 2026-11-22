@@ -147,6 +147,8 @@ export interface CartLine {
   locale: string;
   attributes: { name: string; value: string }[];
   sku: string;
+  /** The product's short description (1.25), shown under the name in cart and checkout. */
+  excerpt?: string;
   imageUrl: string | null;
   unitPrice: string;
   regularPrice: string;
@@ -250,6 +252,7 @@ function lineOf(
     locale: product.locale,
     attributes: variation ? describe(variation.attributes, product.entryId, names) : [],
     sku: variation?.sku || product.sku,
+    excerpt: product.excerpt,
     imageUrl: variation?.imageUrl ?? product.imageUrl,
     unitPrice,
     regularPrice: priced.regularPrice ?? unitPrice,

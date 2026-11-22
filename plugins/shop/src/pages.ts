@@ -8,6 +8,7 @@ import {
 } from './address';
 import type { CartLine } from './cart';
 import { html, raw, type Html } from './html';
+import { shortText } from './localized';
 import type { BankAccount } from './payments';
 import type { OrderItemRow, OrderRow } from './schema';
 import type { Translate } from './strings';
@@ -208,8 +209,11 @@ function totalsRows(
     }`;
 }
 
-const lineName = (line: CartLine) =>
-  html`${line.title}${line.attributes.length ? html`<span class="shop-meta">${line.attributes.map((a) => `${a.name}: ${a.value}`).join(' · ')}</span>` : ''}${line.sku ? html`<span class="shop-meta">${line.sku}</span>` : ''}`;
+/** A line's name, its options, then the SKU when the shop shows it, else the short description (1.25). */
+const lineName = (line: CartLine, showSku = false) => {
+  const about = showSku ? line.sku : shortText(line.excerpt ?? '');
+  return html`${line.title}${line.attributes.length ? html`<span class="shop-meta">${line.attributes.map((a) => `${a.name}: ${a.value}`).join(' · ')}</span>` : ''}${about ? html`<span class="shop-meta">${about}</span>` : ''}`;
+};
 
 /** The cart's shipping box: the methods and their price, and where to (country, postcode). */
 function shippingCalcForm(
@@ -282,6 +286,8 @@ export function cartPage(options: {
   notices: { kind: 'ok' | 'error'; text: string }[];
   coupons: CouponView[];
   needsShipping: boolean;
+  /** The SKU under the names instead of the short description (1.25). */
+  showSku?: boolean;
   /** The express buttons (Apple Pay, Google Pay, Link), when the shop shows them here. */
   express?: string;
   /** The shipping methods for a country and postcode (1.15), when the shop shows them here. */
@@ -342,7 +348,7 @@ export function cartPage(options: {
                 <td>
                   ${line.imageUrl ? html`<img src="${line.imageUrl}" alt="" loading="lazy" />` : ''}
                 </td>
-                <td><a href="${urls.product(line)}">${lineName(line)}</a></td>
+                <td><a href="${urls.product(line)}">${lineName(line, options.showSku)}</a></td>
                 <td class="num">${money(unit(line))}</td>
                 <td>
                   ${line.soldIndividually ? html`1<input type="hidden" name="qty_${line.key}" value="1" />` : html`<label class="shop-sr" for="qty-${line.key}">${t('Quantity')}</label><input id="qty-${line.key}" type="number" name="qty_${line.key}" value="${line.quantity}" min="0" max="9999" inputmode="numeric" />`}
@@ -413,12 +419,14 @@ export interface CheckoutValues {
   /** The shipping rate chosen. */
   rate: string;
   terms: boolean;
+  /** Digital products only: "supply them now, I lose the withdrawal" ticked (1.25). */
+  digitalConsent?: boolean;
   /** "Subscribe me to the newsletter" ticked (the NewLetter plugin's opt-in). */
   newsletter?: boolean;
 }
 
 /** The European Union's countries (the right of withdrawal of distance sales). */
-const EU = new Set(
+export const EU_COUNTRIES = new Set(
   'AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE'.split(' '),
 );
 
@@ -564,6 +572,8 @@ export function checkoutPage(options: {
   termsUrl: string;
   /** The shop's note under the ways to pay (1.20). */
   checkoutNote?: string;
+  /** The SKU under the names instead of the short description (1.25). */
+  showSku?: boolean;
   phoneRequired: boolean;
   notice?: string;
   coupons: CouponView[];
@@ -584,6 +594,8 @@ export function checkoutPage(options: {
   countries?: CountryChoice;
 }): string {
   const { values, errors, t, money, locale } = options;
+  // Only digital products (virtual): nothing to ship, no withdrawal of goods (1.25).
+  const digitalOnly = options.lines.length > 0 && options.lines.every((line) => line.virtual);
   const { field, addressFields } = formParts({
     t,
     errors,
@@ -599,7 +611,7 @@ export function checkoutPage(options: {
         ${options.lines.map((line) => {
           const computed = options.totals.lines.find((l) => l.key === line.key)!;
           return html`<tr>
-            <td>${lineName(line)} × ${line.quantity}</td>
+            <td>${lineName(line, options.showSku)} × ${line.quantity}</td>
             <td class="num">
               ${money(options.includeTax ? computed.subtotalGross : computed.subtotalNet)}
             </td>
@@ -681,12 +693,29 @@ export function checkoutPage(options: {
         : ''
     }
     ${
-      // The EU's right of withdrawal: shops based in the EU (1.19.2).
-      EU.has(options.countries?.base || 'IT')
-        ? html`<p class="shop-meta">
-            ${t('You can withdraw from the purchase within 14 days of receiving the goods.')}
-          </p>`
-        : ''
+      // The EU's right of withdrawal: shops based in the EU (1.19.2). Digital products
+      // only (1.25): supplied at once on the customer's express request, so no withdrawal.
+      !EU_COUNTRIES.has(options.countries?.base || 'IT')
+        ? ''
+        : digitalOnly
+          ? html`<label class="shop-check"
+                ><input
+                  type="checkbox"
+                  name="digitalConsent"
+                  value="1"
+                  ${values.digitalConsent ? raw(' checked') : ''}
+                  required${errors.digitalConsent ? raw(' aria-invalid="true"') : ''}
+                />
+                <span
+                  >${t(
+                    'I ask for the digital products to be supplied right away, and I acknowledge that I thereby lose the right of withdrawal.',
+                  )}</span
+                ></label
+              >
+              ${errors.digitalConsent ? html`<span class="shop-error">${t(errors.digitalConsent)}</span>` : ''}`
+          : html`<p class="shop-meta">
+              ${t('You can withdraw from the purchase within 14 days of receiving the goods.')}
+            </p>`
     }
     ${
       options.termsUrl
@@ -752,21 +781,25 @@ export function checkoutPage(options: {
                     </div>
                   </details>`
             }
-            <details class="shop-more" ${values.differentShipping ? raw(' open') : ''}>
-              <summary>${t('Ship to a different address')}</summary>
-              <label class="shop-check"
-                ><input
-                  type="checkbox"
-                  name="differentShipping"
-                  value="1"
-                  ${values.differentShipping ? raw(' checked') : ''}
-                />
-                ${t('Ship to a different address')}</label
-              >
-              <div class="shop-fields">
-                ${addressFields('shipping', values.shipping, 'shipping')}
-              </div>
-            </details>
+            ${
+              digitalOnly
+                ? ''
+                : html`<details class="shop-more" ${values.differentShipping ? raw(' open') : ''}>
+                    <summary>${t('Ship to a different address')}</summary>
+                    <label class="shop-check"
+                      ><input
+                        type="checkbox"
+                        name="differentShipping"
+                        value="1"
+                        ${values.differentShipping ? raw(' checked') : ''}
+                      />
+                      ${t('Ship to a different address')}</label
+                    >
+                    <div class="shop-fields">
+                      ${addressFields('shipping', values.shipping, 'shipping')}
+                    </div>
+                  </details>`
+            }
             <p class="shop-field shop-field--wide">
               <label for="shop-note">${t('Notes about your order (optional)')}</label>
               <textarea id="shop-note" name="note" rows="3" maxlength="2000">

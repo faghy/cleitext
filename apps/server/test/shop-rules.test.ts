@@ -364,9 +364,18 @@ describe('buying with the rules', () => {
     await carla.postForm('/cart/add', { product: ebook, quantity: '1' });
     const digital = await carla.get('/checkout');
     expect(digital.body).not.toContain('name="rate"');
-    const placed = await carla.postForm(
+    // Digital only: no shipping address, and the customer asks for it now, losing the withdrawal.
+    expect(digital.body).not.toContain('name="differentShipping"');
+    expect(digital.body).toContain('name="digitalConsent"');
+    expect(digital.body).not.toContain('receiving the goods');
+    const unconfirmed = await carla.postForm(
       '/checkout',
       billing('carla@example.test', { payment: 'cod' }),
+    );
+    expect(unconfirmed.statusCode).toBe(422);
+    const placed = await carla.postForm(
+      '/checkout',
+      billing('carla@example.test', { payment: 'cod', digitalConsent: '1' }),
     );
     expect(placed.statusCode).toBe(303);
   });
