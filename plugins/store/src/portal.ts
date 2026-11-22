@@ -242,7 +242,7 @@ export function registerPortal(ctx: PluginContext): void {
             [
               l.id,
               l.updatesUntil
-                ? await renewLink(ctx, request.siteId, bySlug.get(l.productSlug), l)
+                ? await renewLink(ctx, request.siteId, bySlug.get(l.productSlug), l, locale)
                 : null,
             ] as const,
         ),

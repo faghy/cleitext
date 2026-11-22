@@ -92,6 +92,8 @@ export function renewalUrl(
   licenseId: string,
   /** Cleishop's product for this license's plan (1.6.1), instead of the link's own. */
   cartProduct?: string | null,
+  /** The reader's language (1.6.4): Cleishop's cart in Italian is under /it. */
+  locale?: string | null,
 ): string | null {
   if (!base) return null;
   try {
@@ -100,6 +102,8 @@ export function renewalUrl(
     if (/\/cart\/add\/?$/.test(url.pathname)) {
       if (cartProduct) url.searchParams.set('product', cartProduct);
       url.searchParams.set('ref', licenseId);
+      if (locale?.toLowerCase().startsWith('it') && !url.pathname.startsWith('/it/'))
+        url.pathname = `/it${url.pathname}`;
     } else url.searchParams.set('checkout[custom][license]', licenseId);
     return url.href;
   } catch {

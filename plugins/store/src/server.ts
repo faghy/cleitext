@@ -371,6 +371,7 @@ async function sendReminders(ctx: PluginContext, siteId: string, now = new Date(
   for (const license of rows) {
     const product = await productOf(ctx, siteId, license.productSlug);
     const link = await renewLink(ctx, siteId, product, license);
+    const linkIt = await renewLink(ctx, siteId, product, license, 'it');
     if (!product || !link || !license.updatesUntil) continue;
     // What was sent, for this end date: a renewal moves it, and reminders start again.
     const key = `reminded:${license.id}`;
@@ -394,7 +395,7 @@ async function sendReminders(ctx: PluginContext, siteId: string, now = new Date(
           '---',
           '',
           `Gli aggiornamenti della tua licenza ${product.name} (…${license.keyHint}) finiscono il ${date}.`,
-          `Rinnovali per un altro anno con un clic: ${link}`,
+          `Rinnovali per un altro anno con un clic: ${linkIt ?? link}`,
           'I tuoi siti continuano a funzionare comunque: il rinnovo serve solo per le nuove versioni.',
         ].join('\n'),
       })

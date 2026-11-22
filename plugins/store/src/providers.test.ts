@@ -82,6 +82,16 @@ describe('Lemon Squeezy', () => {
       'https://shop.test/checkout/buy/abc?checkout%5Bcustom%5D%5Blicense%5D=L1',
     );
     expect(renewalUrl(null, 'L1')).toBeNull();
+    // Italian readers get Cleishop's Italian cart, once.
+    expect(renewalUrl('https://shop.test/cart/add?product=p1', 'L1', null, 'it')).toBe(
+      'https://shop.test/it/cart/add?product=p1&ref=L1',
+    );
+    expect(renewalUrl('https://shop.test/it/cart/add?product=p1', 'L1', null, 'it-IT')).toBe(
+      'https://shop.test/it/cart/add?product=p1&ref=L1',
+    );
+    expect(renewalUrl('https://shop.test/cart/add?product=p1', 'L1', null, 'en')).toBe(
+      'https://shop.test/cart/add?product=p1&ref=L1',
+    );
   });
 });
 

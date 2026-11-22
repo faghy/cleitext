@@ -13,6 +13,8 @@ export async function renewLink(
   siteId: string,
   product: { renewUrl: string | null } | null | undefined,
   license: { id: string; seats: number; productSlug: string },
+  /** The reader's language: Italian gets Cleishop's Italian cart. */
+  locale?: string | null,
 ): Promise<string | null> {
   const base = product?.renewUrl ?? null;
   if (!base) return null;
@@ -23,5 +25,5 @@ export async function renewLink(
     );
     cartProduct = renewalProductFor(rows, license.seats);
   }
-  return renewalUrl(base, license.id, cartProduct);
+  return renewalUrl(base, license.id, cartProduct, locale);
 }
