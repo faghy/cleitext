@@ -1014,6 +1014,20 @@ Carica inattivi gli script che richiedono il consenso — `<script type="text/pl
 
 L'email arriva in minuscolo. Vengono interpellati solo i plugin attivi sul sito. Un plugin con il permesso `privacy` (come Privacy e GDPR) esegue le richieste: `ctx.privacy.exportPersonalData(siteId, email)` raccoglie i dati del core (l'account di un membro del sito, le sue sessioni, i token e l'attività) e quelli di ogni exporter; `ctx.privacy.erasePersonalData(siteId, email)` esegue gli eraser (gli account restano: si eliminano da Utenti).
 
+**Cookie tecnici** (API dei plugin 1.80). Un plugin che imposta cookie necessari per ciò che il visitatore ha chiesto (un carrello, un accesso) li dichiara, così il plugin della privacy li elenca nella cookie policy, nella lingua della pagina, senza chiedere il consenso. I nomi devono essere del plugin (`<slug>_…`, come i cookie che i plugin possono impostare); gli altri vengono scartati. I core più vecchi non hanno il metodo, da qui il `?.`:
+
+```ts
+ctx.privacy.declareCookies?.(() => [
+  {
+    name: 'shop_cart',
+    duration: { en: '30 days', it: '30 giorni' },
+    purpose: { en: 'Keeps the products in the cart.', it: 'Conserva i prodotti nel carrello.' },
+  },
+]);
+```
+
+`ctx.privacy.cookies?.(siteId)` (permesso `privacy`) restituisce quelli dei plugin attivi, ognuno con il suo `plugin`.
+
 ### Conversioni e link di referral (API dei plugin 1.58)
 
 **Conversioni.** Un plugin che incassa denaro o raccoglie contatti annuncia ogni conversione pagata, così altri plugin (un programma di affiliazione come **Tandem**, un report) possono accreditarla senza conoscere quel plugin. Non serve alcun permesso; lo slug del plugin è la `source`.

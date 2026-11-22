@@ -1154,6 +1154,20 @@ Load scripts that need consent inert — `<script type="text/plain" data-cx-cate
 
 The email comes in lowercase. Only the plugins active on the site are asked. A plugin with the `privacy` permission (such as Privacy & GDPR) runs the requests: `ctx.privacy.exportPersonalData(siteId, email)` gathers the core's data (the account of a member of the site, its sessions, tokens and activity) and every exporter's; `ctx.privacy.erasePersonalData(siteId, email)` runs the erasers (accounts are kept: they are deleted from Users).
 
+**Technical cookies** (plugin API 1.80). A plugin that sets cookies needed for what the visitor asked (a cart, a sign-in) declares them, so that the privacy plugin lists them in the cookie policy, in the page's language, without asking consent. Names must be the plugin's own (`<slug>_…`, as the cookies plugins may set); others are dropped. Older cores lack the method, hence the `?.`:
+
+```ts
+ctx.privacy.declareCookies?.(() => [
+  {
+    name: 'shop_cart',
+    duration: { en: '30 days', it: '30 giorni' },
+    purpose: { en: 'Keeps the products in the cart.', it: 'Conserva i prodotti nel carrello.' },
+  },
+]);
+```
+
+`ctx.privacy.cookies?.(siteId)` (permission `privacy`) returns those of the active plugins, each with its `plugin`.
+
 ### Conversions and referral links (plugin API 1.58)
 
 **Conversions.** A plugin that takes money or contacts announces each paid conversion, so that other plugins (an affiliate program such as **Tandem**, a report) can credit it without knowing that plugin. No permission is needed; the plugin's slug is the `source`.

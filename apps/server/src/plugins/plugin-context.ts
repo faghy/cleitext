@@ -929,6 +929,14 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         assertSiteId(siteId);
         return host.trackers(siteId);
       },
+      declareCookies(provider) {
+        plugin.cookieProviders.push(provider);
+      },
+      async cookies(siteId) {
+        require('privacy');
+        assertSiteId(siteId);
+        return host.declaredCookies(siteId);
+      },
       registerExporter(exporter) {
         host.addPrivacyHandler(plugin, 'exporter', exporter);
       },

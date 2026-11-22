@@ -2,6 +2,7 @@ import {
   defineBlock,
   definePlugin,
   labelText,
+  type DeclaredCookie,
   type PluginContext,
   type TrackerDeclaration,
 } from '@cleitext/plugin-sdk';
@@ -184,6 +185,8 @@ async function config(ctx: PluginContext, siteId: string): Promise<PrivacyConfig
 interface Effective {
   cfg: PrivacyConfig;
   trackers: TrackerDeclaration[];
+  /** Technical cookies the active plugins declare (plugin API 1.80; none on older cores). */
+  declared: DeclaredCookie[];
   /** Changes when categories, cookies or trackers change: visitors answer again. */
   version: string;
 }
@@ -218,6 +221,7 @@ function hash(text: string): string {
 async function effective(ctx: PluginContext, siteId: string): Promise<Effective> {
   const cfg = await config(ctx, siteId);
   const trackers = await ctx.privacy.trackers(siteId);
+  const declared = (await ctx.privacy.cookies?.(siteId)) ?? [];
   const needed = trackers.filter((t) => t.requiresConsent).map((t) => t.category);
   const categories = CATEGORIES.filter(
     (c) => cfg.banner.categories.includes(c) || needed.includes(c),
@@ -245,6 +249,7 @@ async function effective(ctx: PluginContext, siteId: string): Promise<Effective>
       },
     },
     trackers,
+    declared,
     version,
   };
 }
@@ -288,6 +293,17 @@ function cookieRows(e: Effective, locale: string): CookieRow[] {
           : row,
       ),
   );
+  // The technical cookies of the plugins (Privacy 1.10), unless the table lists them already.
+  for (const cookie of e.declared) {
+    if (rows.some((row) => row.name === cookie.name)) continue;
+    rows.push({
+      name: cookie.name,
+      provider: 'This site',
+      category: 'necessary',
+      purpose: labelText(cookie.purpose, locale),
+      duration: labelText(cookie.duration, locale),
+    });
+  }
   for (const tracker of e.trackers) {
     for (const cookie of tracker.cookies) {
       rows.push({

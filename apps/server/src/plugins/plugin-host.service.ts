@@ -67,6 +67,8 @@ import {
   type PersonalDataEraser,
   type PersonalDataExporter,
   type PersonalDataGroup,
+  type CookieDeclaration,
+  type DeclaredCookie,
   type TrackerDeclaration,
   type Filters,
   type PluginBlockDefinition,
@@ -175,6 +177,8 @@ export interface LoadedPlugin {
   erasers: PersonalDataEraser[];
   /** Registered with `ctx.privacy.declareTrackers`. */
   trackerProviders: ((siteId: string) => TrackerDeclaration[] | Promise<TrackerDeclaration[]>)[];
+  /** Registered with `ctx.privacy.declareCookies` (plugin API 1.80). */
+  cookieProviders: ((siteId: string) => CookieDeclaration[] | Promise<CookieDeclaration[]>)[];
   /** Files of the `public` folder added to public pages (`ctx.assets.enqueue`). */
   assets: PublicAsset[];
   /** `ctx.referrals.capture` (plugin API 1.58). */
@@ -384,6 +388,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
       exporters: [],
       erasers: [],
       trackerProviders: [],
+      cookieProviders: [],
       assets: [],
       referralProviders: [],
       schedules: [],
@@ -439,6 +444,7 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
         exporters: [],
         erasers: [],
         trackerProviders: [],
+        cookieProviders: [],
         assets: [],
         referralProviders: [],
         schedules: [],
@@ -560,6 +566,32 @@ export class PluginHost implements OnApplicationBootstrap, OnApplicationShutdown
           }
         } catch (error) {
           this.logger.error(`Trackers of ${plugin.slug} failed: ${String(error)}`);
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
+   * The technical cookies that the plugins active on a site declare (plugin
+   * API 1.80): only names of their own (`<slug>_…`), as they may set.
+   */
+  async declaredCookies(siteId: string): Promise<DeclaredCookie[]> {
+    const result: DeclaredCookie[] = [];
+    for (const plugin of await this.activePlugins(siteId)) {
+      for (const provider of plugin.cookieProviders) {
+        try {
+          for (const cookie of await provider(siteId)) {
+            if (
+              typeof cookie?.name === 'string' &&
+              cookie.name.startsWith(`${plugin.slug.replace(/-/g, '_')}_`) &&
+              cookie.duration &&
+              cookie.purpose
+            )
+              result.push({ ...cookie, plugin: plugin.slug });
+          }
+        } catch (error) {
+          this.logger.error(`Cookies of ${plugin.slug} failed: ${String(error)}`);
         }
       }
     }

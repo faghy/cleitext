@@ -47,6 +47,25 @@ const EMPTY: Address = {
 };
 
 export function registerPrivacy(ctx: PluginContext): void {
+  // The cookie policy lists Cleishop's technical cookies (plugin API 1.80; older cores: nothing).
+  ctx.privacy.declareCookies?.(() => [
+    {
+      name: 'shop_cart',
+      duration: { en: '30 days', it: '30 giorni' },
+      purpose: {
+        en: 'Keeps the products in the cart while you shop.',
+        it: 'Conserva i prodotti nel carrello mentre fai acquisti.',
+      },
+    },
+    {
+      name: 'shop_ship',
+      duration: { en: '30 days', it: '30 giorni' },
+      purpose: {
+        en: 'Remembers the country, postcode and shipping method chosen in the cart.',
+        it: 'Ricorda paese, CAP e spedizione scelti nel carrello.',
+      },
+    },
+  ]);
   ctx.privacy.registerExporter({
     id: 'shop',
     label: LABEL,

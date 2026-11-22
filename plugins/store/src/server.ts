@@ -1479,6 +1479,17 @@ export default definePlugin({
 
     registerPartners(ctx, admin);
     registerPortal(ctx);
+    // The cookie policy lists the portal's sign-in cookie (plugin API 1.80; older cores: nothing).
+    ctx.privacy.declareCookies?.(() => [
+      {
+        name: 'store_portal',
+        duration: { en: '7 days', it: '7 giorni' },
+        purpose: {
+          en: 'Keeps you signed in to My licenses after the link received by email.',
+          it: 'Ti tiene connesso all’area Le mie licenze dopo il link ricevuto per email.',
+        },
+      },
+    ]);
 
     admin('PUT', '/admin/secrets/:name', async (request) => {
       const name = request.params.name as (typeof SECRETS)[number];

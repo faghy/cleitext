@@ -66,6 +66,8 @@ beforeAll(async () => {
   const pluginsPath = await mkdtemp(join(tmpdir(), 'cleitext-plugins-'));
   await install('forms', pluginsPath);
   await install('privacy', pluginsPath);
+  // Declares a technical cookie (plugin API 1.80), for the cookie table.
+  await install('store', pluginsPath);
   app = await startTestApp({ pluginsPath });
   site = await seedSite(owner, 'privacy');
   await seedUser(owner, {
@@ -77,7 +79,7 @@ beforeAll(async () => {
   admin = new TestClient(app, site.host, '10.40.0.1');
   await admin.login('admin@privacy.test', PASSWORD);
   visitor = new TestClient(app, site.host, '10.40.0.2');
-  for (const slug of ['forms', 'privacy']) {
+  for (const slug of ['forms', 'privacy', 'store']) {
     expect((await admin.post(`/api/v1/plugins/${slug}/activate`)).statusCode).toBe(200);
   }
   contactSlug = (
@@ -321,6 +323,10 @@ describe('policies', () => {
     const html = (await visitor.get(`/${cookiePage.slug}`)).body;
     expect(html).toContain('<code>cx_consent</code>');
     expect(html).toContain('href="#cookie-preferences"');
+    // The technical cookies other plugins declare, in the page's language.
+    expect(html).toContain('<code>store_portal</code>');
+    expect(html).toContain('Keeps you signed in to My licenses');
+    expect(html).toContain('7 days');
   });
 
   it('adds a privacy notice to contact forms', async () => {

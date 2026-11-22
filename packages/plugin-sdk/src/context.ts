@@ -1596,6 +1596,25 @@ export interface TrackerDeclaration {
 }
 
 /**
+ * A technical cookie that a plugin sets (plugin API 1.80): needed for what
+ * the visitor asked (a cart, a sign-in), so no consent is asked. The privacy
+ * plugin lists it in the cookie policy.
+ */
+export interface CookieDeclaration {
+  /** The cookie's name: the plugin's own, `<slug>_…` (e.g. `shop_cart`). */
+  name: string;
+  /** How long it lasts, e.g. `{ en: '7 days', it: '7 giorni' }`. */
+  duration: Label;
+  /** What it is for, one sentence. */
+  purpose: Label;
+}
+
+/** A declared cookie, with the plugin that sets it. */
+export interface DeclaredCookie extends CookieDeclaration {
+  plugin: string;
+}
+
+/**
  * How a plugin captures referral links on a site (`ctx.referrals.capture`,
  * plugin API 1.58).
  */
@@ -1655,6 +1674,16 @@ export interface PrivacyApi {
   ): void;
   /** The trackers declared by the plugins active on a site (needs `privacy`). */
   trackers(siteId: string): Promise<TrackerDeclaration[]>;
+  /**
+   * Declares the technical cookies the plugin sets on a site (plugin API 1.80;
+   * missing on older cores; no permission needed). Names must start with the
+   * plugin's slug and `_`, as the cookies plugins may set.
+   */
+  declareCookies?(
+    provider: (siteId: string) => CookieDeclaration[] | Promise<CookieDeclaration[]>,
+  ): void;
+  /** The technical cookies declared by the plugins active on a site (plugin API 1.80, needs `privacy`). */
+  cookies?(siteId: string): Promise<DeclaredCookie[]>;
   /** Any plugin keeping personal data should register one; no permission needed. */
   registerExporter(exporter: PersonalDataExporter): void;
   registerEraser(eraser: PersonalDataEraser): void;
