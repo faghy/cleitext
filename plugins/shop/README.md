@@ -144,6 +144,14 @@ instructions for the order page and the emails:
   `/.well-known/apple-developer-merchantid-domain-association`. Stripe's
   webhook needs the events `payment_intent.succeeded` and
   `payment_intent.payment_failed` as well.
+- Free orders (Cleishop 1.26): when the total is 0 (a 100% coupon, e.g. a
+  first year free, with free shipping when something ships), the checkout
+  asks for no way to pay and shows no wallet buttons. The order is placed
+  without any provider, recorded as "No payment needed" and paid at once:
+  completed when it has only virtual products, otherwise processing. The
+  customer's details are kept as for any order (Cleishop → Customers), the
+  usual emails go out, and add-ons hear it as a paid order (`shop.order.status`
+  from `pending`), so Store makes its licenses.
 
 **How the shop is going** (Cleishop 1.11):
 

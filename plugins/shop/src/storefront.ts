@@ -36,7 +36,15 @@ import {
 } from './cart-link';
 import type { CouponProblem } from './coupons';
 import { conversions } from './conversions';
-import { CouponError, orderByNumber, placeOrder, StockError } from './orders';
+import {
+  CouponError,
+  FREE_PAYMENT,
+  freeOrderStatus,
+  nothingToPay,
+  orderByNumber,
+  placeOrder,
+  StockError,
+} from './orders';
 import {
   cartPage,
   checkoutPage,
@@ -388,13 +396,15 @@ export function registerStorefront(
     const money = moneyFormatter(request.locale, values.currency);
     const urls = await urlsFor(request, cart.lines);
     const countries = await countriesOf(request.siteId, values.baseCountry);
-    const express = expressAt(values.payments, values.ready, 'cart')
-      ? expressElement(
-          { url: `${prefixOf(request)}/checkout/express`, place: 'cart' },
-          ctx.assets.url(STRIPE_SCRIPT),
-          t,
-        )
-      : '';
+    // Nothing to pay (a 100% coupon, 1.26): no wallet buttons, the checkout places it.
+    const express =
+      expressAt(values.payments, values.ready, 'cart') && !nothingToPay(cart.quote.totals)
+        ? expressElement(
+            { url: `${prefixOf(request)}/checkout/express`, place: 'cart' },
+            ctx.assets.url(STRIPE_SCRIPT),
+            t,
+          )
+        : '';
     return {
       t,
       cart,
@@ -884,6 +894,10 @@ export function registerStorefront(
     });
     const prefix = prefixOf(request);
     if (cart.lines.length === 0) return { empty: true as const, prefix };
+    // Nothing to pay (1.26): no ways to pay; a surcharge of one chosen before is left out.
+    const free = nothingToPay(cart.quote.totals);
+    if (free && cart.quote.totals.fees.length > 0)
+      return checkoutView(request, { ...values, payment: '' }, errors, notice);
     // The tax service did not answer: said before the customer fills in everything.
     if (cart.quote.taxError && !notice) notice = cart.quote.taxError;
     // The site's bot protection, when a plugin gives one (e.g. Captcha).
@@ -905,21 +919,23 @@ export function registerStorefront(
     // Stripe on the page (cards, and the express buttons), when the shop chose it.
     const script = ctx.assets.url(STRIPE_SCRIPT);
     const stripe = {
-      element: stripeOnPage(store.payments, store.ready)
-        ? stripeElement(
-            {
-              key: store.payments.stripe.publishableKey,
-              locale: stripeLocale(request.locale),
-              currency: store.currency.toLowerCase(),
-              amount: minorOfCents(cart.quote.totals.total, store.currency),
-            },
-            script,
-            t,
-          )
-        : '',
-      express: expressAt(store.payments, store.ready, 'checkout')
-        ? expressElement({ url: `${prefix}/checkout/express`, place: 'checkout' }, script, t)
-        : '',
+      element:
+        !free && stripeOnPage(store.payments, store.ready)
+          ? stripeElement(
+              {
+                key: store.payments.stripe.publishableKey,
+                locale: stripeLocale(request.locale),
+                currency: store.currency.toLowerCase(),
+                amount: minorOfCents(cart.quote.totals.total, store.currency),
+              },
+              script,
+              t,
+            )
+          : '',
+      express:
+        !free && expressAt(store.payments, store.ready, 'checkout')
+          ? expressElement({ url: `${prefix}/checkout/express`, place: 'checkout' }, script, t)
+          : '',
     };
     return {
       empty: false as const,
@@ -952,11 +968,14 @@ export function registerStorefront(
         urls: await urlsFor(request, cart.lines),
         locale: request.locale,
         includeTax: store.pricesIncludeTax,
-        payments: payments(store, t, money, {
-          needsShipping: cart.quote.needsShipping,
-          rateId: cart.quote.rate?.id ?? null,
-          ready: store.ready,
-        }),
+        payments: free
+          ? []
+          : payments(store, t, money, {
+              needsShipping: cart.quote.needsShipping,
+              rateId: cart.quote.rate?.id ?? null,
+              ready: store.ready,
+            }),
+        ...(free ? { free: true } : {}),
         termsUrl: store.termsUrl,
         ...(store.checkoutNote ? { checkoutNote: store.checkoutNote } : {}),
         showSku: store.showSku === true,
@@ -1057,7 +1076,7 @@ export function registerStorefront(
     store: StoreSettings,
     t: Translate,
     values: CheckoutValues,
-    method: { id: PaymentId; title: string },
+    method: { id: PaymentId | typeof FREE_PAYMENT; title: string },
     source: { cart: string | undefined } | { items: CartItem[] },
   ) => {
     const billing = normalizeAddress(values.billing);
@@ -1093,12 +1112,15 @@ export function registerStorefront(
         };
       const rejected = quoted.rejected[0];
       if (rejected) return { problem: couponMessage(t, rejected.code, rejected.problem) };
+      // Nothing to pay (a 100% coupon, 1.26): no way to pay, no gateway, paid now.
+      const free = quoted.totals.total <= 0;
+      if (!free && method.id === FREE_PAYMENT) return { problem: t('Choose a way to pay.') };
       const allowed = availablePayments(store.payments, {
         needsShipping: quoted.needsShipping,
         rateId: quoted.rate?.id ?? null,
         ready: store.ready,
       });
-      if (!allowed.includes(method.id))
+      if (!free && !allowed.includes(method.id as PaymentId))
         return {
           problem: t('This way to pay is not available for this order: choose another.'),
         };
@@ -1123,15 +1145,19 @@ export function registerStorefront(
         invoice: values.wantsInvoice ? values.invoice : null,
         customerNote: values.note,
         customerId: request.user?.id ?? null,
-        payment: { method: method.id, title: method.title },
+        payment: free
+          ? { method: FREE_PAYMENT, title: t('No payment needed') }
+          : { method: method.id, title: method.title },
         // A bank transfer waits for the money, online payments for the provider;
-        // cash on delivery ships now.
-        status:
-          method.id === 'cod'
+        // cash on delivery ships now; a free order is paid already.
+        status: free
+          ? freeOrderStatus(priced.lines)
+          : method.id === 'cod'
             ? 'processing'
             : method.id === 'stripe' || method.id === 'paypal'
               ? 'pending'
               : 'on-hold',
+        ...(free ? { paidAt: new Date() } : {}),
         ip: request.ip,
         userAgent: request.headers['user-agent'] ?? '',
         ...(request.referrals ? { referrals: request.referrals } : {}),
@@ -1171,6 +1197,19 @@ export function registerStorefront(
       { orderId: placed.order.id, number: placed.order.number },
       { siteId: request.siteId },
     );
+    // A free order is paid when placed (1.26): add-ons hear it as an order paid online
+    // (Store makes its licenses, Invoices its invoice).
+    if (placed.order.paymentMethod === FREE_PAYMENT)
+      await ctx.hooks.emit(
+        'shop.order.status',
+        {
+          orderId: placed.order.id,
+          number: placed.order.number,
+          from: 'pending',
+          to: placed.order.status,
+        },
+        { siteId: request.siteId },
+      );
     // Cash on delivery is paid at once: a conversion (plugin API 1.58).
     await conversions(ctx).changed(request.siteId, placed.order.id, null, placed.order.status);
     // The customer ticked "Subscribe me to the newsletter" (opt-in, never by default).
@@ -1223,17 +1262,29 @@ export function registerStorefront(
         errors[`shipping.${key}`] = message!;
     for (const [key, message] of Object.entries(checkInvoice(values.invoice)))
       errors[`invoice.${key}`] = message!;
+    // The cart as it is now, shipping included: whether there is anything to pay (1.26).
+    const cart = await currentCart(request, store, t, {
+      to: destinationOf(values, store),
+      shipping: true,
+      rateId: values.rate,
+      payment: FREE_PAYMENT,
+    });
+    const free = cart.lines.length > 0 && nothingToPay(cart.quote.totals);
     // Switched on now; whether it suits this cart is checked with its shipping, below.
     const enabled = store.payments.order.filter((id) => store.payments[id].enabled);
     const chosen =
       enabled.find((id) => id === values.payment) ??
       (enabled.length === 1 ? enabled[0] : undefined);
-    const method = chosen ? { id: chosen, title: paymentTitle(store, chosen, t) } : undefined;
+    const method = free
+      ? { id: FREE_PAYMENT, title: t('No payment needed') }
+      : chosen
+        ? { id: chosen, title: paymentTitle(store, chosen, t) }
+        : undefined;
     if (!method) errors.payment = 'Choose a way to pay.';
     if (store.termsUrl && !values.terms) errors.terms = 'Accept the terms to place the order.';
     // Digital products only, in the EU: the customer asks for them now, losing the withdrawal (1.25).
     if (!values.digitalConsent && EU_COUNTRIES.has(store.baseCountry)) {
-      const lines = (await currentCart(request, store, t)).lines;
+      const { lines } = cart;
       if (lines.length > 0 && lines.every((line) => line.virtual))
         errors.digitalConsent = 'Confirm that you want the digital products now.';
     }

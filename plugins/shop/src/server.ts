@@ -457,10 +457,15 @@ export default definePlugin({
         if (!detail || detail.order.status === 'pending') return;
         pushNewOrder(ctx, siteId, detail);
         await mail.send(siteId, origin, 'new_order', detail);
+        // A free order of digital products is complete when placed (1.26).
         await mail.send(
           siteId,
           origin,
-          detail.order.status === 'processing' ? 'customer_processing' : 'customer_on_hold',
+          detail.order.status === 'completed'
+            ? 'customer_completed'
+            : detail.order.status === 'processing'
+              ? 'customer_processing'
+              : 'customer_on_hold',
           detail,
         );
       },

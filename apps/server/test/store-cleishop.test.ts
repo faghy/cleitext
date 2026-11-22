@@ -196,6 +196,39 @@ describe('licenses sold with Cleishop', () => {
   });
 });
 
+describe('licenses given free with a 100% coupon (Cleishop 1.26)', () => {
+  it('make the license of a free order at once, without a way to pay', async () => {
+    const coupon = await admin.post(`${SHOP}/coupons`, {
+      code: 'FIRSTYEAR',
+      kind: 'percent',
+      amount: '100',
+    });
+    expect(coupon.statusCode, coupon.body).toBe(201);
+    const dario = new TestClient(app, host, '10.97.0.20');
+    await dario.request('GET', `/cart/add?product=${theme}`);
+    await dario.postForm('/cart/coupon', { code: 'firstyear' });
+    const outbox = app.get(MailService).outbox;
+    const before = outbox.length;
+    const placed = await dario.postForm('/checkout', {
+      ...billing,
+      email: 'dario@example.test',
+      'billing.firstName': 'Dario',
+      payment: '',
+    });
+    expect(placed.statusCode, placed.body).toBe(303);
+    const list = (await admin.get(`${SHOP}/orders`)).json();
+    const order = (await admin.get(`${SHOP}/orders/${list.items[0].id}`)).json().order;
+    expect(order).toMatchObject({ status: 'completed', total: '0.00', paymentMethod: 'free' });
+    const [license] = await licensesOf('dario@example.test');
+    expect(license).toMatchObject({ status: 'active', seats: 1, source: 'cleishop' });
+    expect(
+      outbox
+        .slice(before)
+        .some((m) => m.to === 'dario@example.test' && /[A-Z0-9]{5}-/.test(m.text)),
+    ).toBe(true);
+  });
+});
+
 describe('licenses made by hand, linked to their Cleishop order (Store 1.6)', () => {
   const outbox = () => app.get(MailService).outbox;
   const keyMails = (from: number) =>

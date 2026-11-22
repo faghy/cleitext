@@ -52,11 +52,31 @@ export interface NewOrder {
   coupons: { id: string; code: string; discount: number }[];
   /** The status once placed: on-hold for bank transfers (waiting for the money). */
   status: OrderStatus;
+  /** Paid already when placed: free orders (1.26). */
+  paidAt?: Date;
   ip: string;
   userAgent: string;
   /** Referral codes the customer came with (`request.referrals`, plugin API 1.58). */
   referrals?: Record<string, string>;
 }
+
+/** The way to pay recorded on orders whose total is 0 (1.26): nothing to pay, no gateway. */
+export const FREE_PAYMENT = 'free' as const;
+
+/**
+ * The status of a free order (1.26): paid when placed, so completed when
+ * there is nothing to deliver (virtual products only), else processing.
+ */
+export const freeOrderStatus = (lines: readonly { virtual: boolean }[]): OrderStatus =>
+  lines.length > 0 && lines.every((line) => line.virtual) ? 'completed' : 'processing';
+
+/**
+ * Whether a cart costs nothing before the way to pay is chosen (1.26): its
+ * total less the fees of a way to pay (cash on delivery's surcharge), e.g.
+ * with a 100% coupon and free shipping.
+ */
+export const nothingToPay = (totals: Pick<Totals, 'total' | 'fees'>): boolean =>
+  totals.total - totals.fees.reduce((sum, fee) => sum + fee.net + fee.tax, 0) <= 0;
 
 /** The next number of a counter of the site (orders: 1, 2, 3…), safe under concurrent checkouts. */
 async function next(tx: PluginTransaction, siteId: string, name: string): Promise<number> {
@@ -186,6 +206,12 @@ export async function placeOrder(
       userAgent: order.userAgent.slice(0, 500),
       referrals: order.referrals ?? {},
       stockReduced: reduced.size > 0,
+      ...(order.paidAt
+        ? {
+            paidAt: order.paidAt,
+            ...(order.status === 'completed' ? { completedAt: order.paidAt } : {}),
+          }
+        : {}),
     })
     .returning();
   const placed = row!;

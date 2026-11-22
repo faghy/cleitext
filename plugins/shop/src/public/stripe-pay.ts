@@ -398,6 +398,15 @@ async function setupExpress(box: HTMLElement): Promise<void> {
         shipping: event.shippingAddress ?? null,
       }).catch(() => null);
       const data = placed?.data ?? {};
+      // A free order (Cleishop 1.26): placed and paid, nothing to confirm.
+      if (
+        placed?.ok &&
+        typeof data.clientSecret !== 'string' &&
+        typeof data.redirect === 'string'
+      ) {
+        location.href = data.redirect;
+        return;
+      }
       if (!placed?.ok || typeof data.clientSecret !== 'string') {
         event.paymentFailed({ reason: 'fail' });
         show(typeof data.error === 'string' ? data.error : config.texts.error);

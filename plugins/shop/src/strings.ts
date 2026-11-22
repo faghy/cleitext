@@ -208,6 +208,8 @@ const IT: Record<string, string> = {
   'Confirm that you want the digital products now.':
     'Conferma che vuoi ricevere subito i prodotti digitali.',
   'Choose a way to pay.': 'Scegli come pagare.',
+  'No payment needed': 'Nessun pagamento',
+  'No payment needed for this order.': 'Questo ordine non richiede alcun pagamento.',
   'Some products changed: check your cart.':
     'Alcuni prodotti sono cambiati: controlla il carrello.',
   'Sorry, “{name}” is not available in that quantity any more.':

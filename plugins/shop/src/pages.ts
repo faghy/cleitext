@@ -569,6 +569,8 @@ export function checkoutPage(options: {
   locale: string;
   includeTax: boolean;
   payments: PaymentOption[];
+  /** Nothing to pay (a 100% coupon, 1.26): no ways to choose from. */
+  free?: boolean;
   termsUrl: string;
   /** The shop's note under the ways to pay (1.20). */
   checkoutNote?: string;
@@ -665,26 +667,30 @@ export function checkoutPage(options: {
           </fieldset>`
         : ''
     }
-    <fieldset class="shop-fieldset">
-      <legend><strong>${t('Payment')}</strong></legend>
-      ${options.payments.map(
-        (p) =>
-          html`<div class="shop-pay">
-            <label class="shop-check" style="margin:0"
-              ><input
-                type="radio"
-                name="payment"
-                value="${p.id}"
-                ${values.payment === p.id || options.payments.length === 1 ? raw(' checked') : ''}
-                required
-              />
-              ${p.title}</label
-            >${p.description ? html`<p>${p.description}</p>` : ''}
-            ${p.id === 'stripe' && options.stripe?.element ? raw(options.stripe.element) : ''}
-          </div>`,
-      )}
-      ${errors.payment ? html`<span class="shop-error">${t(errors.payment)}</span>` : ''}
-    </fieldset>
+    ${
+      options.free
+        ? html`<p class="shop-meta shop-free">${t('No payment needed for this order.')}</p>`
+        : html`<fieldset class="shop-fieldset">
+            <legend><strong>${t('Payment')}</strong></legend>
+            ${options.payments.map(
+              (p) =>
+                html`<div class="shop-pay">
+                  <label class="shop-check" style="margin:0"
+                    ><input
+                      type="radio"
+                      name="payment"
+                      value="${p.id}"
+                      ${values.payment === p.id || options.payments.length === 1 ? raw(' checked') : ''}
+                      required
+                    />
+                    ${p.title}</label
+                  >${p.description ? html`<p>${p.description}</p>` : ''}
+                  ${p.id === 'stripe' && options.stripe?.element ? raw(options.stripe.element) : ''}
+                </div>`,
+            )}
+            ${errors.payment ? html`<span class="shop-error">${t(errors.payment)}</span>` : ''}
+          </fieldset>`
+    }
     ${
       options.checkoutNote
         ? html`<p class="shop-meta shop-checkout-note">

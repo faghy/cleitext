@@ -3,7 +3,7 @@ import { checkAddress, italianProvince, type Address } from './address';
 import { CART_COOKIE, loadCart, loadCoupons, priceCart } from './cart';
 import { sharedLimiter } from './cart-link';
 import { prefixOf } from './catalog-routes';
-import { CouponError, StockError } from './orders';
+import { CouponError, FREE_PAYMENT, StockError } from './orders';
 import type { CheckoutValues } from './pages';
 import { expressAt, type ExpressPlace } from './payments';
 import { quote } from './quote';
@@ -162,7 +162,8 @@ export function registerExpress(ctx: PluginContext, deps: ExpressDeps): void {
       const none = { headers: NO_STORE, body: { key: null } };
       if (!expressAt(store.payments, store.ready, place)) return none;
       const quoted = await quoteFor(request, store, t, request.query);
-      if (!quoted) return none;
+      // Nothing to pay (a 100% coupon, 1.26): no wallet, the checkout places the order.
+      if (!quoted || quoted.amount <= 0) return none;
       const prefix = prefixOf(request);
       return {
         headers: NO_STORE,
@@ -280,6 +281,14 @@ export function registerExpress(ctx: PluginContext, deps: ExpressDeps): void {
       if ('rate' in placed)
         return refuse(t('We do not ship to this address: check it, or write to us.'), 409);
       await deps.afterPlaced(request, values, placed);
+      // Free after all (1.26): paid already, nothing for the wallet to confirm.
+      if (placed.order.paymentMethod === FREE_PAYMENT)
+        return {
+          headers: NO_STORE,
+          body: {
+            redirect: `${prefix}/order-received/${placed.order.number}?key=${placed.order.key}`,
+          },
+        };
       try {
         const pay = await deps.intent(request.siteId, request.origin, prefix, placed.order);
         return { headers: NO_STORE, body: pay };
