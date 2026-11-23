@@ -39,6 +39,8 @@ export const users = pgTable(
     avatarKey: text('avatar_key'),
     /** Public profile: a few words, a website, and the address of the author page. */
     bio: text('bio').notNull().default(''),
+    /** The bio in other languages, by locale code; pages fall back on `bio` (core 0.118). */
+    bios: jsonb('bios').$type<Record<string, string>>().notNull().default({}),
     website: text('website'),
     slug: citext('slug').unique(),
     /** When the person confirmed the address; null while a sign-up waits for it. */

@@ -48,7 +48,7 @@ import {
   type BlockRenderer,
   type RenderMedia,
 } from '@cleitext/renderer';
-import { ADMIN_PATH, type CoreSettings, fieldDefaults } from '@cleitext/shared';
+import { ADMIN_PATH, bioFor, type CoreSettings, fieldDefaults } from '@cleitext/shared';
 import { FieldValuesService } from '../fields/field-values.service.js';
 import { BindingsService } from '../fields/bindings.service.js';
 import { OptionsPagesService } from '../fields/options-pages.service.js';
@@ -1765,6 +1765,7 @@ export class PublicService {
         displayName: users.displayName,
         slug: users.slug,
         bio: users.bio,
+        bios: users.bios,
         website: users.website,
         email: users.email,
         avatarKey: users.avatarKey,
@@ -1776,6 +1777,8 @@ export class PublicService {
     const where = and(eq(entries.authorId, person.id), eq(entries.typeSlug, 'article'));
     if ((await this.count(scope, and(where, await this.listedIn(scope)))) === 0) return null;
     const base = scope.data.urls.author(scope.locale, person.slug);
+    // The bio in the page's language when there is one (core 0.118).
+    const bio = bioFor(person.bio, person.bios, scope.locale);
     return this.renderArchive(scope, {
       where,
       title: person.displayName,
@@ -1792,7 +1795,7 @@ export class PublicService {
         displayName: person.displayName,
         slug: person.slug,
         url: base,
-        ...(person.bio ? { bio: person.bio } : {}),
+        ...(bio ? { bio } : {}),
         website: person.website,
         avatarUrl: avatarUrl(person.avatarKey) ?? this.avatar(scope, person.email),
       },
@@ -1817,6 +1820,7 @@ export class PublicService {
     const [person] = await scope.tx
       .select({
         bio: users.bio,
+        bios: users.bios,
         website: users.website,
         email: users.email,
         avatarKey: users.avatarKey,
@@ -1824,9 +1828,11 @@ export class PublicService {
       .from(users)
       .where(eq(users.id, entry.row.authorId));
     if (!person) return author;
+    // The bio in the page's language when there is one (core 0.118).
+    const bio = bioFor(person.bio, person.bios, scope.locale);
     return {
       ...author,
-      ...(person.bio ? { bio: person.bio } : {}),
+      ...(bio ? { bio } : {}),
       website: person.website,
       avatarUrl: avatarUrl(person.avatarKey) ?? this.avatar(scope, person.email),
     };

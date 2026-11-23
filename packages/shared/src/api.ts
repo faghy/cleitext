@@ -386,6 +386,11 @@ export const updateProfileRequestSchema = z.object({
   notifications: z.boolean().optional(),
   /** Shown in author boxes and on the author page (RF-THM-11). */
   bio: z.string().trim().max(2000).optional(),
+  /**
+   * The bio in other languages of the site, by locale code: pages in that
+   * language show it, else `bio`. An empty text removes one (core 0.118).
+   */
+  bios: z.record(z.string().trim().min(2).max(20), z.string().trim().max(2000)).optional(),
   website: z
     .union([
       z.literal(''),
@@ -408,10 +413,30 @@ export const updateProfileRequestSchema = z.object({
     .optional(),
 });
 
+/** Bios by locale without the empty ones (an empty text removes a language). */
+export function cleanBios(bios: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(bios).filter(([, text]) => text.trim() !== ''));
+}
+
+/**
+ * The bio for a page in `locale`: the one in that language (`it` also matches
+ * `it-IT`), else the main bio.
+ */
+export function bioFor(
+  bio: string,
+  bios: Record<string, string> | null | undefined,
+  locale: string,
+): string {
+  const own = bios?.[locale] ?? bios?.[locale.split('-')[0]!];
+  return own?.trim() ? own : bio;
+}
+
 /** Bio, website and author page address of the signed-in user. */
 export interface ProfileAboutView {
   username: string;
   bio: string;
+  /** The bio in other languages, by locale code (core 0.118). */
+  bios: Record<string, string>;
   website: string;
   slug: string;
   /** Notification emails (updates, comments, plugins' notices) on. */
@@ -423,6 +448,8 @@ export type UpdateProfileRequest = z.input<typeof updateProfileRequestSchema>;
 export interface MemberAccountView extends MemberView {
   locale: string;
   bio: string;
+  /** The bio in other languages, by locale code (core 0.118). */
+  bios: Record<string, string>;
   website: string;
   slug: string;
   /** Signs in with a password (else passkeys only). */

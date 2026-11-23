@@ -466,6 +466,18 @@ describe('usernames, as in WordPress', () => {
     ).toBe(200);
     expect((await ugo.get('/api/v1/profile/about')).json().username).toBe('Ugo.Rossi');
     expect((await ugo.get('/api/v1/auth/me')).json().user.username).toBe('Ugo.Rossi');
+    // The bio in other languages (core 0.118): an empty text removes one.
+    expect(
+      (
+        await ugo.request('PATCH', '/api/v1/profile', {
+          bio: 'Writes the news.',
+          bios: { it: 'Scrive le notizie.', fr: '  ' },
+        })
+      ).statusCode,
+    ).toBe(200);
+    const about = (await ugo.get('/api/v1/profile/about')).json();
+    expect(about.bio).toBe('Writes the news.');
+    expect(about.bios).toEqual({ it: 'Scrive le notizie.' });
 
     const guest = new TestClient(app, acme.host, '10.0.7.2');
     // Case-insensitive, as WordPress usernames are.

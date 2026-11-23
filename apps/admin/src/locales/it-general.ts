@@ -550,6 +550,8 @@ export const itGeneral: Messages = {
   'Automatic updates, comments and the notices of plugins. Emails about your account (password reset, sign-in codes, confirmations) always arrive.':
     'Aggiornamenti automatici, commenti e avvisi dei plugin. Le email sul tuo account (reimpostazione della password, codici di accesso, conferme) arrivano sempre.',
   'Biographical info': 'Biografia',
+  'Empty: pages in this language show the main one.':
+    'Vuota: le pagine in questa lingua mostrano quella principale.',
   'Shown in author boxes and on your author page.':
     'Appare nel box autore e nella tua pagina autore.',
   'Author page address': 'Indirizzo della pagina autore',

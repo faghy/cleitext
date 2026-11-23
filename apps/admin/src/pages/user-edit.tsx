@@ -1,4 +1,5 @@
 import type { MemberAccountView } from '@cleitext/shared';
+import { BioFields } from '../components/bio-fields';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
@@ -101,6 +102,7 @@ function DetailsForm({ account, disabled }: { account: MemberAccountView; disabl
     email: account.email,
     locale: account.locale,
     bio: account.bio,
+    bios: account.bios ?? {},
     website: account.website,
     slug: account.slug,
   });
@@ -108,7 +110,7 @@ function DetailsForm({ account, disabled }: { account: MemberAccountView; disabl
   const save = useSave(account);
   const fieldError = (path: string) =>
     save.error instanceof ApiError ? save.error.fieldError(path) : undefined;
-  const set = (key: keyof typeof values) => (value: string) =>
+  const set = (key: Exclude<keyof typeof values, 'bios'>) => (value: string) =>
     setValues((v) => ({ ...v, [key]: value }));
   const emailChanged = values.email.trim().toLowerCase() !== account.email.toLowerCase();
 
@@ -165,16 +167,11 @@ function DetailsForm({ account, disabled }: { account: MemberAccountView; disabl
               <option value="it">Italiano</option>
             </select>
           </label>
-          <label className="block space-y-1 text-sm">
-            <span className="block font-medium text-slate-800">{t('Biographical info')}</span>
-            <textarea
-              className="w-full rounded border border-slate-300 p-2"
-              rows={4}
-              maxLength={2000}
-              value={values.bio}
-              onChange={(e) => set('bio')(e.target.value)}
-            />
-          </label>
+          <BioFields
+            bio={values.bio}
+            bios={values.bios}
+            onChange={(bio, bios) => setValues((v) => ({ ...v, bio, bios }))}
+          />
           <TextField
             label={t('Website')}
             type="url"

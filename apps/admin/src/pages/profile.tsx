@@ -10,6 +10,7 @@ import { applyTheme, themePreference, type ThemePreference } from '../theme';
 import { ME_QUERY_KEY, useMe } from '../auth';
 import { Alert, Button, Card, TextField, useT } from '../components/ui';
 import { UserFieldsCard } from '../components/field-groups';
+import { BioFields } from '../components/bio-fields';
 
 export function ProfilePage() {
   const { t } = useT();
@@ -58,6 +59,7 @@ function AboutForm({ initial }: { initial: ProfileAboutView }) {
       api('PATCH', '/profile', {
         username: values.username,
         bio: values.bio,
+        bios: values.bios ?? {},
         website: values.website,
         slug: values.slug,
       }),
@@ -72,19 +74,12 @@ function AboutForm({ initial }: { initial: ProfileAboutView }) {
           save.mutate();
         }}
       >
-        <label className="block space-y-1 text-sm">
-          <span className="block font-medium text-slate-800">{t('Biographical info')}</span>
-          <textarea
-            className="w-full rounded border border-slate-300 p-2"
-            rows={4}
-            maxLength={2000}
-            value={values.bio}
-            onChange={(e) => setValues({ ...values, bio: e.target.value })}
-          />
-          <span className="block text-xs text-slate-500">
-            {t('Shown in author boxes and on your author page.')}
-          </span>
-        </label>
+        <BioFields
+          bio={values.bio}
+          bios={values.bios ?? {}}
+          onChange={(bio, bios) => setValues({ ...values, bio, bios })}
+          help={t('Shown in author boxes and on your author page.')}
+        />
         <TextField
           label={t('Website')}
           type="url"

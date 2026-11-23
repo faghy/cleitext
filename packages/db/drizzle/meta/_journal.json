@@ -288,6 +288,13 @@
       "when": 1793255084234,
       "tag": "0040_push_devices",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793255144234,
+      "tag": "0041_user_bios",
+      "breakpoints": true
     }
   ]
 }

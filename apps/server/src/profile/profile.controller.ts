@@ -4,6 +4,7 @@ import {
   updateProfileRequestSchema,
   type ProfileAboutView,
   type SessionView,
+  cleanBios,
 } from '@cleitext/shared';
 import {
   BadRequestException,
@@ -139,6 +140,7 @@ export class ProfileController {
           .select({
             username: users.username,
             bio: users.bio,
+            bios: users.bios,
             website: users.website,
             slug: users.slug,
             notifications: users.notifications,
@@ -149,6 +151,7 @@ export class ProfileController {
     return {
       username: user?.username ?? '',
       bio: user?.bio ?? '',
+      bios: user?.bios ?? {},
       website: user?.website ?? '',
       slug: user?.slug ?? '',
       notifications: user?.notifications ?? true,
@@ -173,6 +176,7 @@ export class ProfileController {
             ...(input.username !== undefined ? { username: input.username || null } : {}),
             ...(input.locale ? { locale: input.locale } : {}),
             ...(input.bio !== undefined ? { bio: input.bio } : {}),
+            ...(input.bios !== undefined ? { bios: cleanBios(input.bios) } : {}),
             ...(input.website !== undefined ? { website: input.website || null } : {}),
             ...(input.slug ? { slug: input.slug } : {}),
             ...(input.notifications !== undefined ? { notifications: input.notifications } : {}),

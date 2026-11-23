@@ -16,6 +16,7 @@ import {
   type MemberAccountView,
   type MemberView,
   type UpdateMemberAccountRequest,
+  cleanBios,
 } from '@cleitext/shared';
 import {
   BadRequestException,
@@ -275,6 +276,7 @@ export class UsersService {
         ...member,
         locale: user!.locale,
         bio: user!.bio,
+        bios: user!.bios ?? {},
         website: user!.website ?? '',
         slug: user!.slug ?? '',
         hasPassword: Boolean(user!.passwordHash),
@@ -329,6 +331,7 @@ export class UsersService {
             ...(input.username !== undefined ? { username: input.username || null } : {}),
             ...(input.locale ? { locale: input.locale } : {}),
             ...(input.bio !== undefined ? { bio: input.bio } : {}),
+            ...(input.bios !== undefined ? { bios: cleanBios(input.bios) } : {}),
             ...(input.website !== undefined ? { website: input.website || null } : {}),
             ...(input.slug ? { slug: input.slug } : {}),
             // An account invited and given a password can sign in.
