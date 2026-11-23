@@ -194,6 +194,22 @@ describe('the head', () => {
       ).noindex,
     ).toBe(true);
     expect(taxonomyValue({ tax_tag_custom_robots: false }, 'tag', 'custom_robots')).toBe(false);
+    // A least number of entries (1.6): tags with fewer go noindex, follow.
+    const tag = (count: number, config: Record<string, unknown> = {}) =>
+      robotsFor(
+        input({
+          route: 'archive',
+          path: '/tag/hot',
+          archive: { taxonomy: 'tag', term: 'hot' },
+          term: { name: 'Hot', description: null, count },
+          entry: undefined,
+          config: { tax_tag_custom_robots: false, tax_tag_min_entries: 2, ...config },
+        }),
+      );
+    expect(tag(1).noindex).toBe(true);
+    expect(tag(1).nofollow).toBe(false);
+    expect(tag(2).noindex).toBe(false);
+    expect(tag(1, { tax_tag_min_entries: 0 }).noindex).toBe(false);
     const hidden = buildHead(
       input({ seo: { noindex: true, canonical: 'https://other.example/x' } }),
     );

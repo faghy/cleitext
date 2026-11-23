@@ -7,6 +7,7 @@
 import {
   flag,
   keywordsOf,
+  minEntries,
   taxonomyValue,
   text,
   typeValue,
@@ -65,7 +66,12 @@ export interface HeadInput {
    * Term archives: the term shown, when found; `seo` then holds its own
    * Vetta fields (search title, description, robots, canonical, social).
    */
-  term?: { name: string; description: string | null };
+  term?: {
+    name: string;
+    description: string | null;
+    /** Its published entries, when the taxonomy has a least number (1.6). */
+    count?: number;
+  };
   /** Archives and searches: the page shown and how many there are (core plugin API 1.57). */
   pagination?: { page: number; pages: number };
   seo: EntrySeo;
@@ -171,6 +177,11 @@ export function robotsFor(
         noindex: input.seo.noindex ?? r.noindex,
         nofollow: input.seo.nofollow ?? r.nofollow,
       };
+    }
+    // Too few contents for the taxonomy's least number: noindex, links still followed (1.6).
+    const least = minEntries(c, tax);
+    if (least > 0 && input.term?.count !== undefined && input.term.count < least) {
+      r = { ...r, noindex: true };
     }
   } else if (
     input.route === 'archive' &&

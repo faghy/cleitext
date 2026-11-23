@@ -386,6 +386,26 @@ describe('Vetta SEO', () => {
     expect((await visitor.get(`/category/${roasts.slug}`)).body).toContain(
       '<link rel="canonical" href="https://elsewhere.example/roasts"',
     );
+
+    // A least number of entries (1.6): with one post, below 2, noindex and out of the sitemap.
+    await admin.request('PATCH', `/api/v1/terms/${roasts.id}`, {
+      fields: { 'vetta-term': { canonical: '' } },
+    });
+    const few = await admin.request('PUT', '/api/v1/ext/vetta/config', {
+      config: { tax_category_min_entries: 2 },
+    });
+    expect(few.statusCode, few.body).toBe(200);
+    expect(meta((await visitor.get(`/category/${roasts.slug}`)).body, 'robots')).toMatch(
+      /^noindex, follow/,
+    );
+    expect((await visitor.get(categories)).body).not.toContain(`/category/${roasts.slug}`);
+    await admin.request('PUT', '/api/v1/ext/vetta/config', {
+      config: { tax_category_min_entries: 1 },
+    });
+    expect(meta((await visitor.get(`/category/${roasts.slug}`)).body, 'robots')).toMatch(
+      /^index, follow/,
+    );
+    expect((await visitor.get(categories)).body).toContain(`/category/${roasts.slug}`);
   });
 
   it('gives the links of the breadcrumbs the whole title', async () => {

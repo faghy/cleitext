@@ -128,6 +128,8 @@ export const TAXONOMY_DEFAULTS: Record<string, unknown> = {
   robots_noindex: false,
   robots_nofollow: false,
   sitemap: true,
+  /** Terms with fewer published entries: noindex and out of the sitemap; 0 off (1.6). */
+  min_entries: 0,
 };
 
 /** The key part of a slug (`event-series` → `event_series`). */
@@ -322,4 +324,10 @@ export function termSeo(fields: Record<string, unknown> | undefined): EntrySeo {
     ogDescription: str(own.ogDescription),
     ogImage: str(own.ogImage),
   };
+}
+
+/** A taxonomy's least number of entries for its terms to be indexed; 0: no limit (1.6). */
+export function minEntries(config: Config, taxonomy: string): number {
+  const n = Math.round(Number(taxonomyValue(config, taxonomy, 'min_entries')));
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }

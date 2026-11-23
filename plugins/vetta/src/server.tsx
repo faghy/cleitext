@@ -14,6 +14,7 @@ import {
   keywordsOf,
   lines,
   moduleOn,
+  minEntries,
   MODULES,
   sanitizeConfig,
   searchTitle,
@@ -77,13 +78,15 @@ async function originOf(ctx: PluginContext, siteId: string): Promise<string | nu
 async function findTerm(
   ctx: PluginContext,
   siteId: string,
-  where: { taxonomy: string; slug: string; locale: string },
+  where: { taxonomy: string; slug: string; locale: string; withCounts?: boolean },
 ) {
   try {
     const terms = await ctx.terms.find(siteId, {
       taxonomy: where.taxonomy,
       locale: where.locale,
       limit: 500,
+      // Published entries of each term, for the taxonomy's least number (1.6).
+      ...(where.withCounts ? { withCounts: true } : {}),
     });
     return terms.find((t) => t.slug === where.slug) ?? null;
   } catch {
@@ -364,6 +367,7 @@ export default definePlugin({
                 taxonomy: context.archive.taxonomy,
                 slug: context.archive.term,
                 locale: context.locale,
+                withCounts: minEntries(config, context.archive.taxonomy) > 0,
               })
             : null;
         const seo = term ? termSeo(term.fields) : entrySeo((entry ?? postsPage)?.fields);
@@ -423,7 +427,15 @@ export default definePlugin({
           path: context.path,
           isFrontPage: context.isFrontPage === true,
           ...(context.archive ? { archive: context.archive } : {}),
-          ...(term ? { term: { name: term.name, description: term.description } } : {}),
+          ...(term
+            ? {
+                term: {
+                  name: term.name,
+                  description: term.description,
+                  ...(term.count !== undefined ? { count: term.count } : {}),
+                },
+              }
+            : {}),
           // Plugin API 1.57: "Page 2 of 22" (older cores: "Page 2").
           ...(context.pagination ? { pagination: context.pagination } : {}),
           ...(postsPage
@@ -587,15 +599,29 @@ export default definePlugin({
       // Terms carry no fields here: theirs are read, 500 at a time.
       const termIds = [...new Set(urls.flatMap((u) => (u.term ? [u.term.id] : [])))];
       const termFields = new Map<string, Record<string, unknown>>();
+      const termCounts = new Map<string, number>();
+      // Taxonomies with a least number of entries need the counts (1.6).
+      const withCounts = urls.some((u) => u.term && minEntries(config, u.term.taxonomy) > 0);
       for (let i = 0; i < termIds.length; i += 500) {
         const ids = termIds.slice(i, i + 500);
-        for (const t of await ctx.terms.find(siteId, { ids, limit: 500 }))
+        for (const t of await ctx.terms.find(siteId, {
+          ids,
+          limit: 500,
+          ...(withCounts ? { withCounts: true } : {}),
+        })) {
           termFields.set(t.id, t.fields);
+          if (t.count !== undefined) termCounts.set(t.id, t.count);
+        }
       }
       return urls
         .filter((url) => {
           if (url.entry && exclude.has(url.entry.id)) return false;
           if (url.term && exclude.has(url.term.id)) return false;
+          if (url.term) {
+            const least = minEntries(config, url.term.taxonomy);
+            const count = termCounts.get(url.term.id);
+            if (least > 0 && count !== undefined && count < least) return false;
+          }
           const seo = url.term ? termSeo(termFields.get(url.term.id)) : entrySeo(url.entry?.fields);
           if (seo.noindex) return false;
           const canonical = seo.canonical?.trim();

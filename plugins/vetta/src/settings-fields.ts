@@ -376,6 +376,22 @@ export function taxonomyFields(slug: string, name: L | string): Field[] {
       label: l('In the sitemap', 'Nella sitemap'),
       default: !tag,
     },
+    {
+      name: `${k}min_entries`,
+      type: 'number',
+      min: 0,
+      max: 1000,
+      group,
+      label: l(
+        'Hide from search engines the ones with fewer contents than (0: never)',
+        'Nascondi ai motori quelli con meno contenuti di (0: mai)',
+      ),
+      help: l(
+        'Below this number of published contents a term gets noindex, follow and leaves the sitemap. E.g. 2: only tags with at least 2 posts are indexed.',
+        'Sotto questo numero di contenuti pubblicati un termine va in noindex, follow ed esce dalla sitemap. Es. 2: solo i tag con almeno 2 articoli sono indicizzati.',
+      ),
+      default: 0,
+    },
   ];
 }
 
