@@ -465,6 +465,32 @@ describe('Store', () => {
     expect(listed[0]).not.toHaveProperty('keyHash');
   });
 
+  it('extends a license by months, or for life', async () => {
+    const made = (
+      await shopAdmin.post(ext('/admin/licenses'), {
+        productSlug: 'vivid',
+        email: 'lifetime@example.com',
+        seats: 1,
+        months: 12,
+        send: false,
+      })
+    ).json();
+    const until = () =>
+      shopAdmin.get(ext('/admin/licenses?q=lifetime')).then((r) => r.json()[0].updatesUntil);
+    const before = new Date(await until()).getTime();
+    expect(
+      (await shopAdmin.post(ext(`/admin/licenses/${made.id}/extend`), { months: 12 })).statusCode,
+    ).toBe(200);
+    expect(new Date(await until()).getTime()).toBeGreaterThan(before);
+    expect(
+      (await shopAdmin.post(ext(`/admin/licenses/${made.id}/extend`), { months: 0 })).statusCode,
+    ).toBe(200);
+    expect(await until()).toBeNull();
+    expect(
+      (await shopAdmin.post(ext(`/admin/licenses/${made.id}/extend`), { months: 121 })).statusCode,
+    ).toBe(400);
+  });
+
   it('changes the number of sites of a license', async () => {
     const made = (
       await shopAdmin.post(ext('/admin/licenses'), {

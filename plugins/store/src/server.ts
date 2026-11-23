@@ -1412,8 +1412,9 @@ export default definePlugin({
     });
 
     admin('POST', '/admin/licenses/:id/extend', async (request) => {
+      // 0: updates with no end, e.g. a free internal license for life (1.6.6).
       const months = Math.round(Number((request.body as { months?: unknown })?.months));
-      if (!(months >= 1 && months <= 120)) return fail(400, 'Months: 1 to 120.');
+      if (!(months >= 0 && months <= 120)) return fail(400, 'Months: 0 (no end) to 120.');
       await ctx.db.transaction(request.siteId, async (tx) => {
         const [license] = await tx
           .select()
@@ -1423,7 +1424,7 @@ export default definePlugin({
         const from = license.updatesUntil > new Date() ? license.updatesUntil : new Date();
         await tx
           .update(licenses)
-          .set({ updatesUntil: addMonths(from, months) })
+          .set({ updatesUntil: months === 0 ? null : addMonths(from, months) })
           .where(eq(licenses.id, license.id));
       });
       return { body: { ok: true } };

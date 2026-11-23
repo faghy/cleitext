@@ -157,6 +157,8 @@ const T = {
     revoke: 'Revoke',
     restore: 'Restore',
     extend: '+12 months',
+    makeForever: 'For life',
+    confirmForever: 'Updates for this license with no end? (e.g. an internal license)',
     changeSeats: 'Number of sites',
     askSeats: 'How many sites for this license? (0: no limit)',
     showSites: 'Sites',
@@ -260,6 +262,9 @@ const T = {
     revoke: 'Revoca',
     restore: 'Ripristina',
     extend: '+12 mesi',
+    makeForever: 'A vita',
+    confirmForever:
+      'Aggiornamenti senza scadenza per questa licenza? (per esempio una licenza interna)',
     changeSeats: 'Numero di siti',
     askSeats: 'Per quanti siti vale questa licenza? (0: senza limite)',
     showSites: 'Siti',
@@ -795,7 +800,8 @@ function StorePage({ api, user }: AdminPageProps) {
     onSuccess: refresh,
   });
   const extend = useMutation({
-    mutationFn: (id: string) => api('POST', `/admin/licenses/${id}/extend`, { months: 12 }),
+    mutationFn: (v: { id: string; months: number }) =>
+      api('POST', `/admin/licenses/${v.id}/extend`, { months: v.months }),
     onSuccess: refresh,
   });
   const [linking, setLinking] = useState<string | null>(null);
@@ -1316,8 +1322,21 @@ function StorePage({ api, user }: AdminPageProps) {
                   {t.changeSeats}
                 </Button>
                 {l.updatesUntil && (
-                  <Button variant="secondary" onClick={() => extend.mutate(l.id)}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => extend.mutate({ id: l.id, months: 12 })}
+                  >
                     {t.extend}
+                  </Button>
+                )}
+                {l.updatesUntil && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      if (window.confirm(t.confirmForever)) extend.mutate({ id: l.id, months: 0 });
+                    }}
+                  >
+                    {t.makeForever}
                   </Button>
                 )}
                 {l.status === 'active' ? (
