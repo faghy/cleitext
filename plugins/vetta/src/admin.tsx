@@ -41,6 +41,8 @@ interface TypeView {
   slug: string;
   name?: Label;
   labels?: { plural?: Label; singular?: Label };
+  /** Taxonomies: the content types they are used by. */
+  contentTypes?: string[];
 }
 
 type Tab =
@@ -219,15 +221,50 @@ function SettingsPage(props: AdminPageProps) {
             }
             tr={tr}
           />
-          {fields.length > 0 && (
-            <FieldsForm
-              fields={fields}
-              values={config}
-              defaults={defaults}
-              locale={locale}
-              onChange={(values) => setDraft({ ...config, ...values })}
-            />
-          )}
+          {tab === 'taxonomies'
+            ? // One box per taxonomy, with the content it is used by (issue #48).
+              (taxonomies.data ?? []).map((t) => {
+                const own = taxonomyFields(t.slug, nameOf(t, locale)).map(
+                  (f) => ({ ...f, group: undefined }) as Field,
+                );
+                const usedBy = (t.contentTypes ?? [])
+                  .map((slug) => {
+                    const type = types.data?.find((x) => x.slug === slug);
+                    return type ? nameOf(type, locale) : slug;
+                  })
+                  .join(', ');
+                return (
+                  <div key={t.slug} className="space-y-2 rounded-lg border border-slate-300 p-4">
+                    <div>
+                      <h2 className="text-base font-semibold">{nameOf(t, locale)}</h2>
+                      <p className="text-xs text-slate-500">
+                        {usedBy
+                          ? tr(
+                              `Taxonomy “${t.slug}”, used by: ${usedBy}`,
+                              `Tassonomia «${t.slug}», usata da: ${usedBy}`,
+                            )
+                          : tr(`Taxonomy “${t.slug}”`, `Tassonomia «${t.slug}»`)}
+                      </p>
+                    </div>
+                    <FieldsForm
+                      fields={own}
+                      values={config}
+                      defaults={defaults}
+                      locale={locale}
+                      onChange={(values) => setDraft({ ...config, ...values })}
+                    />
+                  </div>
+                );
+              })
+            : fields.length > 0 && (
+                <FieldsForm
+                  fields={fields}
+                  values={config}
+                  defaults={defaults}
+                  locale={locale}
+                  onChange={(values) => setDraft({ ...config, ...values })}
+                />
+              )}
           {tab === 'notfound' && <NotFoundLog {...props} tr={tr} />}
           {tab === 'indexnow' && <IndexNowBox {...props} tr={tr} />}
         </section>
