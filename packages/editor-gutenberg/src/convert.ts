@@ -39,6 +39,12 @@ export interface ConvertOptions {
   defaultsOf?: (name: string) => Record<string, unknown>;
   /** CXD id previously assigned to a Gutenberg client id. */
   idOf?: (clientId: string) => string | undefined;
+  /**
+   * Markup of a Custom HTML block. Gutenberg keeps it in the block's inner
+   * content, not in its `content` attribute (block-library 11.2): the adapter
+   * reads it with getBlockContent.
+   */
+  htmlOf?: (node: GutenbergNode) => string;
 }
 
 /** Gutenberg blocks → CXD document. */
@@ -49,6 +55,16 @@ export function fromGutenberg(nodes: GutenbergNode[], options: ConvertOptions): 
 function toCxdBlock(node: GutenbergNode, options: ConvertOptions): CxdBlock {
   if (node.name === UNAVAILABLE_BLOCK) {
     return structuredClone(node.attributes.cxd as CxdBlock);
+  }
+
+  if (node.name === 'core/html' && options.htmlOf) {
+    const html = options.htmlOf(node).trim();
+    return {
+      id: (node.clientId && options.idOf?.(node.clientId)) || newBlockId(),
+      type: node.name,
+      v: options.registry.get(node.name)?.version ?? 1,
+      attrs: html ? { content: html } : {},
+    };
   }
 
   const definition = options.registry.get(node.name);

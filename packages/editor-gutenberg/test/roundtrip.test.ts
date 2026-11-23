@@ -356,3 +356,32 @@ describe('block bindings (plugin API 1.48)', () => {
     expect(roundTrip(doc)).toEqual(doc);
   });
 });
+
+// Issue #49: Gutenberg keeps Custom HTML in the block's inner content (block-library 11.2),
+// and clears the `content` attribute once the block loads.
+describe('Custom HTML', () => {
+  it('reads the markup from the inner content', async () => {
+    const { getBlockContent } = await import('@wordpress/blocks');
+    const doc: CxdDocument = {
+      schema: 1,
+      blocks: [{ id: 'x1', type: 'core/html', v: 1, attrs: { content: '<p>old</p>' } }],
+    };
+    const ids = new Map<string, string>();
+    const [block] = buildBlocks(toGutenberg(doc, { registry, isKnown: isRegistered }), ids);
+    // What the block's edit does after loading, or after «Update» in its modal.
+    const edited = {
+      ...block!,
+      attributes: { ...block!.attributes, content: undefined },
+      innerContent: ['<p class="x">new</p>'],
+    };
+    const back = fromGutenberg([edited], {
+      registry,
+      defaultsOf,
+      idOf: (clientId) => ids.get(clientId),
+      htmlOf: (node) => getBlockContent(node as never),
+    });
+    expect(back.blocks).toEqual([
+      { id: 'x1', type: 'core/html', v: 1, attrs: { content: '<p class="x">new</p>' } },
+    ]);
+  });
+});

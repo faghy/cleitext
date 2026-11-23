@@ -15,7 +15,7 @@ import {
   store as blockEditorStore,
   __experimentalListView as ListView,
 } from '@wordpress/block-editor';
-import type { Block } from '@wordpress/blocks';
+import { getBlockContent, type Block } from '@wordpress/blocks';
 import { Button, Modal, Popover, SlotFillProvider } from '@wordpress/components';
 import { useStateWithHistory } from '@wordpress/compose';
 import { select, useDispatch, useSelect } from '@wordpress/data';
@@ -170,6 +170,8 @@ function GutenbergEditor({
     fromGutenberg(blocks, {
       registry,
       defaultsOf,
+      // Custom HTML lives in the block's inner content (block-library 11.2).
+      htmlOf: (node) => getBlockContent(node as Block),
       idOf: (clientId) => {
         let id = ids.get(clientId);
         if (!id) {
