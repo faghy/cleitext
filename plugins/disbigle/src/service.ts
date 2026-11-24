@@ -10,6 +10,7 @@ import {
   instanceDomain,
   lookupAccount,
   publishArticle,
+  replyMentions,
   ServerError,
   statusContext,
   type Http,
@@ -69,7 +70,14 @@ export interface IndexItem {
 }
 
 export type AnnounceResult =
-  'announced' | 'already' | 'failed' | 'skipped' | 'not-connected' | 'busy' | 'waiting';
+  | 'announced'
+  | 'already'
+  | 'mentioned'
+  | 'failed'
+  | 'skipped'
+  | 'not-connected'
+  | 'busy'
+  | 'waiting';
 
 export class Disbigle {
   constructor(
@@ -208,14 +216,18 @@ export class Disbigle {
       const other = await this.record(siteId, id);
       if (!other) continue;
       if (other.state === 'done' || this.running(other, now)) {
-        if (other.state === 'done')
-          await this.ctx.storage.set(siteId, KEY.post(entryId), { ref: other.entryId });
-        return other.state === 'done' ? 'already' : 'busy';
+        if (other.state !== 'done') return 'busy';
+        await this.ctx.storage.set(siteId, KEY.post(entryId), { ref: other.entryId });
+        return this.tellNewMentions(siteId, other, connection, token);
       }
     }
     const previous = await this.rawRecord(siteId, entryId);
-    if (previous && 'ref' in previous) return 'already';
-    if (previous?.state === 'done') return 'already';
+    if ((previous && 'ref' in previous) || previous?.state === 'done') {
+      const done = await this.record(siteId, entryId);
+      return done?.state === 'done'
+        ? this.tellNewMentions(siteId, done, connection, token)
+        : 'already';
+    }
     if (previous && this.running(previous, now)) return 'busy';
     if (
       previous?.state === 'failed' &&
@@ -288,6 +300,7 @@ export class Disbigle {
         state: 'done',
         statusId: status.id,
         url: status.url,
+        told: payload.mentions,
         mentions: await this.resolveMentions(
           siteId,
           connection,
@@ -358,6 +371,79 @@ export class Disbigle {
 
   private running(record: Announcement, now: Date): boolean {
     return record.state === 'pending' && now.getTime() - Date.parse(record.at) < PENDING_TTL;
+  }
+
+  /**
+   * People mentioned in an article after its announcement (an update that
+   * names someone new): told once, in a quiet reply to the post.
+   */
+  private async tellNewMentions(
+    siteId: string,
+    record: Announcement,
+    connection: Connection,
+    token: string,
+  ): Promise<AnnounceResult> {
+    if (!record.statusId || record.instance !== connection.instance) return 'already';
+    const ids = record.ids?.length ? record.ids : [record.entryId];
+    const found = await this.ctx.content.find(siteId, {
+      ids,
+      type: 'article',
+      status: 'published',
+      withDocument: true,
+      limit: 50,
+    });
+    const first = found.find((e) => e.url && languageOf(e.locale) === 'en') ?? found[0];
+    if (!first) return 'already';
+    const built = buildPayload(this.versions(found, first, connection.siteUrl), []);
+    if (!built) return 'already';
+    const self = await this.ownAccts(siteId, connection);
+    // Before `told` was kept, the people the post linked.
+    const told = new Set(
+      (record.told ?? (record.mentions ?? []).map((m) => m.acct)).map((a) => a.toLowerCase()),
+    );
+    const fresh = built.mentions.filter((m) => !told.has(m) && !self.has(m));
+    if (fresh.length === 0) return 'already';
+    const at = this.now().toISOString();
+    const title = first.title;
+    try {
+      const urls = await replyMentions(this.http, connection.instance, {
+        token,
+        key: `${record.entryId}:mentions:${[...fresh].sort().join(',')}`.slice(0, 200),
+        inReplyToId: record.statusId,
+        payload: { ...built, mentions: fresh },
+        timeoutMs: 4000,
+      });
+      const mentions = await this.resolveMentions(siteId, connection, token, fresh, []);
+      const known = new Set((record.mentions ?? []).map((m) => m.acct));
+      await this.ctx.storage.set(siteId, KEY.post(record.entryId), {
+        ...record,
+        told: [...told, ...fresh],
+        mentions: [...(record.mentions ?? []), ...mentions.filter((m) => !known.has(m.acct))],
+      });
+      await this.addLog(siteId, {
+        at,
+        entryId: record.entryId,
+        title,
+        ok: true,
+        message: `Mentioned ${fresh.map((m) => `@${m}`).join(' ')} in a reply.`,
+        ...(urls[0] ? { url: urls[0] } : {}),
+      });
+      await this.ctx.cache.invalidate(
+        siteId,
+        ids.map((id) => `entry:${id}`),
+      );
+      return 'mentioned';
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await this.addLog(siteId, {
+        at,
+        entryId: record.entryId,
+        title,
+        ok: false,
+        message: `The reply for ${fresh.map((m) => `@${m}`).join(' ')} failed: ${message}`,
+      });
+      return 'failed';
+    }
   }
 
   /** The published versions of the article's translation group. */

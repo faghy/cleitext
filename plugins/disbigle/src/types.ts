@@ -63,6 +63,8 @@ export interface Announcement {
   statusId?: string;
   url?: string;
   mentions?: Mention[];
+  /** The people asked to be mentioned so far (`user@server`, lowercase): the post and the later replies. */
+  told?: string[];
   /** The entries of the translation group, the announced one first. */
   ids?: string[];
 }

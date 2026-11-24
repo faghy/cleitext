@@ -251,6 +251,72 @@ export async function publishArticle(
 }
 
 /**
+ * People mentioned after the announcement, told in quiet (unlisted) replies
+ * to it. Disbigle's `POST /api/v1/disbigle/articles/mentions` replies to each
+ * person in their own language, as the first announcement does; a server
+ * without it (404, 405) gets one plain reply in the main language.
+ */
+export async function replyMentions(
+  http: Http,
+  instance: string,
+  input: {
+    token: string;
+    key: string;
+    inReplyToId: string;
+    payload: ArticlePayload;
+    timeoutMs?: number;
+  },
+): Promise<string[]> {
+  const headers = {
+    ...JSON_HEADERS,
+    authorization: `Bearer ${input.token}`,
+    'idempotency-key': input.key,
+  };
+  const timeout = input.timeoutMs ? { timeoutMs: input.timeoutMs } : {};
+  try {
+    const body = await call(http, {
+      url: `${instance}/api/v1/disbigle/articles/mentions`,
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ...input.payload, inReplyToId: input.inReplyToId }),
+      ...timeout,
+    });
+    const replies = Array.isArray(body.replies) ? (body.replies as unknown[]) : [];
+    return replies
+      .map((reply) => {
+        const r = reply && typeof reply === 'object' ? (reply as Record<string, unknown>) : {};
+        const status = (r.status && typeof r.status === 'object' ? r.status : {}) as Record<
+          string,
+          unknown
+        >;
+        return str(status.url) || str(status.uri);
+      })
+      .filter((url) => /^https?:\/\//i.test(url));
+  } catch (error) {
+    if (!(error instanceof ServerError) || (error.status !== 404 && error.status !== 405))
+      throw error;
+  }
+  const main = input.payload.translations[input.payload.language];
+  const text = [main?.title, main?.url, input.payload.mentions.map((m) => `@${m}`).join(' ')]
+    .filter(Boolean)
+    .join('\n\n');
+  const status = await call(http, {
+    url: `${instance}/api/v1/statuses`,
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      status: text,
+      in_reply_to_id: input.inReplyToId,
+      visibility: 'unlisted',
+      language: input.payload.language,
+    }),
+    ...timeout,
+  });
+  const url = str(status.url) || str(status.uri);
+  return /^https?:\/\//i.test(url) ? [url] : [];
+}
+
+/**
  * The domain of the server's handles (`GET /api/v1/instance`: `uri`, or v2's
  * `domain`), e.g. `disbigle.com` for app.disbigle.com; null when not given.
  */

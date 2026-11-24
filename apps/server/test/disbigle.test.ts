@@ -54,6 +54,8 @@ const posts = new Map<string, string>();
 /** What the articles endpoint answers instead of a post, when set. */
 let refuse: { status: number; body: unknown } | null = null;
 let down = false;
+/** Whether the server has Disbigle's endpoint for later mentions. */
+let mentionsEndpoint = true;
 
 const PEOPLE: Record<string, { acct: string; url: string }> = {
   'anna@fedi.example': { acct: 'anna', url: `${INSTANCE}/@anna` },
@@ -154,6 +156,23 @@ function server(call: Call): { status: number; body: unknown } {
       },
     };
   }
+  if (method === 'POST' && url.pathname === '/api/v1/disbigle/articles/mentions') {
+    if (!mentionsEndpoint) return { status: 404, body: { error: 'Record not found' } };
+    const payload = JSON.parse(call.body) as { inReplyToId: string };
+    return {
+      status: 200,
+      body: {
+        replies: [
+          {
+            language: 'en',
+            status: { id: '77', url: `${INSTANCE}/@blog/${payload.inReplyToId}77` },
+          },
+        ],
+      },
+    };
+  }
+  if (method === 'POST' && url.pathname === '/api/v1/statuses')
+    return { status: 200, body: { id: '78', url: `${INSTANCE}/@blog/78` } };
   // A person the post did not report back.
   if (method === 'GET' && url.pathname === '/api/v1/accounts/lookup')
     return url.searchParams.get('acct') === 'carl@social.example'
@@ -565,6 +584,65 @@ describe('Disbigle', () => {
       `<a href="${INSTANCE}/@carl" rel="nofollow noopener"><!--email_off-->@carl@social.example<!--email_on--></a>`,
     );
     expect(page.body).toContain('<!--email_off-->@anna@fedi.example<!--email_on-->');
+  });
+
+  it('tells the people mentioned after the announcement, once, in a reply', async () => {
+    const id = await article('Later mention', 'later-mention', 'Hello @anna@fedi.example.');
+    await publish(id);
+    const statusId = posts.get(id)!;
+    expect(statusId).toBeTruthy();
+    const replyCalls = () =>
+      calls.filter(
+        (c) =>
+          c.method === 'POST' &&
+          (c.url.pathname === '/api/v1/disbigle/articles/mentions' ||
+            c.url.pathname === '/api/v1/statuses'),
+      );
+    const edit = (text: string) =>
+      admin.request('PATCH', `/api/v1/entries/${id}`, {
+        document: {
+          schema: 1,
+          blocks: [{ id: 'p1', type: 'core/paragraph', v: 1, attrs: {}, content: [{ text }] }],
+        },
+      });
+
+    // Updated with a new mention: one reply for that person only, in their language (Disbigle).
+    await edit('Hello @anna@fedi.example and @bob@mastodon.social.');
+    await publish(id);
+    const first = replyCalls();
+    expect(first).toHaveLength(1);
+    expect(first[0]!.url.pathname).toBe('/api/v1/disbigle/articles/mentions');
+    const body = JSON.parse(first[0]!.body);
+    expect(body).toMatchObject({ inReplyToId: statusId, mentions: ['bob@mastodon.social'] });
+    expect(body.translations.en.title).toBe('Later mention');
+    const log = (await admin.get(ext('/settings'))).json().log[0];
+    expect(log).toMatchObject({
+      entryId: id,
+      ok: true,
+      message: 'Mentioned @bob@mastodon.social in a reply.',
+    });
+
+    // Published again with no one new: nothing more.
+    await publish(id);
+    expect(replyCalls()).toHaveLength(1);
+
+    // A server without the endpoint: a plain quiet reply.
+    mentionsEndpoint = false;
+    await edit('Hello @anna@fedi.example, @bob@mastodon.social and @carl@social.example.');
+    await publish(id);
+    mentionsEndpoint = true;
+    const plain = replyCalls().slice(1);
+    expect(plain.map((c) => c.url.pathname)).toEqual([
+      '/api/v1/disbigle/articles/mentions',
+      '/api/v1/statuses',
+    ]);
+    expect(JSON.parse(plain[1]!.body)).toMatchObject({
+      in_reply_to_id: statusId,
+      visibility: 'unlisted',
+      language: 'en',
+      status: expect.stringContaining('@carl@social.example'),
+    });
+    expect(JSON.parse(plain[1]!.body).status).not.toContain('@bob@');
   });
 
   it('leaves out an article whose option is off', async () => {
