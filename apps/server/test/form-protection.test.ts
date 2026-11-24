@@ -56,7 +56,7 @@ beforeAll(async () => {
   const captcha = join(await mkdtemp(join(tmpdir(), 'captcha-src-')), 'captcha');
   await cp(join(pluginsRoot, 'captcha'), captcha, {
     recursive: true,
-    filter: (file) => !file.includes('node_modules'),
+    filter: (file) => !file.includes('node_modules') && !file.includes('.build-lock'),
   });
   await buildPlugin(captcha);
   await installPlugin(owner.db, {

@@ -105,7 +105,7 @@ beforeAll(async () => {
   const source = join(await mkdtemp(join(tmpdir(), 'agenda-src-')), 'agenda');
   await cp(join(pluginsRoot, 'agenda'), source, {
     recursive: true,
-    filter: (f) => !f.includes('node_modules'),
+    filter: (f) => !f.includes('node_modules') && !f.includes('.build-lock'),
   });
   await installPlugin(owner.db, {
     source,

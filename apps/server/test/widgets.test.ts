@@ -74,7 +74,7 @@ beforeAll(async () => {
   const source = join(await mkdtemp(join(tmpdir(), 'widgets-src-')), 'widgets');
   await cp(join(pluginsRoot, 'widgets'), source, {
     recursive: true,
-    filter: (file) => !file.includes('node_modules'),
+    filter: (file) => !file.includes('node_modules') && !file.includes('.build-lock'),
   });
   await buildPlugin(source);
   await installPlugin(owner.db, {

@@ -52,7 +52,7 @@ beforeAll(async () => {
   source = join(await mkdtemp(join(tmpdir(), 'forms-src-')), 'forms');
   await cp(join(pluginsRoot, 'forms'), source, {
     recursive: true,
-    filter: (file) => !file.includes('node_modules'),
+    filter: (file) => !file.includes('node_modules') && !file.includes('.build-lock'),
   });
   await buildPlugin(source);
 }, 120_000);

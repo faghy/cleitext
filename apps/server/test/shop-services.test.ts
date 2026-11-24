@@ -28,7 +28,7 @@ beforeAll(async () => {
   const source = join(await mkdtemp(join(tmpdir(), 'shop-src-')), 'shop');
   await cp(join(pluginsRoot, 'shop'), source, {
     recursive: true,
-    filter: (file) => !file.includes('node_modules'),
+    filter: (file) => !file.includes('node_modules') && !file.includes('.build-lock'),
   });
   await buildPlugin(source);
   await installPlugin(owner.db, { source, pluginsPath, appRole });

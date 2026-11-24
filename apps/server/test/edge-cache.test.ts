@@ -102,7 +102,7 @@ beforeAll(async () => {
   const source = join(await mkdtemp(join(tmpdir(), 'edge-cache-src-')), 'edge-cache');
   await cp(join(pluginsRoot, 'edge-cache'), source, {
     recursive: true,
-    filter: (file) => !file.includes('node_modules'),
+    filter: (file) => !file.includes('node_modules') && !file.includes('.build-lock'),
   });
   await buildPlugin(source);
   await installPlugin(owner.db, {

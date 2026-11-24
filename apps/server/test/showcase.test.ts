@@ -119,7 +119,7 @@ beforeAll(async () => {
   const source = join(await mkdtemp(join(tmpdir(), 'showcase-src-')), 'showcase');
   await cp(join(pluginsRoot, 'showcase'), source, {
     recursive: true,
-    filter: (file) => !file.includes('node_modules'),
+    filter: (file) => !file.includes('node_modules') && !file.includes('.build-lock'),
   });
   await buildPlugin(source);
   await installPlugin(owner.db, {

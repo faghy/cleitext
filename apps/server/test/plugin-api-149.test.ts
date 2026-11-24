@@ -67,7 +67,10 @@ export default sdk.defineTheme({ slug: 'c3-theme', name: 'C3 theme', version: '1
 
 async function install(source: string, pluginsPath: string, name: string) {
   const copy = join(await mkdtemp(join(tmpdir(), `${name}-src-`)), name);
-  await cp(source, copy, { recursive: true, filter: (file) => !file.includes('node_modules') });
+  await cp(source, copy, {
+    recursive: true,
+    filter: (file) => !file.includes('node_modules') && !file.includes('.build-lock'),
+  });
   await buildPlugin(copy);
   await installPlugin(owner.db, {
     source: copy,

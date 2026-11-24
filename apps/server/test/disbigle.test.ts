@@ -172,7 +172,7 @@ async function install(slug: string, pluginsPath: string) {
   const source = join(await mkdtemp(join(tmpdir(), `${slug}-src-`)), slug);
   await cp(join(pluginsRoot, slug), source, {
     recursive: true,
-    filter: (file) => !file.includes('node_modules'),
+    filter: (file) => !file.includes('node_modules') && !file.includes('.build-lock'),
   });
   await buildPlugin(source);
   await installPlugin(owner.db, {

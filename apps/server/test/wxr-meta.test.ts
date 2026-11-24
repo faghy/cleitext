@@ -112,7 +112,10 @@ async function install(source: string, pluginsPath: string, name: string, inPlac
   // The importer is built in place: it bundles its own dependencies (the WordPress reader).
   if (inPlace) await buildPlugin(source);
   const copy = join(await mkdtemp(join(tmpdir(), `${name}-src-`)), name);
-  await cp(source, copy, { recursive: true, filter: (file) => !file.includes('node_modules') });
+  await cp(source, copy, {
+    recursive: true,
+    filter: (file) => !file.includes('node_modules') && !file.includes('.build-lock'),
+  });
   if (!inPlace) await buildPlugin(copy);
   await installPlugin(owner.db, {
     source: copy,

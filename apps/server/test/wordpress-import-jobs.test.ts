@@ -185,7 +185,10 @@ async function ready(): Promise<void> {
 async function install(source: string, pluginsPath: string, name: string, build = true) {
   const copy = join(await mkdtemp(join(tmpdir(), `${name}-src-`)), name);
   if (!build) await buildPlugin(source);
-  await cp(source, copy, { recursive: true, filter: (file) => !file.includes('node_modules') });
+  await cp(source, copy, {
+    recursive: true,
+    filter: (file) => !file.includes('node_modules') && !file.includes('.build-lock'),
+  });
   if (build) await buildPlugin(copy);
   await installPlugin(owner.db, {
     source: copy,

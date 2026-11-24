@@ -95,7 +95,10 @@ async function documentOf(id: string) {
 async function install(source: string, slug: string, pluginsPath: string, inPlace = true) {
   if (inPlace) await buildPlugin(source);
   const copy = join(await mkdtemp(join(tmpdir(), `${slug}-src-`)), slug);
-  await cp(source, copy, { recursive: true, filter: (file) => !file.includes('node_modules') });
+  await cp(source, copy, {
+    recursive: true,
+    filter: (file) => !file.includes('node_modules') && !file.includes('.build-lock'),
+  });
   if (!inPlace) await buildPlugin(copy);
   await installPlugin(owner.db, {
     source: copy,

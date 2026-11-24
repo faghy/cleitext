@@ -57,7 +57,7 @@ beforeAll(async () => {
   );
   await cp(join(pluginsRoot, 'wordpress-importer'), source, {
     recursive: true,
-    filter: (file) => !file.includes('node_modules'),
+    filter: (file) => !file.includes('node_modules') && !file.includes('.build-lock'),
   });
   await installPlugin(owner.db, {
     source,

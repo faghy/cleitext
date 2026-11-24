@@ -148,7 +148,7 @@ beforeAll(async () => {
   const source = join(await mkdtemp(join(tmpdir(), 'seo-src-')), 'seo');
   await cp(join(pluginsRoot, 'seo'), source, {
     recursive: true,
-    filter: (file) => !file.includes('node_modules'),
+    filter: (file) => !file.includes('node_modules') && !file.includes('.build-lock'),
   });
   await buildPlugin(source);
   await installPlugin(owner.db, {
