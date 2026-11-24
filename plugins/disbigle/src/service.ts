@@ -401,10 +401,25 @@ export class Disbigle {
     const told = new Set(
       (record.told ?? (record.mentions ?? []).map((m) => m.acct)).map((a) => a.toLowerCase()),
     );
-    const fresh = built.mentions.filter((m) => !told.has(m) && !self.has(m));
+    let fresh = built.mentions.filter((m) => !told.has(m) && !self.has(m));
     if (fresh.length === 0) return 'already';
     const at = this.now().toISOString();
     const title = first.title;
+    // People already mentioned in the account's own replies under the post (by hand, too).
+    try {
+      for (const acct of await this.mentionedInThread(siteId, connection, record)) told.add(acct);
+    } catch (error) {
+      await this.addLog(siteId, {
+        at,
+        entryId: record.entryId,
+        title,
+        ok: false,
+        message: `The replies of the post could not be read: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      return 'failed';
+    }
+    fresh = fresh.filter((m) => !told.has(m));
+    if (fresh.length === 0) return 'already';
     try {
       const urls = await replyMentions(this.http, connection.instance, {
         token,
@@ -444,6 +459,35 @@ export class Disbigle {
       });
       return 'failed';
     }
+  }
+
+  /** The people the connected account mentioned in its replies under the post (`user@server`). */
+  private async mentionedInThread(
+    siteId: string,
+    connection: Connection,
+    record: Announcement,
+  ): Promise<string[]> {
+    const thread = await statusContext(this.http, connection.instance, record.statusId!, 4000);
+    const host = new URL(connection.instance).hostname.toLowerCase();
+    const found: Mention[] = [];
+    const descendants = Array.isArray(thread.descendants) ? (thread.descendants as unknown[]) : [];
+    for (const item of descendants) {
+      const status = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+      const account = (status.account ?? {}) as Record<string, unknown>;
+      if (String(account.id ?? '') !== record.accountId) continue;
+      for (const raw of Array.isArray(status.mentions) ? (status.mentions as unknown[]) : []) {
+        const mention = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+        const acct = String(mention.acct ?? '')
+          .replace(/^@/, '')
+          .toLowerCase();
+        if (!acct) continue;
+        found.push({
+          acct: acct.includes('@') ? acct : `${acct}@${host}`,
+          url: String(mention.url ?? ''),
+        });
+      }
+    }
+    return withAliases(found, await this.serverHosts(siteId, connection)).map((m) => m.acct);
   }
 
   /** The published versions of the article's translation group. */

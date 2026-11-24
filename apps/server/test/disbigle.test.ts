@@ -99,6 +99,8 @@ const replies = (statusId: string) => [
     created_at: '2026-11-15T09:01:00.000Z',
     spoiler_text: '',
     content: '<p>In italiano: …</p>',
+    // Someone told by hand in a reply of the account.
+    mentions: [{ id: '13', acct: 'dave', url: `${INSTANCE}/@dave` }],
     account: account('1', 'blog', `${INSTANCE}/@blog`, `${INSTANCE}/system/blog.png`, 'Blog'),
   },
   {
@@ -607,7 +609,8 @@ describe('Disbigle', () => {
       });
 
     // Updated with a new mention: one reply for that person only, in their language (Disbigle).
-    await edit('Hello @anna@fedi.example and @bob@mastodon.social.');
+    // Dave was already told by hand in a reply of the account: not again.
+    await edit('Hello @anna@fedi.example, @bob@mastodon.social and @dave@social.example.');
     await publish(id);
     const first = replyCalls();
     expect(first).toHaveLength(1);
@@ -628,7 +631,9 @@ describe('Disbigle', () => {
 
     // A server without the endpoint: a plain quiet reply.
     mentionsEndpoint = false;
-    await edit('Hello @anna@fedi.example, @bob@mastodon.social and @carl@social.example.');
+    await edit(
+      'Hello @anna@fedi.example, @bob@mastodon.social, @dave@social.example and @carl@social.example.',
+    );
     await publish(id);
     mentionsEndpoint = true;
     const plain = replyCalls().slice(1);
