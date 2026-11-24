@@ -14,7 +14,7 @@ import {
   statusContext,
   type Http,
 } from './mastodon';
-import { buildPayload, documentText, type ArticleVersion } from './payload';
+import { buildPayload, documentText, languageOf, type ArticleVersion } from './payload';
 import type {
   Announcement,
   AnnouncementRef,
@@ -232,7 +232,14 @@ export class Disbigle {
     );
     if (!options.manual && now.getTime() - latest < SETTLE_MS) return 'waiting';
     const versions = this.versions(found, entry, connection.siteUrl);
-    const built = buildPayload(versions, await this.tagNames(siteId, entry));
+    // The post speaks the main language (English when there is one): its
+    // hashtags and the title in the log come from that version, not from the
+    // translation that happened to come out last.
+    const main =
+      found.find((e) => e.url && languageOf(e.locale) === 'en') ??
+      found.find((e) => e.id === entry.id) ??
+      entry;
+    const built = buildPayload(versions, await this.tagNames(siteId, main));
     // The connected account never mentions itself (by any of its addresses).
     const self = await this.ownAccts(siteId, connection);
     const payload = built
@@ -242,7 +249,7 @@ export class Disbigle {
     const base: Announcement = {
       state: 'pending',
       entryId,
-      title: entry.title,
+      title: main.title,
       instance: connection.instance,
       accountId: connection.accountId,
       at: now.toISOString(),
@@ -261,7 +268,7 @@ export class Disbigle {
       await this.addLog(siteId, {
         at: base.at,
         entryId,
-        title: entry.title,
+        title: main.title,
         ok: false,
         message: error,
       });
@@ -304,7 +311,7 @@ export class Disbigle {
       await this.addLog(siteId, {
         at: base.at,
         entryId,
-        title: entry.title,
+        title: main.title,
         ok: true,
         message: 'Announced.',
         url: status.url,
@@ -335,7 +342,7 @@ export class Disbigle {
       await this.addLog(siteId, {
         at: base.at,
         entryId,
-        title: entry.title,
+        title: main.title,
         ok: false,
         message: status ? `${status}: ${message}` : message,
       });

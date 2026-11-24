@@ -462,6 +462,9 @@ describe('Disbigle', () => {
     // The original fails (the server is down) …
     down = true;
     const id = await article('Group test', 'group-test', 'English text.');
+    await admin.request('PATCH', `/api/v1/entries/${id}`, {
+      terms: { tag: [{ name: 'Features' }] },
+    });
     await publish(id);
     down = false;
     const failed = (await admin.get(ext('/settings'))).json();
@@ -480,6 +483,7 @@ describe('Disbigle', () => {
     await admin.request('PATCH', `/api/v1/entries/${itId}`, {
       title: 'Prova di gruppo',
       excerpt: 'Il riassunto in italiano.',
+      terms: { tag: [{ name: 'Funzioni' }] },
     });
     const itPublished = await publish(itId);
     const sent = articleCalls().slice(before);
@@ -489,6 +493,13 @@ describe('Disbigle', () => {
     expect(Object.keys(body.translations).sort()).toEqual(['en', 'it']);
     expect(body.language).toBe('en');
     expect(body.translations.it).toMatchObject({ title: 'Prova di gruppo' });
+    // Announced from the translation, the post still speaks English: its tags and its log.
+    expect(body.tags).toEqual(['Features']);
+    expect((await admin.get(ext('/settings'))).json().log[0]).toMatchObject({
+      entryId: itId,
+      title: 'Group test',
+      ok: true,
+    });
 
     // Trying the original again: already announced with its translation.
     const retry = await admin.post(ext('/retry'), { entryId: id });
