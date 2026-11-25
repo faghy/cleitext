@@ -476,8 +476,8 @@ describe('featured image and excerpt (RF-CNT-12)', () => {
   it('gives link previews a light JPEG of a heavy image', async () => {
     const admin = as.administrator!;
     // Noise: a PNG of a few MB, too heavy for WhatsApp's previews.
-    const pixels = randomBytes(1600 * 1000 * 3);
-    const heavy = await sharp(pixels, { raw: { width: 1600, height: 1000, channels: 3 } })
+    const pixels = randomBytes(1300 * 600 * 3);
+    const heavy = await sharp(pixels, { raw: { width: 1300, height: 600, channels: 3 } })
       .png()
       .toBuffer();
     expect(heavy.length).toBeGreaterThan(300 * 1024);
@@ -505,7 +505,7 @@ describe('featured image and excerpt (RF-CNT-12)', () => {
     const social = ogImage(page)!;
     expect(social).toMatch(/heavy-social(-\d+)?\.jpg$/);
     expect(page).toContain('property="og:image:width" content="1200"');
-    expect(page).toContain('property="og:image:height" content="750"');
+    expect(page).toContain('property="og:image:height" content="554"');
     const file = await visitor.get(new URL(social).pathname);
     expect(file.statusCode).toBe(200);
     expect(file.headers['content-type']).toBe('image/jpeg');
@@ -515,7 +515,8 @@ describe('featured image and excerpt (RF-CNT-12)', () => {
     expect(view.variants.some((v: { variant: string }) => v.variant === 'social')).toBe(false);
     // A light image goes out as it is.
     expect(ogImage((await visitor.get('/')).body) ?? '').not.toMatch(/social/);
-  });
+    // Random pixels compress slowly (AVIF variants too), above all under coverage.
+  }, 120_000);
 
   it('refuses a featured image that is not an image of the site', async () => {
     const res = await as.administrator!.post('/api/v1/entries', {
