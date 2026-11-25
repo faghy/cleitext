@@ -28,7 +28,15 @@ import { APP_CONFIG, type AppConfig } from '../config/config.js';
 import { DATABASE } from '../database/database.module.js';
 import { PluginHost } from '../plugins/plugin-host.service.js';
 import { PageCacheService } from '../public/page-cache.service.js';
-import { ALLOWED_TYPES, detectType, looksLikeSvg, RESIZABLE, sanitizeSvg } from './media-types.js';
+import {
+  ALLOWED_TYPES,
+  detectType,
+  looksLikeSvg,
+  RESIZABLE,
+  sanitizeSvg,
+  SOCIAL_VARIANT,
+  socialImageNeeded,
+} from './media-types.js';
 import { SettingsService } from '../settings/settings.service.js';
 import {
   claimStorageKey,
@@ -45,6 +53,7 @@ type VariantRow = typeof mediaVariants.$inferSelect;
 /** Resized variants (RF-MED-03): width in pixels. `thumb` is always generated. */
 export const VARIANT_WIDTHS = { thumb: 300, md: 768, lg: 1280, xl: 1920 } as const;
 const VARIANT_FORMATS = ['webp', 'avif'] as const;
+const SOCIAL_WIDTH = 1200;
 
 /** Media library: uploads, variants, metadata (docs/SPECIFICATIONS.md §4.5). */
 @Injectable()
@@ -53,6 +62,8 @@ export class MediaService {
   readonly storage: MediaStorage;
   /** Background variant jobs still running (awaited by tests and on shutdown). */
   private readonly pending = new Set<Promise<void>>();
+  /** Social images being made, by media id (one at a time each). */
+  private readonly socialJobs = new Set<string>();
 
   constructor(
     @Inject(DATABASE) private readonly database: DatabaseClient,
@@ -334,6 +345,68 @@ export class MediaService {
     while (this.pending.size > 0) await Promise.allSettled([...this.pending]);
   }
 
+  /**
+   * Makes the social image of a picture in the background, when its original
+   * is too heavy for link previews (WhatsApp skips large files) and it has
+   * none yet. Once made, the site's pages are rendered again with it.
+   */
+  ensureSocialImage(
+    siteId: string,
+    image: { id: string; mime: string; social?: unknown; heavy?: boolean },
+  ): void {
+    if (image.social || !image.heavy || this.socialJobs.has(image.id)) return;
+    this.socialJobs.add(image.id);
+    this.track(
+      this.makeSocialImage(siteId, image.id).finally(() => this.socialJobs.delete(image.id)),
+    );
+  }
+
+  private async makeSocialImage(siteId: string, mediaId: string): Promise<void> {
+    const row = await withContext(this.database.db, { siteId }, async (tx) => {
+      const [found] = await tx.select().from(media).where(eq(media.id, mediaId));
+      if (!found) return null;
+      const [made] = await tx
+        .select({ key: mediaVariants.storageKey })
+        .from(mediaVariants)
+        .where(and(eq(mediaVariants.mediaId, mediaId), eq(mediaVariants.variant, SOCIAL_VARIANT)));
+      return made ? null : found;
+    });
+    if (!row || !socialImageNeeded(row)) return;
+    const original = await this.storage.read(row.storageKey);
+    const { data, info } = await sharp(original)
+      .rotate()
+      .resize({ width: SOCIAL_WIDTH, withoutEnlargement: true })
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toBuffer({ resolveWithObject: true });
+    const base = row.storageKey.replace(/\.[a-z0-9]+$/, '');
+    const key = await this.putVariant(`${base}-${SOCIAL_VARIANT}`, 'jpg', data);
+    const saved = await withContext(this.database.db, { siteId }, async (tx) => {
+      const [exists] = await tx.select({ id: media.id }).from(media).where(eq(media.id, mediaId));
+      if (!exists) return false;
+      const inserted = await tx
+        .insert(mediaVariants)
+        .values({
+          siteId,
+          mediaId,
+          variant: SOCIAL_VARIANT,
+          format: 'jpeg',
+          storageKey: key,
+          width: info.width,
+          height: info.height,
+          sizeBytes: data.length,
+        })
+        .onConflictDoNothing()
+        .returning({ key: mediaVariants.storageKey });
+      return inserted.length > 0;
+    });
+    if (!saved) {
+      await this.storage.delete(key);
+      return;
+    }
+    await this.cache.invalidate(siteId, ['site']);
+  }
+
   // ---- Internals ----------------------------------------------------------------
 
   private track(job: Promise<void>): void {
@@ -444,7 +517,10 @@ export class MediaService {
       .select()
       .from(mediaVariants)
       .where(or(...ids.map((id) => eq(mediaVariants.mediaId, id))));
-    for (const row of rows) result.set(row.mediaId, [...(result.get(row.mediaId) ?? []), row]);
+    for (const row of rows) {
+      if (row.variant === SOCIAL_VARIANT) continue;
+      result.set(row.mediaId, [...(result.get(row.mediaId) ?? []), row]);
+    }
     return result;
   }
 

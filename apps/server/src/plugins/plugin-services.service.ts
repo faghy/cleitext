@@ -10,6 +10,7 @@ import {
   entryTerms,
   inTransaction,
   media,
+  mediaVariants,
   menus,
   mutedEmails,
   pluginSites,
@@ -116,6 +117,7 @@ import type {
 } from '@cleitext/plugin-sdk';
 import { themeDirectories, themeFor } from '../public/themes.js';
 import { readThemeFile, themeFiles } from '../themes/theme-files.js';
+import { SOCIAL_VARIANT, socialImageNeeded } from '../media/media-types.js';
 
 /** Core services exposed to plugins through their context facades. */
 /** Plugin hooks called by an import: a background job, with its longer time limit (core 0.82). */
@@ -1226,9 +1228,13 @@ export class PluginServicesProvider implements PluginServices {
   }
 
   async mediaItem(siteId: string, id: string): Promise<PluginMedia | null> {
-    const [row] = await withContext(this.database.db, { siteId }, (tx) =>
-      tx.select().from(media).where(eq(media.id, id)),
-    );
+    const [row, variants] = await withContext(this.database.db, { siteId }, async (tx) => {
+      const [found] = await tx.select().from(media).where(eq(media.id, id));
+      const rows = found
+        ? await tx.select().from(mediaVariants).where(eq(mediaVariants.mediaId, id))
+        : [];
+      return [found, rows] as const;
+    });
     return row
       ? {
           id: row.id,
@@ -1240,8 +1246,31 @@ export class PluginServicesProvider implements PluginServices {
           title: (row.title as Record<string, string>) ?? {},
           caption: (row.caption as Record<string, string>) ?? {},
           description: (row.description as Record<string, string>) ?? {},
+          social: this.socialOf(siteId, row, variants),
         }
       : null;
+  }
+
+  /** The picture for link previews (plugin API 1.81): see MediaService.ensureSocialImage. */
+  private socialOf(
+    siteId: string,
+    row: typeof media.$inferSelect,
+    variants: (typeof mediaVariants.$inferSelect)[],
+  ): PluginMedia['social'] {
+    if (!row.mime.startsWith('image/')) return undefined;
+    const own = variants.find((v) => v.variant === SOCIAL_VARIANT);
+    const heavy = socialImageNeeded(row);
+    this.media.ensureSocialImage(siteId, { id: row.id, mime: row.mime, social: own, heavy });
+    const pick =
+      own ??
+      (heavy
+        ? variants
+            .filter((v) => v.format === 'webp' && v.width <= 1280)
+            .sort((a, b) => b.width - a.width)[0]
+        : undefined);
+    return pick
+      ? { url: `/media/${pick.storageKey}`, width: pick.width, height: pick.height }
+      : { url: `/media/${row.storageKey}`, width: row.width, height: row.height };
   }
 
   /**

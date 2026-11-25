@@ -133,6 +133,7 @@ import {
   withoutReferralParams,
 } from '../plugins/conversions.js';
 import { importedMediaAddress } from './imported-media.js';
+import { MediaService } from '../media/media.service.js';
 
 const HTML = 'text/html; charset=utf-8';
 /** Hook points a theme marks with `<Location name="hook:…">` (plugin API 1.33). */
@@ -259,6 +260,7 @@ export class PublicService {
     private readonly fieldValues: FieldValuesService,
     private readonly bindings: BindingsService,
     private readonly optionsPages: OptionsPagesService,
+    private readonly media: MediaService,
   ) {}
 
   /** Where field values are formatted for a page (plugin API 1.47). */
@@ -3149,6 +3151,24 @@ export class PublicService {
     return true;
   }
 
+  /**
+   * The picture of link previews: the light social JPEG, or the original when
+   * light enough. A heavy one without its JPEG yet goes out as its largest
+   * WebP up to 1280 pixels, while the JPEG is made in the background.
+   */
+  private socialImage(
+    scope: RequestScope,
+    image: RenderMedia,
+  ): { url: string; width: number | null; height: number | null } {
+    this.media.ensureSocialImage(scope.siteId, image);
+    if (image.social) return image.social;
+    if (!image.heavy) return { url: image.url, width: image.width, height: image.height };
+    const webp = image.variants
+      .filter((v) => v.format === 'webp' && v.width <= 1280)
+      .sort((a, b) => b.width - a.width)[0];
+    return webp ?? { url: image.url, width: image.width, height: image.height };
+  }
+
   private head(
     scope: RequestScope,
     input: {
@@ -3187,7 +3207,14 @@ export class PublicService {
     // Pages without their own summary fall back to the tagline.
     const description = input.description || scope.settings.tagline;
     if (description) og['og:description'] = description;
-    if (input.image) og['og:image'] = absolute(input.image.url);
+    if (input.image) {
+      const image = this.socialImage(scope, input.image);
+      og['og:image'] = absolute(image.url);
+      if (image.width && image.height) {
+        og['og:image:width'] = String(image.width);
+        og['og:image:height'] = String(image.height);
+      }
+    }
     const noindex = input.noindex || scope.settings.discourageSearchEngines;
     // Feed autodiscovery: the language's posts, and the term's on its archive.
     const feeds = [

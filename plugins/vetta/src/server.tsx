@@ -384,11 +384,13 @@ export default definePlugin({
         const mediaUrl = async (id: unknown) => {
           if (typeof id !== 'string' || !id) return null;
           const media = await ctx.media.get(context.siteId, id);
-          return media && media.mime.startsWith('image/') && pageUrl
+          // The light picture for link previews (core 0.119), else the original.
+          const picture = media?.social ?? media;
+          return media && picture && media.mime.startsWith('image/') && pageUrl
             ? {
-                url: new URL(media.url, pageUrl).href,
-                width: media.width ?? null,
-                height: media.height ?? null,
+                url: new URL(picture.url, pageUrl).href,
+                width: picture.width ?? null,
+                height: picture.height ?? null,
                 alt: '',
               }
             : null;

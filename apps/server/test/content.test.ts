@@ -13,9 +13,11 @@ import {
 import type { CxdDocument } from '@cleitext/blocks';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { and, eq } from 'drizzle-orm';
+import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SchedulerService } from '../src/content/scheduler.service.js';
+import { MediaService } from '../src/media/media.service.js';
 import {
   ownerDatabase,
   seedSite,
@@ -469,6 +471,50 @@ describe('featured image and excerpt (RF-CNT-12)', () => {
     await admin.request('DELETE', `/api/v1/media/${cover.id}`);
     const after = (await admin.get(`/api/v1/entries/${created.id}`)).json();
     expect(after.revision.featuredMediaId).toBeNull();
+  });
+
+  it('gives link previews a light JPEG of a heavy image', async () => {
+    const admin = as.administrator!;
+    // Noise: a PNG of a few MB, too heavy for WhatsApp's previews.
+    const pixels = randomBytes(1600 * 1000 * 3);
+    const heavy = await sharp(pixels, { raw: { width: 1600, height: 1000, channels: 3 } })
+      .png()
+      .toBuffer();
+    expect(heavy.length).toBeGreaterThan(300 * 1024);
+    const cover = (await admin.upload('/api/v1/media', 'heavy.png', heavy, 'image/png')).json();
+    await app.get(MediaService).idle();
+    const created = (
+      await admin.post('/api/v1/entries', {
+        type: 'article',
+        title: 'Heavy cover',
+        document: doc('Text.'),
+        featuredMediaId: cover.id,
+      })
+    ).json();
+    await admin.post(`/api/v1/entries/${created.id}/publish`);
+    const visitor = new TestClient(app, site.host, '10.12.0.2');
+    const path = `/${new Date().getUTCFullYear()}/heavy-cover`;
+    const ogImage = (html: string) => html.match(/property="og:image" content="([^"]+)"/)?.[1];
+
+    // At first the largest WebP up to 1280 pixels, while the JPEG is made…
+    const first = ogImage((await visitor.get(path)).body);
+    expect(first).toMatch(/heavy-lg(-\d+)?\.webp$/);
+    await app.get(MediaService).idle();
+    // … then the JPEG, 1200 pixels wide.
+    const page = (await visitor.get(path)).body;
+    const social = ogImage(page)!;
+    expect(social).toMatch(/heavy-social(-\d+)?\.jpg$/);
+    expect(page).toContain('property="og:image:width" content="1200"');
+    expect(page).toContain('property="og:image:height" content="750"');
+    const file = await visitor.get(new URL(social).pathname);
+    expect(file.statusCode).toBe(200);
+    expect(file.headers['content-type']).toBe('image/jpeg');
+    expect(file.rawPayload.length).toBeLessThan(heavy.length / 2);
+    // Not a variant pages use in <picture>.
+    const view = (await admin.get(`/api/v1/media/${cover.id}`)).json();
+    expect(view.variants.some((v: { variant: string }) => v.variant === 'social')).toBe(false);
+    // A light image goes out as it is.
+    expect(ogImage((await visitor.get('/')).body) ?? '').not.toMatch(/social/);
   });
 
   it('refuses a featured image that is not an image of the site', async () => {

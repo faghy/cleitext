@@ -613,6 +613,12 @@ export interface PluginMedia {
   caption?: Record<string, string>;
   /** Description by language (plugin API 1.77). */
   description?: Record<string, string>;
+  /**
+   * The picture for link previews (plugin API 1.81): a light JPEG made for
+   * them, or the original when light enough (WhatsApp skips large files).
+   * Missing on older cores and for files that are not images.
+   */
+  social?: { url: string; width: number | null; height: number | null };
 }
 
 export interface MediaApi {

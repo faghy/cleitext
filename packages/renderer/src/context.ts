@@ -15,6 +15,10 @@ export interface RenderMedia {
   variants: { variant: string; format: string; url: string; width: number; height: number }[];
   /** Kept in view when CSS crops the image (object-fit: cover). */
   focalPoint?: { x: number; y: number } | null;
+  /** The light JPEG link previews use (core 0.119), once made; see `heavy`. */
+  social?: { url: string; width: number; height: number } | null;
+  /** The original is too heavy for link previews: a social image is (or will be) made. */
+  heavy?: boolean;
 }
 
 /** Data the server preloads before rendering (rendering is synchronous). */

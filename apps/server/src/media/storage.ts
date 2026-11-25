@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 
 /**
@@ -11,6 +11,8 @@ import { dirname, resolve, sep } from 'node:path';
  */
 export interface MediaStorage {
   put(key: string, data: Buffer): Promise<void>;
+  /** The contents of a stored file. */
+  read(key: string): Promise<Buffer>;
   delete(key: string): Promise<void>;
   /** Public URL path of a stored file. */
   url(key: string): string;
@@ -27,6 +29,10 @@ export class DiskStorage implements MediaStorage {
 
   async delete(key: string): Promise<void> {
     await rm(this.pathOf(key), { force: true });
+  }
+
+  read(key: string): Promise<Buffer> {
+    return readFile(this.pathOf(key));
   }
 
   url(key: string): string {

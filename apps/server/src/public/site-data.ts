@@ -26,6 +26,7 @@ import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import type { ContentLocale } from '@cleitext/plugin-sdk';
 import { termKey, UrlBuilder, type TypeInfo } from './urls.js';
 import { menuItemFieldsAt, publicMenuItemData } from '../menus/menu-item-data.js';
+import { SOCIAL_VARIANT, socialImageNeeded } from '../media/media-types.js';
 
 /** Published entry with its published revision. */
 export interface PublishedEntry {
@@ -276,8 +277,13 @@ export async function loadMedia(
       alt,
       title,
       focalPoint: (row.focalPoint as { x: number; y: number } | null) ?? null,
+      social: (() => {
+        const v = variants.find((v) => v.mediaId === row.id && v.variant === SOCIAL_VARIANT);
+        return v ? { url: `/media/${v.storageKey}`, width: v.width, height: v.height } : null;
+      })(),
+      heavy: socialImageNeeded(row),
       variants: variants
-        .filter((v) => v.mediaId === row.id)
+        .filter((v) => v.mediaId === row.id && v.variant !== SOCIAL_VARIANT)
         .map((v) => ({
           variant: v.variant,
           format: v.format,

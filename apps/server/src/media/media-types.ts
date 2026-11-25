@@ -179,3 +179,27 @@ export function sanitizeSvg(svg: string): string {
     disallowedTagsMode: 'discard',
   });
 }
+
+/**
+ * The picture link previews show (WhatsApp, Facebook, X, LinkedIn): a JPEG
+ * at most this wide, made the first time an image is a page's social image.
+ * Kept apart from the other variants, which pages use in `<picture>`.
+ */
+export const SOCIAL_VARIANT = 'social';
+/**
+ * Whether a picture needs its own social image: link previews take light
+ * files (WhatsApp skips those over a few hundred KB). A small JPEG or PNG
+ * goes out as it is; vector and animated pictures too.
+ */
+export function socialImageNeeded(row: {
+  mime: string;
+  sizeBytes: number;
+  width: number | null;
+}): boolean {
+  if (!['image/jpeg', 'image/png', 'image/webp', 'image/avif'].includes(row.mime)) return false;
+  const light =
+    ['image/jpeg', 'image/png'].includes(row.mime) &&
+    row.sizeBytes <= 300 * 1024 &&
+    (row.width ?? 0) <= 2000;
+  return !light;
+}
