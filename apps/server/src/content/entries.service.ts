@@ -1219,6 +1219,19 @@ export class EntriesService {
     return entry;
   }
 
+  /** The public address of a published entry (with its language prefix), or null. */
+  private async publicPath(tx: Tx, entry: EntryRow): Promise<string | null> {
+    if (!entry.publishedRevisionId || !['published', 'private'].includes(entry.status)) return null;
+    const [type] = await tx
+      .select({ permalink: contentTypes.permalink })
+      .from(contentTypes)
+      .where(eq(contentTypes.slug, entry.typeSlug));
+    if (!type?.permalink) return null;
+    const prefix =
+      localePrefixes(await this.languages.localesIn(tx, entry.siteId)).get(entry.locale) ?? '';
+    return prefix + (await entryPath(tx, entry, type.permalink));
+  }
+
   private async contentType(tx: Tx, slug: string) {
     const [type] = await tx.select().from(contentTypes).where(eq(contentTypes.slug, slug));
     if (!type) throw new BadRequestException(`Unknown content type "${slug}".`);
@@ -1492,6 +1505,7 @@ export class EntriesService {
       comments: { status: entry.commentStatus, count: entry.commentCount },
       revision,
       autosave,
+      path: await this.publicPath(tx, entry),
       terms: await this.termsService.termsOfEntry(tx, entry.id),
       permissions: {
         edit: canEdit(auth, entry),

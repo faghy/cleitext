@@ -87,6 +87,13 @@ function Editor({ initial }: { initial: EntryView }) {
   const [autosavedAt, setAutosavedAt] = useState<string | null>(null);
   const [tab, setTab] = useState<'document' | 'block'>('document');
   const [error, setError] = useState<string | null>(null);
+  /** The notice after publishing or updating (it goes away by itself). */
+  const [notice, setNotice] = useState<{ text: string; path: string | null } | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 8000);
+    return () => clearTimeout(timer);
+  }, [notice]);
   const [recovery, setRecovery] = useState(initial.autosave);
   const [visibility, setVisibility] = useState<'public' | 'private'>(
     initial.status === 'private' ? 'private' : 'public',
@@ -343,8 +350,10 @@ function Editor({ initial }: { initial: EntryView }) {
       kind: 'save' | 'publish' | 'submit' | 'unpublish' | 'trash' | { schedule: string },
     ) => {
       setError(null);
-      await save();
-      if (kind === 'save') return;
+      setNotice(null);
+      const wasPublished = entry.status === 'published' || entry.status === 'private';
+      const saved = await save();
+      if (kind === 'save') return { view: saved, wasPublished };
       const path = typeof kind === 'object' ? 'schedule' : kind;
       const body =
         typeof kind === 'object'
@@ -352,7 +361,25 @@ function Editor({ initial }: { initial: EntryView }) {
           : kind === 'publish'
             ? { visibility }
             : undefined;
-      apply(await api<EntryView>('POST', `/entries/${entry.id}/${path}`, body));
+      const view = await api<EntryView>('POST', `/entries/${entry.id}/${path}`, body);
+      apply(view);
+      return { view, wasPublished };
+    },
+    onSuccess: ({ view, wasPublished }, kind) => {
+      // A clear notice after publishing or updating, with the link to the page.
+      const text =
+        typeof kind === 'object'
+          ? t('Scheduled.')
+          : kind === 'publish'
+            ? wasPublished
+              ? t('Updated.')
+              : t('Published.')
+            : kind === 'submit'
+              ? t('Submitted for review.')
+              : kind === 'save'
+                ? t('Draft saved.')
+                : null;
+      if (text) setNotice({ text, path: kind === 'publish' ? view.path : null });
     },
     onError: (e) => {
       setSaveState(dirtyRef.current ? 'dirty' : 'saved');
@@ -647,6 +674,31 @@ function Editor({ initial }: { initial: EntryView }) {
             : 'contents'
         }
       >
+        {notice && (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-3 border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-900"
+          >
+            <span className="font-medium">{notice.text}</span>
+            {notice.path && (
+              <a
+                href={notice.path}
+                target="_blank"
+                rel="noreferrer"
+                className="text-emerald-800 underline hover:text-emerald-950"
+              >
+                {t('View the page')}
+              </a>
+            )}
+            <button
+              type="button"
+              className="ml-auto text-emerald-800 hover:underline"
+              onClick={() => setNotice(null)}
+            >
+              {t('Close')}
+            </button>
+          </div>
+        )}
         {lockedBy !== null && (
           <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
             <span>

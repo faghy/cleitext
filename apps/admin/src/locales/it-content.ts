@@ -476,4 +476,9 @@ export const itContent: Messages = {
   'Change file': 'Cambia file',
   'Choose file': 'Scegli file',
   'Text of the link': 'Testo del link',
+  'Updated.': 'Aggiornato.',
+  'Scheduled.': 'Programmato.',
+  'Submitted for review.': 'Inviato per la revisione.',
+  'Draft saved.': 'Bozza salvata.',
+  'View the page': 'Visualizza la pagina',
 };

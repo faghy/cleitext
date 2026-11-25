@@ -183,6 +183,13 @@ describe('revisions (RF-CNT-05/07)', () => {
     const entry = await createArticle(as.author!, 'Live', 'v1');
     const published = (await as.author!.post(`/api/v1/entries/${entry.id}/publish`)).json();
     expect(published).toMatchObject({ status: 'published', hasUnpublishedChanges: false });
+    // The public address, for the editor's «View the page» link; none while a draft.
+    expect(entry.path).toBeNull();
+    expect(published.path).toBe(
+      `/${new Date(published.publishedAt).getUTCFullYear()}/${published.slug}`,
+    );
+    const page = await as.author!.get(published.path);
+    expect(page.statusCode).toBe(200);
     const edited = (
       await as.author!.request('PATCH', `/api/v1/entries/${entry.id}`, { document: doc('v2') })
     ).json();

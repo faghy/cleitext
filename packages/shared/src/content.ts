@@ -268,6 +268,8 @@ export interface EntryView extends EntrySummary {
   revision: RevisionView | null;
   /** The user's autosave, when newer than the current revision (RF-CNT-06). */
   autosave: RevisionView | null;
+  /** Public address of a published entry (language prefix included); null otherwise. */
+  path: string | null;
   /** Assigned terms, by taxonomy slug. */
   terms: Record<string, TermView[]>;
   /** What the current user may do. */
