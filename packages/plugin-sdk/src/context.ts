@@ -619,6 +619,43 @@ export interface PluginMedia {
    * Missing on older cores and for files that are not images.
    */
   social?: { url: string; width: number | null; height: number | null };
+  /** Size of the original in bytes (plugin API 1.82). */
+  sizeBytes?: number;
+  /** Name of the file as uploaded (plugin API 1.82). */
+  filename?: string;
+}
+
+/** `ctx.media.inspect` (plugin API 1.82). */
+export interface PictureInfo {
+  mime: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/avif';
+  width: number;
+  height: number;
+  /** Has an alpha channel with transparent pixels. */
+  transparent: boolean;
+  /** Frames (more than 1: an animation). */
+  pages: number;
+}
+
+/** `ctx.media.encode` (plugin API 1.82). */
+export interface PictureEncodeOptions {
+  maxWidth?: number;
+  maxHeight?: number;
+  format?: 'same' | 'jpeg' | 'png' | 'webp' | 'avif';
+  quality?: number;
+}
+
+export interface EncodedPicture {
+  data: Buffer;
+  mime: PictureInfo['mime'];
+  width: number;
+  height: number;
+}
+
+/** A page of the media library (`ctx.media.find`, plugin API 1.82), newest first. */
+export interface MediaPage {
+  items: PluginMedia[];
+  /** Give it back as `cursor` for the next page; null on the last one. */
+  nextCursor: string | null;
 }
 
 export interface MediaApi {
@@ -644,6 +681,39 @@ export interface MediaApi {
    * plugin API 1.61). Paths with no such file are left out; at most 1000.
    */
   importedUrls(siteId: string, paths: readonly string[]): Promise<Record<string, string>>;
+  /**
+   * Items of the media library, newest first, a page at a time (needs
+   * `media:read`, plugin API 1.82): `kind: 'image'` for pictures only,
+   * `limit` up to 100 (default 50).
+   */
+  find?(
+    siteId: string,
+    query?: { kind?: 'image'; limit?: number; cursor?: string | null },
+  ): Promise<MediaPage>;
+  /** The original file of an item (needs `media:read`, plugin API 1.82); null when missing. */
+  read?(siteId: string, id: string): Promise<Buffer | null>;
+  /**
+   * Replaces the original of a picture with a lighter file of the same
+   * picture and the same type (needs `media:write`, plugin API 1.82): its
+   * address does not change, so pages keep working; the resized copies
+   * stay. Refused when the type differs or the file is not a picture.
+   * Returns the item as it is now.
+   */
+  replace?(siteId: string, id: string, data: Buffer): Promise<PluginMedia>;
+  /**
+   * What a picture is (plugin API 1.82, needs `media:read`): its type, size
+   * in pixels (turned upright), whether it has transparent pixels, its
+   * orientation. Null when the data is not a JPEG, PNG, WebP or AVIF picture.
+   */
+  inspect?(data: Buffer): Promise<PictureInfo | null>;
+  /**
+   * Encodes a picture again with the core's image library (plugin API 1.82,
+   * needs `media:write`): turned upright, made smaller to fit `maxWidth` /
+   * `maxHeight` (never larger), then saved as `format` (`same`: its own
+   * type) with `quality` 1–100 (lossy types; PNG stays lossless).
+   * Metadata is not copied; the color profile is kept.
+   */
+  encode?(data: Buffer, options: PictureEncodeOptions): Promise<EncodedPicture>;
 }
 
 /**

@@ -18,9 +18,10 @@ import {
   Inject,
   Injectable,
   Logger,
+  BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, desc, eq, ilike, like, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, like, lt, or, sql, type SQL } from 'drizzle-orm';
 import sharp from 'sharp';
 import { AuditService } from '../audit/audit.service.js';
 import type { AuthContext } from '../common/request-context.js';
@@ -45,6 +46,7 @@ import {
   storageBaseName,
   wordpressStorageName,
 } from './storage-names.js';
+import { stripMetadata } from './metadata.js';
 import { DiskStorage, type MediaStorage } from './storage.js';
 
 type MediaRow = typeof media.$inferSelect;
@@ -105,10 +107,40 @@ export class MediaService {
         HttpStatus.UNSUPPORTED_MEDIA_TYPE,
       );
     }
+    const uploadedChecksum = createHash('sha256').update(file.data).digest('hex');
+    if (RESIZABLE.has(mime)) {
+      // Where the photo was taken and with what stays out of it (core 0.120).
+      if (!(await this.settings.getCore(siteId)).keepPhotoMetadata) {
+        const orientation = (await sharp(file.data).metadata()).orientation;
+        file = { ...file, data: stripMetadata(file.data, mime, orientation) };
+      }
+      // Plugins may make it lighter: smaller, recompressed (plugin API 1.82).
+      const changed = await this.plugins.applyFilter(
+        'media.upload',
+        { data: file.data, mime, filename: file.filename },
+        { siteId, userId: auth.userId ?? null },
+        siteId,
+        { timeout: 'job' },
+      );
+      if (changed && Buffer.isBuffer(changed.data) && changed.data !== file.data) {
+        const changedMime = await detectType(changed.data);
+        // Only a picture the library takes, still one it resizes.
+        if (changedMime && RESIZABLE.has(changedMime)) {
+          file = { ...file, data: changed.data };
+          mime = changedMime;
+        } else {
+          this.logger.warn(`A plugin's media.upload result was not a picture: kept the upload.`);
+        }
+      }
+    }
     // The same file is already in the library: reuse it (RF-MED-08).
     const checksum = createHash('sha256').update(file.data).digest('hex');
     const [existing] = await withContext(this.database.db, { siteId, userId: auth.userId }, (tx) =>
-      tx.select({ id: media.id }).from(media).where(eq(media.checksum, checksum)).limit(1),
+      tx
+        .select({ id: media.id })
+        .from(media)
+        .where(inArray(media.checksum, [...new Set([checksum, uploadedChecksum])]))
+        .limit(1),
     );
     if (existing) return { ...(await this.get(siteId, auth, existing.id)), duplicate: true };
     const info = ALLOWED_TYPES[mime]!;
@@ -337,6 +369,56 @@ export class MediaService {
       },
     );
     await Promise.all(keys.map((key) => this.storage.delete(key)));
+    await this.cache.invalidate(siteId, ['site']);
+  }
+
+  /** The original file of an item, for plugins (plugin API 1.82); null when missing. */
+  async readOriginal(siteId: string, id: string): Promise<Buffer | null> {
+    const [row] = await withContext(this.database.db, { siteId }, (tx) =>
+      tx.select({ key: media.storageKey }).from(media).where(eq(media.id, id)),
+    );
+    if (!row) return null;
+    return this.storage.read(row.key).catch(() => null);
+  }
+
+  /**
+   * A lighter original for a picture (plugin API 1.82): same type, written
+   * over the old file so its address stays; the resized copies stay too.
+   */
+  async replaceOriginal(siteId: string, id: string, data: Buffer): Promise<void> {
+    const [row] = await withContext(this.database.db, { siteId }, (tx) =>
+      tx.select().from(media).where(eq(media.id, id)),
+    );
+    if (!row) throw new NotFoundException('Media not found.');
+    if (!RESIZABLE.has(row.mime)) throw new BadRequestException('Only pictures can be replaced.');
+    const mime = await detectType(data);
+    if (mime !== row.mime) {
+      throw new BadRequestException(`The new file must be ${row.mime}, like the original.`);
+    }
+    const metadata = await sharp(data).metadata();
+    const rotated = (metadata.orientation ?? 1) >= 5;
+    const width = (rotated ? metadata.height : metadata.width) ?? null;
+    const height = (rotated ? metadata.width : metadata.height) ?? null;
+    await this.storage.overwrite(row.storageKey, data);
+    await withContext(this.database.db, { siteId }, async (tx) => {
+      await tx
+        .update(media)
+        .set({
+          sizeBytes: data.length,
+          width,
+          height,
+          checksum: createHash('sha256').update(data).digest('hex'),
+        })
+        .where(eq(media.id, id));
+      await this.audit.record(tx, {
+        siteId,
+        userId: null,
+        action: 'media.replaced',
+        targetType: 'media',
+        targetId: id,
+        meta: { before: row.sizeBytes, after: data.length },
+      });
+    });
     await this.cache.invalidate(siteId, ['site']);
   }
 

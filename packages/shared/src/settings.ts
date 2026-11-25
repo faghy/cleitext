@@ -82,6 +82,13 @@ const coreSettingsFields = {
    * scripts. The server's `MEDIA_ALLOW_SVG` turns it on for every site.
    */
   allowSvg: z.boolean(),
+  /**
+   * Photos keep what the camera wrote into them (core 0.120): EXIF with the
+   * GPS position, the camera, the date; XMP and IPTC. Off by default: those
+   * data are removed at upload, the pixels untouched, so a photo does not
+   * tell where it was taken.
+   */
+  keepPhotoMetadata: z.boolean(),
 
   // ---- Membership (RF-USR-11) ----
   /** Anyone can create an account on the site. */
@@ -167,6 +174,7 @@ export const CORE_SETTINGS_DEFAULTS = {
   backToTopPosition: 'right',
   webFonts: 'local',
   allowSvg: false,
+  keepPhotoMetadata: false,
   registration: false,
   defaultRole: 'subscriber',
   verifyEmail: true,

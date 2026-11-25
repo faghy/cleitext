@@ -1,0 +1,13 @@
+{
+  "slug": "piuma",
+  "name": "Piuma",
+  "version": "1.0.0",
+  "apiVersion": "^1.82",
+  "description": "Lighter pictures in the media library: every new photo is made smaller when it is larger than needed and saved again with good compression, and PNG photos without transparency become JPEG. The pictures already in the library can be made lighter too, in the background, with the space saved shown. The core already removes the camera data (GPS) and makes WebP and AVIF copies.",
+  "author": "Cleitext",
+  "homepage": "https://cleitext.com/plugins/piuma",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "permissions": ["media:read", "media:write", "settings:own", "routes:admin"]
+}

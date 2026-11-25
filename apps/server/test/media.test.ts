@@ -4,6 +4,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MediaService } from '../src/media/media.service.js';
+import { stripMetadata } from '../src/media/metadata.js';
 import {
   ownerDatabase,
   seedSite,
@@ -389,5 +390,71 @@ describe('isolation', () => {
       expect([400, 403, 404], path).toContain(res.statusCode);
       expect(res.body).not.toContain('root:x:0:0');
     }
+  });
+});
+
+describe('camera data in photos (core 0.120)', () => {
+  /** A photo as a phone saves it: camera, GPS position, turned by its EXIF. */
+  const phonePhoto = (orientation = 6) =>
+    sharp({ create: { width: 64, height: 32, channels: 3, background: '#884422' } })
+      .jpeg()
+      .withExif({
+        IFD0: { Make: 'SecretCam', Model: 'X1' },
+        IFD3: { GPSLatitudeRef: 'N', GPSLatitude: '44/1 25/1 0/1' },
+      })
+      .withMetadata({ orientation })
+      .toBuffer();
+
+  it('removes EXIF, GPS and text, keeps the picture and its orientation', async () => {
+    const jpeg = await phonePhoto();
+    expect(jpeg.includes('SecretCam')).toBe(true);
+    const clean = stripMetadata(jpeg, 'image/jpeg', 6);
+    expect(clean.includes('SecretCam')).toBe(false);
+    expect(clean.includes('GPS')).toBe(false);
+    const meta = await sharp(clean).metadata();
+    expect(meta).toMatchObject({ width: 64, height: 32, orientation: 6 });
+    // The pixels are the same bytes: no new compression.
+    const scan = (b: Buffer) => b.subarray(b.indexOf(Buffer.from([0xff, 0xda])));
+    expect(scan(clean).equals(scan(jpeg))).toBe(true);
+
+    const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#000' } })
+      .png()
+      .withExif({ IFD0: { Make: 'SecretCam' } })
+      .toBuffer();
+    const cleanPng = stripMetadata(png, 'image/png');
+    expect(cleanPng.includes('SecretCam')).toBe(false);
+    expect((await sharp(cleanPng).metadata()).width).toBe(8);
+
+    const webp = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#000' } })
+      .webp()
+      .withExif({ IFD0: { Make: 'SecretCam' } })
+      .toBuffer();
+    const cleanWebp = stripMetadata(webp, 'image/webp');
+    expect(cleanWebp.includes('SecretCam')).toBe(false);
+    expect((await sharp(cleanWebp).metadata()).width).toBe(8);
+    // Not a picture after all: given back as it is.
+    expect(stripMetadata(Buffer.from('not a jpeg'), 'image/jpeg')).toEqual(
+      Buffer.from('not a jpeg'),
+    );
+  });
+
+  it('strips them at upload unless the site keeps them', async () => {
+    const photo = await phonePhoto(1);
+    const uploaded = (await admin.upload('/api/v1/media', 'phone.jpg', photo, 'image/jpeg')).json();
+    const stored = (await admin.get(uploaded.url)).rawPayload;
+    expect(stored.includes('SecretCam')).toBe(false);
+    expect(uploaded.sizeBytes).toBeLessThan(photo.length);
+
+    const saved = await admin.request('PATCH', '/api/v1/settings/core', {
+      keepPhotoMetadata: true,
+    });
+    expect(saved.statusCode, saved.body).toBe(200);
+    const other = await sharp(photo)
+      .jpeg()
+      .withExif({ IFD0: { Make: 'SecretCam' } })
+      .toBuffer();
+    const kept = (await admin.upload('/api/v1/media', 'kept.jpg', other, 'image/jpeg')).json();
+    expect((await admin.get(kept.url)).rawPayload.includes('SecretCam')).toBe(true);
+    await admin.request('PATCH', '/api/v1/settings/core', { keepPhotoMetadata: false });
   });
 });

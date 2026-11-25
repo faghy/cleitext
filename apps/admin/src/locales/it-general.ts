@@ -653,4 +653,7 @@ export const itGeneral: Messages = {
   'Chriss is reading… The free service can take a minute or two.':
     'Chriss sta leggendo… Il servizio gratuito può impiegare un minuto o due.',
   'In the queue: {count} ahead of you.': 'In coda: {count} davanti a te.',
+  'Keep the camera data in uploaded photos': 'Conserva i dati della fotocamera nelle foto caricate',
+  'Off by default: when a photo is uploaded, the data the camera or the phone wrote into it (the GPS position where it was taken, the camera, the date) is removed, without touching the picture. Turn it on only if you need those data, for example for a photographer’s credits.':
+    'Disattivato di serie: quando carichi una foto vengono tolti i dati che la fotocamera o il telefono ci hanno scritto dentro (la posizione GPS di dove è stata scattata, la fotocamera, la data), senza toccare l’immagine. Attivalo solo se ti servono quei dati, per esempio per i crediti di un fotografo.',
 };

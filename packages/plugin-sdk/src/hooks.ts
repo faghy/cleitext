@@ -501,6 +501,20 @@ export interface EntryValidateContext {
 }
 
 /** Filters (transformations): `[value, context]` by name. */
+/** A picture being uploaded (`media.upload`, plugin API 1.82). */
+export interface MediaUploadFile {
+  data: Buffer;
+  /** `image/jpeg`, `image/png`, `image/webp` or `image/avif`. */
+  mime: string;
+  filename: string;
+}
+
+export interface MediaUploadContext {
+  siteId: string;
+  /** Who uploads it; null for the system (an import without a person). */
+  userId: string | null;
+}
+
 export interface Filters {
   /**
    * Checks an entry before it is saved (plugin API 1.47), after the core
@@ -545,6 +559,16 @@ export interface Filters {
    * Runs with the time limit of background jobs.
    */
   'mail.deliver': [result: MailDeliverResult | null, context: MailDeliverContext];
+  /**
+   * A picture being uploaded to the media library (plugin API 1.82, needs
+   * `media:write`), before it is stored: give back `{ data, mime, filename }`
+   * with a lighter file (smaller, recompressed, another format among JPEG,
+   * PNG, WebP and AVIF), or the value as it came. The core reads the type
+   * again from the data and keeps the upload when the result is not such a
+   * picture. Its metadata (EXIF, GPS) is already gone unless the site keeps
+   * it. Runs with the time limit of background jobs.
+   */
+  'media.upload': [file: MediaUploadFile, context: MediaUploadContext];
   /** Title, meta tags and extra `<head>` tags of a public page (needs `theme:hooks`). */
   'render.head': [head: HeadData, context: RenderHookContext];
   /** Blocks of an entry before rendering, e.g. to add a details box (needs `theme:hooks`). */

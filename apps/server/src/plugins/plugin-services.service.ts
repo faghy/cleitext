@@ -41,6 +41,10 @@ import {
   type PendingLanguages,
   type ImportReport,
   type PersonalDataGroup,
+  type EncodedPicture,
+  type MediaPage,
+  type PictureEncodeOptions,
+  type PictureInfo,
   type PluginMedia,
   type PluginUser,
   type UserQuery,
@@ -71,7 +75,7 @@ import {
   Inject,
   Injectable,
 } from '@nestjs/common';
-import { and, asc, count, desc, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, like, lt, ne, or, sql } from 'drizzle-orm';
 import { CommentsService } from '../community/comments.service.js';
 import { fetchPublic, sendPublic } from '../common/public-fetch.js';
 import type { AuthContext } from '../common/request-context.js';
@@ -117,7 +121,8 @@ import type {
 } from '@cleitext/plugin-sdk';
 import { themeDirectories, themeFor } from '../public/themes.js';
 import { readThemeFile, themeFiles } from '../themes/theme-files.js';
-import { SOCIAL_VARIANT, socialImageNeeded } from '../media/media-types.js';
+import { detectType, RESIZABLE, SOCIAL_VARIANT, socialImageNeeded } from '../media/media-types.js';
+import sharp from 'sharp';
 
 /** Core services exposed to plugins through their context facades. */
 /** Plugin hooks called by an import: a background job, with its longer time limit (core 0.82). */
@@ -1247,8 +1252,118 @@ export class PluginServicesProvider implements PluginServices {
           caption: (row.caption as Record<string, string>) ?? {},
           description: (row.description as Record<string, string>) ?? {},
           social: this.socialOf(siteId, row, variants),
+          sizeBytes: row.sizeBytes,
+          filename: row.filename,
         }
       : null;
+  }
+
+  /** A page of the media library, newest first (`ctx.media.find`, plugin API 1.82). */
+  async mediaFind(
+    siteId: string,
+    query: { kind?: 'image'; limit: number; cursor: string | null },
+  ): Promise<MediaPage> {
+    const after = query.cursor ? decodeMediaCursor(query.cursor) : null;
+    const rows = await withContext(this.database.db, { siteId }, (tx) =>
+      tx
+        .select({ id: media.id, createdAt: media.createdAt })
+        .from(media)
+        .where(
+          and(
+            query.kind === 'image' ? like(media.mime, 'image/%') : undefined,
+            after
+              ? or(
+                  lt(media.createdAt, after.createdAt),
+                  and(eq(media.createdAt, after.createdAt), lt(media.id, after.id)),
+                )
+              : undefined,
+          ),
+        )
+        .orderBy(desc(media.createdAt), desc(media.id))
+        .limit(query.limit + 1),
+    );
+    const page = rows.slice(0, query.limit);
+    const items = (await Promise.all(page.map((r) => this.mediaItem(siteId, r.id)))).filter(
+      (m): m is PluginMedia => m !== null,
+    );
+    const last = page.at(-1);
+    return {
+      items,
+      nextCursor:
+        rows.length > query.limit && last
+          ? Buffer.from(JSON.stringify([last.createdAt.toISOString(), last.id])).toString(
+              'base64url',
+            )
+          : null,
+    };
+  }
+
+  mediaRead(siteId: string, id: string): Promise<Buffer | null> {
+    return this.media.readOriginal(siteId, id);
+  }
+
+  /** `ctx.media.inspect` (plugin API 1.82). */
+  async pictureInfo(data: Buffer): Promise<PictureInfo | null> {
+    const mime = await detectType(data);
+    if (!mime || !RESIZABLE.has(mime)) return null;
+    try {
+      const meta = await sharp(data).metadata();
+      const turned = (meta.orientation ?? 1) >= 5;
+      const stats = meta.hasAlpha ? await sharp(data).stats() : null;
+      return {
+        mime: mime as PictureInfo['mime'],
+        width: (turned ? meta.height : meta.width) ?? 0,
+        height: (turned ? meta.width : meta.height) ?? 0,
+        transparent: Boolean(stats && !stats.isOpaque),
+        pages: meta.pages ?? 1,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /** `ctx.media.encode` (plugin API 1.82). */
+  async encodePicture(data: Buffer, options: PictureEncodeOptions): Promise<EncodedPicture> {
+    const info = await this.pictureInfo(data);
+    if (!info) throw new TypeError('Not a JPEG, PNG, WebP or AVIF picture.');
+    const size = (n: unknown) =>
+      typeof n === 'number' && Number.isFinite(n) && n >= 1
+        ? Math.min(Math.trunc(n), 20000)
+        : undefined;
+    const quality = Math.min(Math.max(Math.trunc(Number(options.quality ?? 82)) || 82, 1), 100);
+    const format =
+      !options.format || options.format === 'same'
+        ? (info.mime.slice(6) as 'jpeg' | 'png' | 'webp' | 'avif')
+        : options.format;
+    if (!['jpeg', 'png', 'webp', 'avif'].includes(format)) throw new TypeError('Unknown format.');
+    const maxWidth = size(options.maxWidth);
+    const maxHeight = size(options.maxHeight);
+    let pipeline = sharp(data).rotate().keepIccProfile();
+    if (maxWidth || maxHeight)
+      pipeline = pipeline.resize({
+        ...(maxWidth ? { width: maxWidth } : {}),
+        ...(maxHeight ? { height: maxHeight } : {}),
+        fit: 'inside',
+        withoutEnlargement: true,
+      });
+    if (format === 'jpeg')
+      pipeline = pipeline.flatten({ background: '#ffffff' }).jpeg({ quality, mozjpeg: true });
+    else if (format === 'png')
+      pipeline = pipeline.png({ compressionLevel: 9, adaptiveFiltering: true });
+    else if (format === 'webp') pipeline = pipeline.webp({ quality });
+    else pipeline = pipeline.avif({ quality: Math.round(quality * 0.7), effort: 4 });
+    const { data: output, info: out } = await pipeline.toBuffer({ resolveWithObject: true });
+    return {
+      data: output,
+      mime: `image/${format}` as PictureInfo['mime'],
+      width: out.width,
+      height: out.height,
+    };
+  }
+
+  async mediaReplace(siteId: string, id: string, data: Buffer): Promise<PluginMedia> {
+    await this.media.replaceOriginal(siteId, id, data);
+    return (await this.mediaItem(siteId, id))!;
   }
 
   /** The picture for link previews (plugin API 1.81): see MediaService.ensureSocialImage. */
@@ -1562,4 +1677,18 @@ function recordOfStrings(value: unknown): Record<string, string> {
       (entry): entry is [string, string] => typeof entry[1] === 'string',
     ),
   );
+}
+
+/** `[createdAt, id]` of the last item of a media page. */
+function decodeMediaCursor(cursor: string): { createdAt: Date; id: string } | null {
+  try {
+    const [createdAt, id] = JSON.parse(Buffer.from(cursor, 'base64url').toString()) as [
+      string,
+      string,
+    ];
+    const date = new Date(createdAt);
+    return Number.isNaN(date.getTime()) || typeof id !== 'string' ? null : { createdAt: date, id };
+  } catch {
+    return null;
+  }
 }

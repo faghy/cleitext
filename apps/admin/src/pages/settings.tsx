@@ -627,6 +627,24 @@ function SettingsForm({ initial }: { initial: CoreSettings }) {
               </span>
             </span>
           </label>
+          <label className="mt-3 flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={values.keepPhotoMetadata}
+              onChange={(e) => set('keepPhotoMetadata', e.target.checked)}
+            />
+            <span>
+              <span className="block font-medium text-slate-800">
+                {t('Keep the camera data in uploaded photos')}
+              </span>
+              <span className="block text-xs text-slate-500">
+                {t(
+                  'Off by default: when a photo is uploaded, the data the camera or the phone wrote into it (the GPS position where it was taken, the camera, the date) is removed, without touching the picture. Turn it on only if you need those data, for example for a photographer’s credits.',
+                )}
+              </span>
+            </span>
+          </label>
         </Card>
         <Card id="install-report" title={t('Installation report')}>
           <label className="flex items-start gap-2 text-sm">

@@ -8,6 +8,10 @@ import {
   type ImportReport,
   type PersonalDataGroup,
   type PluginContext,
+  type EncodedPicture,
+  type MediaPage,
+  type PictureEncodeOptions,
+  type PictureInfo,
   type PluginMedia,
   type PluginUser,
   type UserQuery,
@@ -162,6 +166,14 @@ export interface PluginServices {
   /** A push notification of the app, sent in the background (plugin API 1.78). */
   pushNotify(siteId: string, notification: PushNotice): void;
   mediaItem(siteId: string, id: string): Promise<PluginMedia | null>;
+  mediaFind(
+    siteId: string,
+    query: { kind?: 'image'; limit: number; cursor: string | null },
+  ): Promise<MediaPage>;
+  mediaRead(siteId: string, id: string): Promise<Buffer | null>;
+  mediaReplace(siteId: string, id: string, data: Buffer): Promise<PluginMedia>;
+  pictureInfo(data: Buffer): Promise<PictureInfo | null>;
+  encodePicture(data: Buffer, options: PictureEncodeOptions): Promise<EncodedPicture>;
   /** Library addresses of imported files by their old paths (plugin API 1.61). */
   importedMediaUrls(siteId: string, paths: readonly string[]): Promise<Record<string, string>>;
   /** Active members of a site (`ctx.users`, plugin API 1.42); the query is checked. */
@@ -319,6 +331,8 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         if (name.startsWith('form.')) require('forms:protect');
         // Every email of the site (plugin API 1.60).
         if (name.startsWith('mail.')) require('mail:transport');
+        // Pictures being uploaded (plugin API 1.82).
+        if (name.startsWith('media.')) require('media:write');
         // The meta of WordPress exports (plugin API 1.48).
         if (name === 'import.wxrMeta') require('import');
         host.addHook(plugin, 'filter', name, handler as never, options?.priority);
@@ -715,6 +729,39 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         const wanted = [...new Set(paths.filter((p): p is string => typeof p === 'string'))];
         if (wanted.length > 1000) throw new RangeError('At most 1000 paths.');
         return services().importedMediaUrls(siteId, wanted);
+      },
+      async find(siteId, query = {}) {
+        require('media:read');
+        assertSiteId(siteId);
+        const limit = Math.min(Math.max(Math.trunc(Number(query.limit ?? 50)) || 50, 1), 100);
+        return services().mediaFind(siteId, {
+          ...(query.kind === 'image' ? { kind: 'image' as const } : {}),
+          limit,
+          cursor: typeof query.cursor === 'string' ? query.cursor : null,
+        });
+      },
+      async read(siteId, id) {
+        require('media:read');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(id)) return null;
+        return services().mediaRead(siteId, id);
+      },
+      async replace(siteId, id, data) {
+        require('media:write');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(id)) throw new Error('Unknown media item.');
+        if (!Buffer.isBuffer(data)) throw new TypeError('The new file is needed, as a Buffer.');
+        return services().mediaReplace(siteId, id, data);
+      },
+      async inspect(data) {
+        require('media:read');
+        if (!Buffer.isBuffer(data)) throw new TypeError('A picture is needed, as a Buffer.');
+        return services().pictureInfo(data);
+      },
+      async encode(data, options) {
+        require('media:write');
+        if (!Buffer.isBuffer(data)) throw new TypeError('A picture is needed, as a Buffer.');
+        return services().encodePicture(data, options ?? {});
       },
     },
 

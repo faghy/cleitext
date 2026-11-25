@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 
 /**
@@ -13,6 +13,8 @@ export interface MediaStorage {
   put(key: string, data: Buffer): Promise<void>;
   /** The contents of a stored file. */
   read(key: string): Promise<Buffer>;
+  /** Writes new contents over a stored file, all at once (never half written). */
+  overwrite(key: string, data: Buffer): Promise<void>;
   delete(key: string): Promise<void>;
   /** Public URL path of a stored file. */
   url(key: string): string;
@@ -33,6 +35,13 @@ export class DiskStorage implements MediaStorage {
 
   read(key: string): Promise<Buffer> {
     return readFile(this.pathOf(key));
+  }
+
+  async overwrite(key: string, data: Buffer): Promise<void> {
+    const path = this.pathOf(key);
+    const temporary = `${path}.${process.pid}.${Date.now()}.tmp`;
+    await writeFile(temporary, data, { flag: 'wx' });
+    await rename(temporary, path);
   }
 
   url(key: string): string {
