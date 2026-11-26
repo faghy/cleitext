@@ -13,6 +13,7 @@ import {
 } from '@cleitext/shared';
 import {
   BadRequestException,
+  ConflictException,
   HttpException,
   Inject,
   Injectable,
@@ -236,24 +237,8 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     auth: AuthContext,
     values: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
-    const theme = await this.activeTheme(siteId, auth);
-    const fields = theme.settings ?? [];
-    const known = new Set(fields.map((f) => f.name));
-    const parsed = fieldsValidator(fields).safeParse(
-      Object.fromEntries(Object.entries(values).filter(([key]) => known.has(key))),
-    );
-    if (!parsed.success) {
-      throw new BadRequestException({
-        message: 'Some settings are not valid.',
-        errors: parsed.error.issues.map((issue) => ({
-          path: issue.path.join('.'),
-          message: issue.message,
-        })),
-      });
-    }
-    return parsed.data;
+    return validFor(await this.activeTheme(siteId, auth), values);
   }
-
   /**
    * Setting values from a file exported by another system, converted by the
    * active theme (`importSettings`): only the values that pass validation.
@@ -290,16 +275,49 @@ export class ThemesService implements OnModuleInit, OnApplicationBootstrap {
     return { values, skipped };
   }
 
+  /**
+   * Saves the active theme's settings. With `values`, they replace the
+   * stored ones (the import, older admins). With `changes` (Customize since
+   * 0.121.1), only those settings change and the others are kept: a page
+   * opened before another one saved, or one that did not load every value,
+   * can no longer empty the logo and the rest (issue #47). `null` clears a
+   * setting. `base` holds the values the editor started from: a setting
+   * someone else changed meanwhile to something else is a conflict (409).
+   */
   async saveSettings(
     siteId: string,
     auth: AuthContext,
-    values: Record<string, unknown>,
+    values: Record<string, unknown> | null,
     ip: string,
+    patch?: { changes: Record<string, unknown>; base?: Record<string, unknown> },
   ): Promise<Record<string, unknown>> {
     const theme = await this.activeTheme(siteId, auth);
     const slug = theme.slug;
-    let clean = await this.validSettings(siteId, auth, values);
+    let clean = values ? validFor(theme, values) : {};
     await this.run(siteId, auth, async (tx) => {
+      if (patch) {
+        const shown = await themeSettings(tx, theme);
+        const same = (a: unknown, b: unknown) =>
+          JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+        const conflicts = patch.base
+          ? Object.keys(patch.changes).filter(
+              (name) =>
+                !same(shown[name], patch.base![name]) && !same(shown[name], patch.changes[name]),
+            )
+          : [];
+        if (conflicts.length > 0) {
+          throw new ConflictException({
+            message: 'Someone else changed these settings meanwhile.',
+            errors: conflicts.map((name) => ({ path: name, message: 'Changed meanwhile.' })),
+          });
+        }
+        const merged = await storedThemeSettings(tx, slug, theme.parent);
+        for (const [name, value] of Object.entries(patch.changes)) {
+          if (value === null) delete merged[name];
+          else merged[name] = value;
+        }
+        clean = validFor(theme, merged);
+      }
       // Values of settings added by plugins deactivated here are kept for their return.
       const hidden = hiddenSettings(theme);
       if (hidden.size > 0) {
@@ -517,4 +535,26 @@ export function importedSiteSettings(
   const format = coreSettingsSchema.shape.dateFormat.safeParse(input.dateFormat);
   if (format.success && format.data) out.dateFormat = format.data;
   return Object.keys(out).length ? out : null;
+}
+
+/** Checks values against a theme's settings schema; unknown names are left out. */
+function validFor(
+  theme: ThemeDefinition,
+  values: Record<string, unknown>,
+): Record<string, unknown> {
+  const fields = theme.settings ?? [];
+  const known = new Set(fields.map((f) => f.name));
+  const parsed = fieldsValidator(fields).safeParse(
+    Object.fromEntries(Object.entries(values).filter(([key]) => known.has(key))),
+  );
+  if (!parsed.success) {
+    throw new BadRequestException({
+      message: 'Some settings are not valid.',
+      errors: parsed.error.issues.map((issue) => ({
+        path: issue.path.join('.'),
+        message: issue.message,
+      })),
+    });
+  }
+  return parsed.data;
 }

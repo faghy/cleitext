@@ -34,7 +34,19 @@ import { PREVIEW_SCRIPT } from './preview-script.js';
 import { zipThemeFolder } from './theme-package.js';
 import { ThemesService } from './themes.service.js';
 
-const settingsBody = z.object({ values: z.record(z.string(), z.unknown()) });
+/**
+ * The active theme's settings: `values` replace them all, `changes` (with the
+ * `base` they started from) change only those (Customize since 0.121.1).
+ */
+const settingsBody = z
+  .object({
+    values: z.record(z.string(), z.unknown()).optional(),
+    changes: z.record(z.string(), z.unknown()).optional(),
+    base: z.record(z.string(), z.unknown()).optional(),
+  })
+  .refine((b) => Boolean(b.values) !== Boolean(b.changes), {
+    message: 'Send either values or changes.',
+  });
 /** Additional CSS (core 0.79): a part left out is not changed. */
 const additionalCssBody = z.object({
   site: z.string().optional(),
@@ -291,8 +303,14 @@ export class ThemesController {
     @Body() body: unknown,
     @Req() request: FastifyRequest,
   ) {
-    const { values } = parseBody(settingsBody, body);
-    return this.themes.saveSettings(site.id, auth, values, request.ip);
+    const { values, changes, base } = parseBody(settingsBody, body);
+    return this.themes.saveSettings(
+      site.id,
+      auth,
+      values ?? null,
+      request.ip,
+      changes ? { changes, ...(base ? { base } : {}) } : undefined,
+    );
   }
 
   /**

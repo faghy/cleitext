@@ -582,6 +582,8 @@ export const itGeneral: Messages = {
   Other: 'Altro',
   Sections: 'Sezioni',
   'Published.': 'Pubblicato.',
+  'Someone else changed some of these settings meanwhile. Reload the page to see them, then make your changes again.':
+    'Nel frattempo qualcun altro ha cambiato alcune di queste impostazioni. Ricarica la pagina per vederle, poi rifai le tue modifiche.',
   'Page options': 'Opzioni della pagina',
   'Layout options': 'Opzioni di layout',
   '{name} options': 'Opzioni di {name}',

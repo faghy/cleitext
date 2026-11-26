@@ -12,7 +12,7 @@ import {
 } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { api, errorMessage } from '../api';
+import { api, ApiError, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { useT } from '../components/ui';
 
@@ -193,11 +193,19 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
   const save = useMutation({
     mutationFn: async () => {
       if (cssProblem) throw new Error(cssProblem);
+      // Only what changed here, with the values it started from: the others
+      // stay as stored, and a setting changed meanwhile elsewhere is reported
+      // instead of overwritten (issue #47).
+      const current = values ?? {};
+      const names = fields
+        .map((f) => f.name)
+        .filter((name) => !same(current[name], saved.current[name]));
       const result = settingsDirty
         ? await api<Record<string, unknown>>('PUT', '/themes/active/settings', {
-            values: values ?? {},
+            changes: Object.fromEntries(names.map((name) => [name, current[name] ?? null])),
+            base: Object.fromEntries(names.map((name) => [name, saved.current[name] ?? null])),
           })
-        : (values ?? {});
+        : current;
       const cssResult =
         cssDirty && css ? await api<AdditionalCssView>('PUT', '/themes/additional-css', css) : null;
       return { result, cssResult };
@@ -496,7 +504,13 @@ export function ThemeOptions({ onClose }: { onClose?: () => void }) {
                   }`}
                 >
                   <span className="flex-1">
-                    {save.error ? errorMessage(save.error) : (notice ?? t('Published.'))}
+                    {save.error
+                      ? save.error instanceof ApiError && save.error.status === 409
+                        ? t(
+                            'Someone else changed some of these settings meanwhile. Reload the page to see them, then make your changes again.',
+                          )
+                        : errorMessage(save.error)
+                      : (notice ?? t('Published.'))}
                   </span>
                   <button
                     type="button"

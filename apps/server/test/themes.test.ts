@@ -106,6 +106,42 @@ describe('theme settings and areas', () => {
     expect(home.body).toContain('powered by <a href="https://cleitext.com">Cleitext</a>');
   });
 
+  it('changes only the settings sent as changes, and reports one changed meanwhile (issue #47)', async () => {
+    const put = (body: Record<string, unknown>) =>
+      admin.request('PUT', '/api/v1/themes/active/settings', body);
+    await put({
+      values: { footerText: 'Old footer', showPoweredBy: false, accentColor: '#112233' },
+    });
+    // A page that loaded nothing but the footer: the other settings stay.
+    const saved = await put({
+      changes: { footerText: 'New footer' },
+      base: { footerText: 'Old footer' },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toMatchObject({
+      footerText: 'New footer',
+      showPoweredBy: false,
+      accentColor: '#112233',
+    });
+    // A page opened before that save: its old footer is a conflict, not an overwrite.
+    const stale = await put({
+      changes: { footerText: 'Stale footer' },
+      base: { footerText: 'Old footer' },
+    });
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json().errors.map((e: { path: string }) => e.path)).toEqual(['footerText']);
+    // Unrelated settings from a stale page are fine; null clears a setting.
+    const other = await put({
+      changes: { accentColor: '#445566', showPoweredBy: null },
+      base: { accentColor: '#112233', showPoweredBy: false },
+    });
+    expect(other.statusCode).toBe(200);
+    expect(other.json()).toMatchObject({ footerText: 'New footer', accentColor: '#445566' });
+    expect(other.json().showPoweredBy).not.toBe(false);
+    expect((await put({ values: {}, changes: {} })).statusCode).toBe(400);
+    await put({ values: {} });
+  });
+
   it('lets the site replace or hide the credit in the footer', async () => {
     const put = (values: Record<string, unknown>) =>
       admin.request('PUT', '/api/v1/themes/active/settings', { values });
