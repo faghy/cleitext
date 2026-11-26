@@ -30,6 +30,16 @@ import { BOX_TYPE, ENTRY_FIELDS, TERM_FIELDS } from './fields.js';
 import { buildHead, verificationFile } from './head.js';
 import { termSeoFromWxr } from './import.js';
 import { schemaGraph, type Crumb } from './jsonld.js';
+import {
+  effectiveConfig,
+  installServerApi,
+  isUnlocked,
+  keptFeatures,
+  limitsFor,
+  type Limits,
+  type ProFeature,
+  type VettaServerApi,
+} from './pro.js';
 import { indexnowLog, notFound } from './schema.js';
 import {
   excluded,
@@ -42,15 +52,52 @@ import {
 } from './tools.js';
 
 const CACHE_TAG = 'vetta';
-const configs = new Map<string, { config: Config; at: number }>();
+const configs = new Map<string, { config: Config; limits: Limits; at: number }>();
 const origins = new Map<string, string>();
+/** Vetta SEO Pro's hook list (set up again in every `setup`). */
+let proApi: VettaServerApi = { version: 1, unlocked: [], upgradeUrl: '' };
 
-async function configFor(ctx: PluginContext, siteId: string): Promise<Config> {
+/**
+ * The features of Pro a site keeps for free. Missing on a site where Vetta
+ * was already active before 2.0 (its activation set it otherwise): worked
+ * out once from its settings and remembered.
+ */
+async function keptOf(ctx: PluginContext, siteId: string): Promise<ProFeature[]> {
+  const stored = await ctx.storage.get<ProFeature[]>(siteId, 'kept');
+  if (Array.isArray(stored)) return stored;
+  const kept = keptFeatures(((await ctx.storage.get(siteId, 'config')) ?? {}) as Config);
+  await ctx.storage.set(siteId, 'kept', kept);
+  return kept;
+}
+
+async function load(ctx: PluginContext, siteId: string) {
   const hit = configs.get(siteId);
-  if (hit && Date.now() - hit.at < 30_000) return hit.config;
-  const config = ((await ctx.storage.get(siteId, 'config')) ?? {}) as Config;
-  configs.set(siteId, { config, at: Date.now() });
-  return config;
+  if (hit && Date.now() - hit.at < 30_000) return hit;
+  const raw = ((await ctx.storage.get(siteId, 'config')) ?? {}) as Config;
+  const pro = await isUnlocked(proApi, siteId, (m) => ctx.log.warn(m));
+  let kept = await keptOf(ctx, siteId);
+  // What a site uses with Pro keeps working when its license ends, as with
+  // the other paid plugins: only switching more on waits for it.
+  if (pro) {
+    const inUse = keptFeatures(raw).filter((f) => !kept.includes(f));
+    if (inUse.length > 0) {
+      kept = [...kept, ...inUse];
+      await ctx.storage.set(siteId, 'kept', kept);
+    }
+  }
+  const limits = limitsFor(pro, kept, proApi.upgradeUrl);
+  const loaded = { config: effectiveConfig(raw, limits), limits, at: Date.now() };
+  configs.set(siteId, loaded);
+  return loaded;
+}
+
+/** The settings as the site may use them (the modules of Pro it may not use are off). */
+async function configFor(ctx: PluginContext, siteId: string): Promise<Config> {
+  return (await load(ctx, siteId)).config;
+}
+
+async function limitsOf(ctx: PluginContext, siteId: string): Promise<Limits> {
+  return (await load(ctx, siteId)).limits;
 }
 
 /** The site's public address, as last seen by a page or the admin (for IndexNow and llms.txt). */
@@ -319,6 +366,8 @@ Categories, tags and other terms have the field group \`vetta-term\` (in a term'
 
 export default definePlugin({
   setup(ctx) {
+    proApi = installServerApi();
+    configs.clear();
     ctx.access.defineCapability('manage_vetta', {
       label: {
         en: 'Manage the SEO settings (Vetta SEO)',
@@ -370,7 +419,11 @@ export default definePlugin({
                 withCounts: minEntries(config, context.archive.taxonomy) > 0,
               })
             : null;
-        const seo = term ? termSeo(term.fields) : entrySeo((entry ?? postsPage)?.fields);
+        // SEO on each term needs Pro (or a site that had it before 2.0).
+        const termFieldsOn = term ? (await limitsOf(ctx, context.siteId)).terms : false;
+        const seo = term
+          ? termSeo(termFieldsOn ? term.fields : undefined)
+          : entrySeo((entry ?? postsPage)?.fields);
         const pageUrl = head.canonical ?? head.og['og:url'] ?? null;
         if (pageUrl) await rememberOrigin(ctx, context.siteId, new URL(pageUrl).origin);
 
@@ -615,6 +668,7 @@ export default definePlugin({
           if (t.count !== undefined) termCounts.set(t.id, t.count);
         }
       }
+      const termsOn = (await limitsOf(ctx, siteId)).terms;
       return urls
         .filter((url) => {
           if (url.entry && exclude.has(url.entry.id)) return false;
@@ -624,7 +678,9 @@ export default definePlugin({
             const count = termCounts.get(url.term.id);
             if (least > 0 && count !== undefined && count < least) return false;
           }
-          const seo = url.term ? termSeo(termFields.get(url.term.id)) : entrySeo(url.entry?.fields);
+          const seo = url.term
+            ? termSeo(termsOn ? termFields.get(url.term.id) : undefined)
+            : entrySeo(url.entry?.fields);
           if (seo.noindex) return false;
           const canonical = seo.canonical?.trim();
           return !canonical || canonical.replace(/\/+$/, '') === url.loc.replace(/\/+$/, '');
@@ -890,6 +946,7 @@ export default definePlugin({
         return {
           body: {
             config: await configFor(ctx, request.siteId),
+            limits: await limitsOf(ctx, request.siteId),
             origin: request.origin,
             replaced: await replacedModules(ctx, request.siteId),
           },
@@ -909,7 +966,7 @@ export default definePlugin({
         await ctx.storage.set(request.siteId, 'config', next);
         configs.delete(request.siteId);
         await ctx.cache.invalidate(request.siteId, ['site', CACHE_TAG]);
-        return { body: { config: next } };
+        return { body: { config: await configFor(ctx, request.siteId) } };
       },
     });
 
@@ -930,7 +987,9 @@ export default definePlugin({
               k === 'home_title',
           ),
         );
-        return { body: { config: shown, siteName: site.name } };
+        return {
+          body: { config: shown, siteName: site.name, limits: await limitsOf(ctx, request.siteId) },
+        };
       },
     });
 
@@ -1043,5 +1102,13 @@ export default definePlugin({
           ),
       );
     });
+  },
+  // A site switching Vetta on keeps the features of Pro only if it had them
+  // before (settings saved by a Vetta older than 2.0, then switched off).
+  async onActivate(site, ctx) {
+    if (Array.isArray(await ctx.storage.get(site.id, 'kept'))) return;
+    const config = (await ctx.storage.get(site.id, 'config')) as Config | null;
+    await ctx.storage.set(site.id, 'kept', config ? keptFeatures(config) : []);
+    configs.delete(site.id);
   },
 });

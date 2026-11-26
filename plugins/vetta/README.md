@@ -1,8 +1,21 @@
 # Vetta SEO
 
-The complete SEO plugin of Cleitext, free (GPL-3.0-or-later). Install it from **Plugins → Add New** (catalog), or upload `cleitext-plugin-vetta-<version>.zip` from the Releases page. It replaces the lighter **SEO** plugin: the two cannot be active together, and Vetta reads the SEO plugin's fields (search title, description, keyphrase, noindex, canonical, social image) on pages that have no Vetta values yet.
+The SEO plugin of Cleitext, free (GPL-3.0-or-later). Install it from **Plugins → Add New** (catalog), or upload `cleitext-plugin-vetta-<version>.zip` from the Releases page. It replaces the lighter **SEO** plugin: the two cannot be active together, and Vetta reads the SEO plugin's fields (search title, description, keyphrase, noindex, canonical, social image) on pages that have no Vetta values yet.
 
 Needs Cleitext 0.35 (plugin API 1.24).
+
+## Vetta SEO and Vetta SEO Pro
+
+Since 2.0.0 Vetta SEO is the base, free, and **Vetta SEO Pro** (a paid plugin, €49 a year per site + VAT, [cleitext.com/plugins/vetta-pro](https://cleitext.com/plugins/vetta-pro)) adds:
+
+- up to five keywords per page in the analysis (one without Pro);
+- SEO on each category, tag and term (without it, archives use the templates of **Categories and tags**);
+- the local business data in the schema.org graph;
+- the log of pages not found;
+- IndexNow;
+- llms.txt.
+
+Nothing a site already used stops working. On a site where Vetta SEO was active before 2.0.0, the five keywords, the SEO of terms and the Pro modules that were on stay free, and are remembered for that site. What a site switched on while its Vetta SEO Pro license was current keeps working after the license ends; switching more on waits for a renewal. Without Pro, the values written in the Pro fields stay stored and come back with Pro.
 
 ## In the editor
 

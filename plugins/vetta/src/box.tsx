@@ -6,7 +6,12 @@
  * networks, closed until opened. It draws the fields with the form's own
  * `layout.render`, so labels, help, errors and saving stay the core's.
  */
-import { type AdminFieldTypeDefinition, type FieldControlProps } from '@cleitext/admin-sdk';
+import {
+  pluginApi,
+  type AdminFieldTypeDefinition,
+  type FieldControlProps,
+} from '@cleitext/admin-sdk';
+import { useQuery } from '@tanstack/react-query';
 import type { FieldDefinition } from '@cleitext/plugin-sdk';
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BOX_TYPE } from './fields.js';
@@ -19,6 +24,7 @@ import {
   useBoxMounted,
   useEditorSnapshot,
 } from './panel.js';
+import type { Limits } from './pro.js';
 import { termChecks } from './term-checks.js';
 
 const STORAGE_KEY = 'vetta.box.open';
@@ -182,7 +188,39 @@ export function VettaBox({ field, layout, locale }: FieldControlProps) {
     return () => window.removeEventListener(OPEN_BOX_EVENT, show);
   });
 
+  // SEO on each term needs Vetta SEO Pro (or a site that had it before 2.0).
+  const limits = useQuery({
+    queryKey: ['vetta', 'editor-config'],
+    queryFn: () =>
+      pluginApi('vetta')<{ limits?: Limits }>('GET', '/editor-config') as Promise<{
+        limits?: Limits;
+      }>,
+    enabled: kind === 'term',
+    staleTime: 60_000,
+  }).data?.limits;
+
   if (!layout) return null;
+  if (kind === 'term' && limits && !limits.terms) {
+    return (
+      <div className="vetta-box space-y-1 p-3 text-sm" style={tint}>
+        <div className="font-medium">Vetta SEO</div>
+        <p className="text-slate-700">
+          {tr(
+            'Keywords, search title and description, robots and social card of each category and tag come with Vetta SEO Pro. Without it, archives use the templates of Vetta SEO → Categories and tags.',
+            'Parole chiave, titolo e descrizione per i motori, robots e scheda social di ogni categoria e tag arrivano con Vetta SEO Pro. Senza, gli archivi usano i modelli di Vetta SEO → Categorie e tag.',
+          )}{' '}
+          <a
+            className="font-medium underline"
+            href={limits.upgradeUrl}
+            target="_blank"
+            rel="noopener"
+          >
+            {tr('Find out more', 'Scopri di più')}
+          </a>
+        </p>
+      </div>
+    );
+  }
   const { main, sections } = splitFields(layout.fields, locale);
   const values = layout.values as Record<string, unknown>;
   const Analysis = kind === 'term' ? TermAnalysis : EntryAnalysis;

@@ -16,6 +16,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { DEFAULTS, MODULES, moduleOn, type Config } from './config.js';
+import { isProModule, type Limits } from './pro.js';
 import { boxFieldType } from './box.js';
 import { AnalysisPanel } from './panel.js';
 import {
@@ -104,10 +105,12 @@ function SettingsPage(props: AdminPageProps) {
   const saved = useQuery({
     queryKey: ['vetta', 'config'],
     queryFn: () =>
-      props.api<{ config: Config; origin: string; replaced?: Record<string, string> }>(
-        'GET',
-        '/config',
-      ),
+      props.api<{
+        config: Config;
+        origin: string;
+        replaced?: Record<string, string>;
+        limits?: Limits;
+      }>('GET', '/config'),
   });
   const types = useQuery({
     queryKey: ['content-types'],
@@ -119,6 +122,17 @@ function SettingsPage(props: AdminPageProps) {
   });
   const [draft, setDraft] = useState<Config | null>(null);
   const config = draft ?? saved.data?.config ?? null;
+  const limits = saved.data?.limits;
+  /** A module of Vetta SEO Pro this site may not switch on. */
+  const locked = (m: string) => Boolean(limits && isProModule(m) && !limits.modules[m]);
+  /** Fields of modules this site may not use, left out of their tabs. */
+  const usable = (list: Field[]) =>
+    list.filter(
+      (f) =>
+        !(f.name.startsWith('module_') && locked(f.name.slice(7))) &&
+        !(f.name.startsWith('local_') && locked('localSeo')) &&
+        !(f.name.startsWith('llms_') && locked('llms')),
+    );
   const save = useMutation({
     mutationFn: (next: Config) => props.api<{ config: Config }>('PUT', '/config', { config: next }),
     onSuccess: (result) => {
@@ -130,7 +144,11 @@ function SettingsPage(props: AdminPageProps) {
     },
   });
 
-  const fields = useMemo((): Field[] => {
+  const fields = useMemo(
+    (): Field[] => usable(tabFields()),
+    [tab, types.data, taxonomies.data, locale, limits],
+  );
+  function tabFields(): Field[] {
     switch (tab) {
       case 'modules':
         return moduleFields();
@@ -161,7 +179,7 @@ function SettingsPage(props: AdminPageProps) {
       case 'indexnow':
         return indexnowFields();
     }
-  }, [tab, types.data, taxonomies.data, locale]);
+  }
   const defaults = useMemo(() => {
     const d = defaultsOf(fields);
     for (const m of MODULES) d[`module_${m}`] = moduleOn({}, m);
@@ -189,7 +207,7 @@ function SettingsPage(props: AdminPageProps) {
       {save.isSuccess && !draft && <Alert kind="success">{tr('Saved.', 'Salvato.')}</Alert>}
       <div className="grid gap-4 md:grid-cols-[13rem_minmax(0,46rem)]">
         <nav aria-label={tr('Sections', 'Sezioni')} className="space-y-0.5">
-          {TABS.map((t) => (
+          {TABS.filter((t) => !(t.module && locked(t.module))).map((t) => (
             <button
               key={t.id}
               type="button"
@@ -210,6 +228,11 @@ function SettingsPage(props: AdminPageProps) {
         </nav>
         <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
           <TabIntro tab={tab} tr={tr} origin={origin} config={config} />
+          {limits &&
+            !limits.pro &&
+            (tab === 'modules' || tab === 'knowledge' || tab === 'files') && (
+              <ProNote limits={limits} tr={tr} />
+            )}
           <ReplacedNote
             replaced={saved.data?.replaced ?? {}}
             only={
@@ -452,6 +475,32 @@ interface LogRow {
 }
 
 /** The server's IndexNow answers, in the admin's language. */
+/** What Vetta SEO Pro adds and this site does not have yet. */
+function ProNote({ limits, tr }: { limits: Limits; tr: (en: string, it: string) => string }) {
+  const missing = [
+    ...(limits.keywords < 5
+      ? [tr('up to five keywords per page', 'fino a cinque parole chiave per pagina')]
+      : []),
+    ...(!limits.terms ? [tr('SEO on each category and tag', 'SEO di ogni categoria e tag')] : []),
+    ...(!limits.modules.localSeo ? [tr('local business data', 'dati dell’attività locale')] : []),
+    ...(!limits.modules.monitor404
+      ? [tr('the log of pages not found', 'il registro delle pagine non trovate')]
+      : []),
+    ...(!limits.modules.indexNow ? ['IndexNow'] : []),
+    ...(!limits.modules.llms ? ['llms.txt'] : []),
+  ];
+  if (missing.length === 0) return null;
+  return (
+    <div className="rounded border border-sky-200 bg-sky-50 p-3 text-sm text-slate-700">
+      {tr('With Vetta SEO Pro: ', 'Con Vetta SEO Pro: ')}
+      {missing.join(', ')}.{' '}
+      <a className="font-medium underline" href={limits.upgradeUrl} target="_blank" rel="noopener">
+        {tr('Get Vetta SEO Pro', 'Scopri Vetta SEO Pro')}
+      </a>
+    </div>
+  );
+}
+
 const INDEXNOW_IT: Record<string, string> = {
   'IndexNow is off.': 'IndexNow è spento.',
   'The site address is not known yet: open a page of the site, then try again.':

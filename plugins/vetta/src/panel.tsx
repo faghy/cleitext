@@ -22,6 +22,7 @@ import {
   type TestResult,
 } from './analysis.js';
 import { entrySeo, keywordsOf, moduleOn, text, typeValue, type Config } from './config.js';
+import type { Limits } from './pro.js';
 import { plainDescription, replaceVariables } from './variables.js';
 
 export const LEVEL_COLORS = { great: '#047857', good: '#b45309', bad: '#b91c1c' } as const;
@@ -130,6 +131,9 @@ export interface AnalysisState {
   enabled: boolean;
   preview: { title: string; description: string; path: string } | null;
   result: Analysis | null;
+  /** Keywords written past what the site may analyse without Vetta SEO Pro. */
+  skipped: number;
+  upgradeUrl: string | null;
 }
 
 /**
@@ -147,7 +151,8 @@ export function useAnalysis(
   const api = source?.api;
   const editorConfig = useQuery({
     queryKey: ['vetta', 'editor-config'],
-    queryFn: () => api!<{ config: Config; siteName: string }>('GET', '/editor-config'),
+    queryFn: () =>
+      api!<{ config: Config; siteName: string; limits?: Limits }>('GET', '/editor-config'),
     enabled: Boolean(api),
     staleTime: 60_000,
   });
@@ -156,7 +161,9 @@ export function useAnalysis(
     [draft?.fields, typed],
   );
   const seo = entrySeo(fields);
-  const keywords = keywordsOf(seo);
+  const allowed = editorConfig.data?.limits?.keywords ?? 5;
+  const written = keywordsOf(seo);
+  const keywords = written.slice(0, allowed);
   const keywordsKey = keywords.join(',');
   const main = keywords[0] ?? '';
   const used = useQuery({
@@ -210,7 +217,13 @@ export function useAnalysis(
     });
   }, [draft, preview, keywordsKey, entry, used.data]);
 
-  return { enabled: !config || moduleOn(config, 'analysis'), preview, result };
+  return {
+    enabled: !config || moduleOn(config, 'analysis'),
+    preview,
+    result,
+    skipped: written.length - keywords.length,
+    upgradeUrl: editorConfig.data?.limits?.upgradeUrl ?? null,
+  };
 }
 
 /** The Google preview, the score of each keyword and the checklist. */
@@ -271,6 +284,24 @@ export function AnalysisView({
             {preview.title.length}/60 · {preview.description.length}/160
           </div>
         </div>
+      )}
+      {analysis.skipped > 0 && (
+        <p className="rounded border border-sky-200 bg-sky-50 p-2 text-xs text-slate-700">
+          {tr(
+            'Only the main keyword is analysed. Vetta SEO Pro analyses up to five. ',
+            'Viene analizzata solo la parola chiave principale. Vetta SEO Pro ne analizza fino a cinque. ',
+          )}
+          {analysis.upgradeUrl && (
+            <a
+              className="font-medium underline"
+              href={analysis.upgradeUrl}
+              target="_blank"
+              rel="noopener"
+            >
+              {tr('Find out more', 'Scopri di più')}
+            </a>
+          )}
+        </p>
       )}
       {!result && (
         <p className="text-slate-600">

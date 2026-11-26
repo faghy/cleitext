@@ -1,9 +1,9 @@
 {
   "slug": "vetta",
   "name": "Vetta SEO",
-  "version": "1.6.1",
+  "version": "2.0.0",
   "apiVersion": "^1.69",
-  "description": "SEO in one place: search titles and descriptions with variables, a content analysis with a score out of 100, social cards, schema.org and local business data, sitemaps, a log of pages not found, IndexNow, llms.txt and robots.txt.",
+  "description": "SEO in one place: search titles and descriptions with variables, a content analysis with a score out of 100, social cards, schema.org, sitemaps, breadcrumbs and robots.txt. Vetta SEO Pro adds more keywords, SEO on each term, local business, the 404 log, IndexNow and llms.txt.",
   "author": "Cleitext",
   "homepage": "https://cleitext.com/plugins/vetta",
   "license": "GPL-3.0-or-later",
