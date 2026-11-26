@@ -85,7 +85,16 @@ beforeAll(async () => {
   visitor = new TestClient(app, site.host, '10.9.1.2');
   expect((await admin.post('/api/v1/plugins/vetta/activate')).statusCode).toBe(200);
   expect((await admin.post('/api/v1/plugins/wordpress-importer/activate')).statusCode).toBe(200);
+  // Vetta SEO Pro, as its plugin answers: on unless a test switches it off.
+  vettaPro().unlocked.push(() => pro);
 });
+
+/** Whether Vetta SEO Pro lifts the limits (its answer to Vetta's question). */
+let pro = true;
+const vettaPro = () =>
+  (globalThis as unknown as Record<symbol, { unlocked: (() => boolean)[] }>)[
+    Symbol.for('cleitext.vetta')
+  ]!;
 
 afterAll(async () => {
   await app?.close();
@@ -498,5 +507,55 @@ describe('Vetta SEO', () => {
     const editor = (await admin.get('/api/v1/ext/vetta/editor-config')).json();
     expect(editor.config.separator).toBe(undefined);
     expect(editor.siteName).toBeTruthy();
+  });
+  it('without Vetta SEO Pro, a site new to Vetta has one keyword and none of the Pro modules', async () => {
+    const other = await seedSite(owner, 'vetta-free');
+    await seedUser(owner, {
+      email: 'admin@vetta-free.test',
+      password: PASSWORD,
+      site: other,
+      role: 'administrator',
+    });
+    const freeAdmin = new TestClient(app, other.host, '10.9.1.3');
+    await freeAdmin.login('admin@vetta-free.test', PASSWORD);
+    pro = false;
+    try {
+      expect((await freeAdmin.post('/api/v1/plugins/vetta/activate')).statusCode).toBe(200);
+      vettaPro().unlocked.push(() => pro);
+      await freeAdmin.request('PUT', '/api/v1/ext/vetta/config', {
+        config: { module_llms: true, module_localSeo: true, module_monitor404: true },
+      });
+      const got = (await freeAdmin.get('/api/v1/ext/vetta/config')).json();
+      expect(got.limits.pro).toBe(false);
+      expect(got.limits.keywords).toBe(1);
+      expect(got.limits.terms).toBe(false);
+      expect(got.config.module_llms).toBe(false);
+      expect(got.config.module_localSeo).toBe(false);
+      expect(got.config.module_indexNow).toBe(false);
+      expect((await new TestClient(app, other.host, '10.9.1.4').get('/llms.txt')).statusCode).toBe(
+        404,
+      );
+      expect((await freeAdmin.get('/api/v1/ext/vetta/editor-config')).json().limits.keywords).toBe(
+        1,
+      );
+      // With Pro the same settings apply, and stay on when the license ends.
+      pro = true;
+      await freeAdmin.request('PUT', '/api/v1/ext/vetta/config', {
+        config: { module_llms: true },
+      });
+      expect((await freeAdmin.get('/api/v1/ext/vetta/config')).json().config.module_llms).toBe(
+        true,
+      );
+      pro = false;
+      await freeAdmin.request('PUT', '/api/v1/ext/vetta/config', {
+        config: { module_llms: true, module_localSeo: true },
+      });
+      const after = (await freeAdmin.get('/api/v1/ext/vetta/config')).json();
+      expect(after.limits.pro).toBe(false);
+      expect(after.config.module_llms).toBe(true);
+      expect(after.config.module_localSeo).toBe(false);
+    } finally {
+      pro = true;
+    }
   });
 });
