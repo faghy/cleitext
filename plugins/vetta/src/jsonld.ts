@@ -5,6 +5,7 @@
  * posts, an Article (or BlogPosting, NewsArticle).
  */
 import { lines, moduleOn, text, typeValue, value, type Config } from './config.js';
+import { customNodes, productNode, type ProductFields } from './product.js';
 
 export interface Crumb {
   title: string;
@@ -35,6 +36,10 @@ export interface GraphInput {
     /** The entry's own choice (`auto` follows its content type). */
     schema: string | null;
   } | null;
+  /** The page's product and own JSON-LD (Vetta SEO Pro), when the site may use them. */
+  product?: ProductFields;
+  /** The entry's own title, the product's name when the page gives none. */
+  entryTitle?: string;
 }
 
 const DAYS: Record<string, string> = {
@@ -249,6 +254,18 @@ export function schemaGraph(input: GraphInput): Record<string, unknown> | null {
       ...(input.entry.keywords.length ? { keywords: input.entry.keywords.join(', ') } : {}),
       ...(input.entry.sections.length ? { articleSection: input.entry.sections } : {}),
     });
+  }
+  if (input.product && input.entry) {
+    const product = productNode({
+      fields: input.product,
+      pageUrl: input.pageUrl,
+      title: input.entryTitle ?? input.entry.title,
+      description: input.description,
+      image: input.image,
+      publisherId,
+    });
+    if (product) graph.push(product);
+    graph.push(...customNodes(input.product.customSchema).nodes);
   }
   return { '@context': 'https://schema.org', '@graph': graph };
 }

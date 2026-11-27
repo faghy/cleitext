@@ -508,6 +508,38 @@ describe('Vetta SEO', () => {
     expect(editor.config.separator).toBe(undefined);
     expect(editor.siteName).toBeTruthy();
   });
+  it('describes the product of a page and adds its own JSON-LD (Vetta SEO Pro)', async () => {
+    const page = await publish('page', 'ProntoMenu', {
+      fields: {
+        vetta: {
+          productType: 'SoftwareApplication',
+          productOffers: [
+            { name: 'Mensile', price: '32,50', currency: 'EUR', period: 'P1M' },
+            { name: 'Annuale', price: '325', currency: 'EUR', period: 'P1Y' },
+          ],
+          customSchema: '{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[]}',
+        },
+      },
+    });
+    const html = (await visitor.get(`/${page.slug}`)).body;
+    const graph = JSON.parse(
+      /<script type="application\/ld\+json">(.*?)<\/script>/s.exec(html)![1]!,
+    )['@graph'] as Record<string, unknown>[];
+    const app = graph.find((n) => n['@type'] === 'SoftwareApplication')!;
+    expect(app).toMatchObject({ name: 'ProntoMenu', operatingSystem: 'Web' });
+    expect(app.offers).toEqual([
+      expect.objectContaining({
+        price: '32.50',
+        priceSpecification: expect.objectContaining({ billingDuration: 'P1M' }),
+      }),
+      expect.objectContaining({ price: '325' }),
+    ]);
+    expect(graph.find((n) => n['@type'] === 'FAQPage')).toEqual({
+      '@type': 'FAQPage',
+      mainEntity: [],
+    });
+  });
+
   it('without Vetta SEO Pro, a site new to Vetta has one keyword and none of the Pro modules', async () => {
     const other = await seedSite(owner, 'vetta-free');
     await seedUser(owner, {
@@ -538,6 +570,31 @@ describe('Vetta SEO', () => {
       expect((await freeAdmin.get('/api/v1/ext/vetta/editor-config')).json().limits.keywords).toBe(
         1,
       );
+      // No product nor own JSON-LD on its pages.
+      const created = (
+        await freeAdmin.post('/api/v1/entries', {
+          type: 'page',
+          title: 'Prodotto',
+          fields: {
+            vetta: {
+              productType: 'SoftwareApplication',
+              productOffers: [
+                { name: 'Mensile', price: '32,50', currency: 'EUR', period: 'P1M' },
+                { name: 'Annuale', price: '325', currency: 'EUR', period: 'P1Y' },
+              ],
+              customSchema: '{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[]}',
+            },
+          },
+        })
+      ).json();
+      const published = await freeAdmin.post(`/api/v1/entries/${created.id}/publish`);
+      expect(published.statusCode).toBe(200);
+      const productHtml = (
+        await new TestClient(app, other.host, '10.9.1.5').get(`/${published.json().slug}`)
+      ).body;
+      expect(productHtml).toContain('"WebPage"');
+      expect(productHtml).not.toContain('SoftwareApplication');
+      expect(productHtml).not.toContain('FAQPage');
       // With Pro the same settings apply, and stay on when the license ends.
       pro = true;
       await freeAdmin.request('PUT', '/api/v1/ext/vetta/config', {

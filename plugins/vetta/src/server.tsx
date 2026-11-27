@@ -30,6 +30,7 @@ import { BOX_TYPE, ENTRY_FIELDS, TERM_FIELDS } from './fields.js';
 import { buildHead, verificationFile } from './head.js';
 import { termSeoFromWxr } from './import.js';
 import { schemaGraph, type Crumb } from './jsonld.js';
+import type { ProductFields } from './product.js';
 import {
   effectiveConfig,
   installServerApi,
@@ -79,7 +80,7 @@ async function load(ctx: PluginContext, siteId: string) {
   // What a site uses with Pro keeps working when its license ends, as with
   // the other paid plugins: only switching more on waits for it.
   if (pro) {
-    const inUse = keptFeatures(raw).filter((f) => !kept.includes(f));
+    const inUse = [...keptFeatures(raw), 'schemaPlus' as const].filter((f) => !kept.includes(f));
     if (inUse.length > 0) {
       kept = [...kept, ...inUse];
       await ctx.storage.set(siteId, 'kept', kept);
@@ -566,6 +567,9 @@ export default definePlugin({
                   schema: seo.schema ?? null,
                 }
               : null,
+            ...(entry && (await limitsOf(ctx, context.siteId)).schema
+              ? { product: (entry.fields?.vetta ?? {}) as ProductFields, entryTitle: entry.title }
+              : {}),
           });
           // One graph: the core's or another plugin's is replaced.
           next.tags = (next.tags ?? []).filter(

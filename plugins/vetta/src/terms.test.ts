@@ -45,11 +45,20 @@ describe('Vetta’s fields', () => {
       'ogTitle',
       'ogDescription',
       'ogImage',
+      'productType',
+      'productName',
+      'productDescription',
+      'productBrand',
+      'productSku',
+      'productCategory',
+      'productOs',
+      'productOffers',
+      'customSchema',
     ]);
     expect(ENTRY_FIELDS[0]!.type).toBe('vetta/box');
-    // Advanced and Social networks are the only groups, after the main fields.
+    // Advanced, Social networks and the product of Pro are the groups, after the main fields.
     const groups = ENTRY_FIELDS.map((f) => (f.group as { en: string } | undefined)?.en ?? '');
-    expect([...new Set(groups)]).toEqual(['', 'Advanced', 'Social networks']);
+    expect([...new Set(groups)]).toEqual(['', 'Advanced', 'Social networks', 'Product and schema']);
     expect(TERM_FIELDS.map((f) => f.name)).toEqual([
       'vettaBox',
       'keywords',
@@ -201,13 +210,14 @@ describe('the import of Rank Math’s term SEO', () => {
 });
 
 describe('Vetta’s box', () => {
-  it('shows the main fields first, then Advanced and Social networks without their headings', async () => {
+  it('shows the main fields first, then Advanced, Social networks and Product without their headings', async () => {
     const { splitFields } = await import('./box-split');
     const { main, sections } = splitFields(ENTRY_FIELDS.slice(1), 'it');
     expect(main.map((f) => f.name)).toEqual(['keywords', 'title', 'description']);
     expect(sections.map((s) => [s.title, s.fields.length])).toEqual([
       ['Avanzate', 9],
       ['Social network', 3],
+      ['Prodotto e schema', 9],
     ]);
     expect(sections.every((s) => s.fields.every((f) => f.group === undefined))).toBe(true);
   });

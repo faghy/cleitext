@@ -14,7 +14,8 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import type { FieldDefinition } from '@cleitext/plugin-sdk';
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BOX_TYPE } from './fields.js';
+import { BOX_TYPE, PRODUCT_GROUP } from './fields.js';
+import { customNodes } from './product.js';
 import {
   AnalysisView,
   Checklist,
@@ -58,7 +59,9 @@ const isSet = (field: FieldDefinition, value: unknown) =>
   value !== null &&
   value !== '' &&
   value !== false &&
-  !(field.name === 'schema' && value === 'auto');
+  !(Array.isArray(value) && value.length === 0) &&
+  !(field.name === 'schema' && value === 'auto') &&
+  !(field.name === 'productType' && value === 'none');
 
 import { splitFields, type Section } from './box-split.js';
 
@@ -76,11 +79,14 @@ function SubSection({
   values,
   render,
   locale,
+  children,
 }: {
   section: Section;
   values: Record<string, unknown>;
   render: (fields: readonly FieldDefinition[]) => ReactNode;
   locale: string;
+  /** Drawn instead of the fields (e.g. the invitation to Pro), or after them. */
+  children?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const id = useId();
@@ -103,7 +109,7 @@ function SubSection({
       </button>
       {open && (
         <div id={id} className="px-2 pb-2">
-          {render(section.fields)}
+          {children ?? render(section.fields)}
         </div>
       )}
     </div>
@@ -195,7 +201,6 @@ export function VettaBox({ field, layout, locale }: FieldControlProps) {
       pluginApi('vetta')<{ limits?: Limits }>('GET', '/editor-config') as Promise<{
         limits?: Limits;
       }>,
-    enabled: kind === 'term',
     staleTime: 60_000,
   }).data?.limits;
 
@@ -258,10 +263,56 @@ export function VettaBox({ field, layout, locale }: FieldControlProps) {
             values={values}
             render={layout.render}
             locale={locale}
-          />
+          >
+            {section.key === PRODUCT_GROUP.en
+              ? productSection(section, values, layout.render, limits, tr)
+              : undefined}
+          </SubSection>
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * The product and own JSON-LD of the page: Vetta SEO Pro's (an invitation
+ * without it), with what is wrong in the JSON-LD under the fields.
+ */
+function productSection(
+  section: Section,
+  values: Record<string, unknown>,
+  render: (fields: readonly FieldDefinition[]) => ReactNode,
+  limits: Limits | undefined,
+  tr: (en: string, it: string) => string,
+): ReactNode {
+  if (limits && !limits.schema) {
+    return (
+      <p className="text-slate-700">
+        {tr(
+          'With Vetta SEO Pro, a page can present a product, an app or a service with its prices and offers, and add its own structured data (JSON-LD), so that search engines show them.',
+          'Con Vetta SEO Pro una pagina può presentare un prodotto, un’app o un servizio con prezzi e offerte, e aggiungere dati strutturati propri (JSON-LD), perché i motori di ricerca li mostrino.',
+        )}{' '}
+        <a
+          className="font-medium underline"
+          href={limits.upgradeUrl}
+          target="_blank"
+          rel="noopener"
+        >
+          {tr('Find out more', 'Scopri di più')}
+        </a>
+      </p>
+    );
+  }
+  const error = customNodes(values.customSchema).error;
+  return (
+    <>
+      {render(section.fields)}
+      {error && (
+        <p className="mt-1 text-red-700" role="alert">
+          {tr(`The JSON-LD is left out: ${error}`, `Il JSON-LD viene lasciato fuori: ${error}`)}
+        </p>
+      )}
+    </>
   );
 }
 

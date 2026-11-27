@@ -21,6 +21,146 @@ const box = (kind: 'entry' | 'term'): FieldDefinition =>
     settings: { kind },
   }) as FieldDefinition;
 
+/** The group of the product and own JSON-LD (Vetta SEO Pro); the box locks it without Pro. */
+export const PRODUCT_GROUP = l('Product and schema', 'Prodotto e schema');
+
+const productIs = (...types: string[]) => ({ field: 'productType', in: types });
+
+/** The page's product, application or service with its offers, and its own JSON-LD (Vetta SEO Pro). */
+export const PRODUCT_FIELDS: FieldDefinition[] = [
+  {
+    name: 'productType',
+    type: 'select',
+    group: PRODUCT_GROUP,
+    label: l('This page presents', 'Questa pagina presenta'),
+    default: 'none',
+    options: [
+      { value: 'none', label: l('Nothing to sell', 'Niente da vendere') },
+      { value: 'Product', label: l('A product', 'Un prodotto') },
+      {
+        value: 'SoftwareApplication',
+        label: l('An app or online service (software)', 'Un’app o un servizio online (software)'),
+      },
+      { value: 'Service', label: l('A service', 'Un servizio') },
+    ],
+    help: l(
+      'Search engines then show its name, price and offers.',
+      'I motori di ricerca ne mostrano così nome, prezzo e offerte.',
+    ),
+  },
+  {
+    name: 'productName',
+    type: 'text',
+    maxLength: 200,
+    group: PRODUCT_GROUP,
+    showIf: { field: 'productType', not: 'none' },
+    label: l('Name (empty: the title)', 'Nome (vuoto: il titolo)'),
+  },
+  {
+    name: 'productDescription',
+    type: 'text',
+    multiline: true,
+    maxLength: 1000,
+    group: PRODUCT_GROUP,
+    showIf: { field: 'productType', not: 'none' },
+    label: l(
+      'Description (empty: the search description)',
+      'Descrizione (vuota: quella per i motori)',
+    ),
+  },
+  {
+    name: 'productBrand',
+    type: 'text',
+    maxLength: 100,
+    group: PRODUCT_GROUP,
+    showIf: productIs('Product'),
+    label: l('Brand', 'Marca'),
+  },
+  {
+    name: 'productSku',
+    type: 'text',
+    maxLength: 80,
+    group: PRODUCT_GROUP,
+    showIf: productIs('Product'),
+    label: l('Code (SKU)', 'Codice (SKU)'),
+  },
+  {
+    name: 'productCategory',
+    type: 'text',
+    maxLength: 100,
+    group: PRODUCT_GROUP,
+    showIf: { field: 'productType', not: 'none' },
+    label: l('Category', 'Categoria'),
+    help: l(
+      'Software: e.g. BusinessApplication (the default), LifestyleApplication. Service: the kind of service.',
+      'Software: es. BusinessApplication (predefinita), LifestyleApplication. Servizio: il tipo di servizio.',
+    ),
+  },
+  {
+    name: 'productOs',
+    type: 'text',
+    maxLength: 100,
+    group: PRODUCT_GROUP,
+    showIf: productIs('SoftwareApplication'),
+    label: l('Works on (empty: Web)', 'Funziona su (vuoto: Web)'),
+    help: l('e.g. Web, Android, iOS.', 'Es. Web, Android, iOS.'),
+  },
+  {
+    name: 'productOffers',
+    type: 'list',
+    itemLabel: 'name',
+    max: 20,
+    group: PRODUCT_GROUP,
+    showIf: { field: 'productType', not: 'none' },
+    label: l('Offers', 'Offerte'),
+    fields: [
+      { name: 'name', type: 'text', maxLength: 100, label: l('Name', 'Nome') },
+      {
+        name: 'price',
+        type: 'text',
+        maxLength: 20,
+        label: l('Price', 'Prezzo'),
+        help: l('e.g. 32.50, without the currency.', 'Es. 32,50, senza la valuta.'),
+      },
+      {
+        name: 'currency',
+        type: 'text',
+        maxLength: 3,
+        default: 'EUR',
+        label: l('Currency', 'Valuta'),
+      },
+      {
+        name: 'period',
+        type: 'select',
+        default: 'once',
+        label: l('Paid', 'Si paga'),
+        options: [
+          { value: 'once', label: l('Once', 'Una volta') },
+          { value: 'P1M', label: l('Every month', 'Ogni mese') },
+          { value: 'P1Y', label: l('Every year', 'Ogni anno') },
+        ],
+      },
+      {
+        name: 'url',
+        type: 'url',
+        label: l('Address (empty: this page)', 'Indirizzo (vuoto: questa pagina)'),
+      },
+    ],
+  },
+  {
+    name: 'customSchema',
+    type: 'text',
+    multiline: true,
+    maxLength: 20000,
+    group: PRODUCT_GROUP,
+    label: l('More structured data (JSON-LD)', 'Altri dati strutturati (JSON-LD)'),
+    help: l(
+      'For experts: an object with "@type", a list of them or a whole JSON-LD with "@graph". It joins the page’s graph; written wrong, it is left out.',
+      'Per esperti: un oggetto con "@type", una lista di oggetti o un JSON-LD intero con "@graph". Si unisce al grafo della pagina; se è scritto male viene lasciato fuori.',
+    ),
+  },
+];
+
 /** Fields of every entry, in the order the box shows them. */
 export const ENTRY_FIELDS: FieldDefinition[] = [
   box('entry'),
@@ -153,6 +293,7 @@ export const ENTRY_FIELDS: FieldDefinition[] = [
       '1200×630 pixel è l’ideale. Vuota: l’immagine in evidenza, poi quella del sito.',
     ),
   },
+  ...PRODUCT_FIELDS,
 ];
 
 /** Fields of every term: what fits a category's or tag's archive. */

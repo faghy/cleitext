@@ -10,6 +10,8 @@
  * stops: those features are remembered per site (`kept`) and stay free there.
  * What a site switched on while Pro was current is remembered the same way,
  * so it keeps working when the license ends; only switching more on waits.
+ * The product and own JSON-LD of pages came with Vetta SEO 2.1, inside Pro:
+ * a site keeps them once it had Pro.
  */
 import { moduleOn, type Config, type Module } from './config.js';
 
@@ -28,8 +30,11 @@ export const PRO_MODULES = [
 ] as const satisfies readonly Module[];
 export type ProModule = (typeof PRO_MODULES)[number];
 
-/** Everything Pro adds: its modules, more keywords, SEO on each term. */
-export type ProFeature = ProModule | 'keywords' | 'terms';
+/**
+ * Everything Pro adds: its modules, more keywords, SEO on each term, and the
+ * product and own JSON-LD of each page (`schemaPlus`, Vetta SEO 2.1).
+ */
+export type ProFeature = ProModule | 'keywords' | 'terms' | 'schemaPlus';
 
 export const isProModule = (m: string): m is ProModule =>
   (PRO_MODULES as readonly string[]).includes(m);
@@ -51,6 +56,8 @@ export interface Limits {
   pro: boolean;
   keywords: number;
   terms: boolean;
+  /** The product (or application, service) and own JSON-LD of each page. */
+  schema: boolean;
   /** The modules of Pro this site may switch on. */
   modules: Record<ProModule, boolean>;
   upgradeUrl: string;
@@ -100,6 +107,7 @@ export function limitsFor(
     pro,
     keywords: has('keywords') ? PRO_KEYWORDS : FREE_KEYWORDS,
     terms: has('terms'),
+    schema: has('schemaPlus'),
     modules: Object.fromEntries(PRO_MODULES.map((m) => [m, has(m)])) as Record<ProModule, boolean>,
     upgradeUrl,
   };
