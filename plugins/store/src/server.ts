@@ -655,7 +655,11 @@ export default definePlugin({
           return fail(400, 'The request is not valid.');
         }
         const product = await productOf(ctx, request.siteId, slug);
-        if (!product) return fail(404, 'This theme is not sold here.');
+        if (!product)
+          return fail(
+            404,
+            'This theme or plugin is not sold here yet: its product is missing from the store.',
+          );
         const packages = await source(ctx, request.siteId);
         if (!packages) return fail(503, 'Downloads are not set up on the store yet.');
 
