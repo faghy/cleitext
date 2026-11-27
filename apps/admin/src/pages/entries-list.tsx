@@ -280,9 +280,7 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
             >
               {t(filter.label)}
               {counts.data && (
-                <span className="ml-1 opacity-70">
-                  ({counts.data[filter.status ?? 'all'] ?? 0})
-                </span>
+                <span className="ml-1">({counts.data[filter.status ?? 'all'] ?? 0})</span>
               )}
             </button>
           ))}
