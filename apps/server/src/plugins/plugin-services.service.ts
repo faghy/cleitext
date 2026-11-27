@@ -14,6 +14,7 @@ import {
   menus,
   mutedEmails,
   pluginSites,
+  redirects,
   revisions,
   roles,
   settings,
@@ -118,6 +119,7 @@ import type {
   AiChatResult,
   AiCompleteInput,
   AiCompleteResult,
+  PluginRedirect,
 } from '@cleitext/plugin-sdk';
 import { themeDirectories, themeFor } from '../public/themes.js';
 import { readThemeFile, themeFiles } from '../themes/theme-files.js';
@@ -371,6 +373,49 @@ export class PluginServicesProvider implements PluginServices {
     }
     const [entry] = await this.findEntries(siteId, { ids: [id], status: 'any', limit: 1 });
     return entry!;
+  }
+
+  /** Back to draft, as the editor's Unpublish (plugin API 1.83). */
+  async unpublishEntry(
+    siteId: string,
+    id: string,
+    options: { userId: string },
+  ): Promise<PluginEntry> {
+    const auth = await this.actor(siteId, options.userId);
+    await this.entriesService.unpublish(siteId, auth, id, '');
+    const [entry] = await this.findEntries(siteId, { ids: [id], status: 'any', limit: 1 });
+    return entry!;
+  }
+
+  // ---- Redirects (plugin API 1.83) -------------------------------------------------------
+
+  async setRedirect(siteId: string, redirect: PluginRedirect): Promise<void> {
+    await withContext(this.database.db, { siteId }, (tx) =>
+      tx
+        .insert(redirects)
+        .values({ siteId, fromPath: redirect.from, toPath: redirect.to, status: redirect.status })
+        .onConflictDoUpdate({
+          target: [redirects.siteId, redirects.fromPath],
+          set: { toPath: redirect.to, status: redirect.status },
+        }),
+    );
+    await this.cache.invalidate(siteId, ['site']);
+  }
+
+  async removeRedirect(siteId: string, from: string): Promise<boolean> {
+    const rows = await withContext(this.database.db, { siteId }, (tx) =>
+      tx.delete(redirects).where(eq(redirects.fromPath, from)).returning({ id: redirects.id }),
+    );
+    if (rows.length > 0) await this.cache.invalidate(siteId, ['site']);
+    return rows.length > 0;
+  }
+
+  async getRedirect(siteId: string, from: string): Promise<PluginRedirect | null> {
+    const [row] = await withContext(this.database.db, { siteId }, (tx) =>
+      tx.select().from(redirects).where(eq(redirects.fromPath, from)),
+    );
+    if (!row || row.status === 410) return null;
+    return { from: row.fromPath, to: row.toPath, status: row.status as PluginRedirect['status'] };
   }
 
   async copyEntry(siteId: string, id: string, options: CopyOptions): Promise<PluginEntry> {

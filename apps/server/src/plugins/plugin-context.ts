@@ -19,6 +19,7 @@ import {
   type PluginComment,
   type RouteRequest,
   type PluginEntry,
+  type PluginRedirect,
   type PluginLogger,
   type PluginPermission,
   type PluginSite,
@@ -109,6 +110,12 @@ export interface PluginServices {
     id: string,
     options: { userId: string; at?: string },
   ): Promise<PluginEntry>;
+  /** Back to draft (plugin API 1.83). */
+  unpublishEntry(siteId: string, id: string, options: { userId: string }): Promise<PluginEntry>;
+  /** The site's redirects (plugin API 1.83). */
+  setRedirect(siteId: string, redirect: PluginRedirect): Promise<void>;
+  removeRedirect(siteId: string, from: string): Promise<boolean>;
+  getRedirect(siteId: string, from: string): Promise<PluginRedirect | null>;
   entryTranslations(siteId: string, id: string): Promise<TranslationLink[]>;
   updateFields(
     siteId: string,
@@ -418,6 +425,14 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         }
         return services().publishEntry(siteId, id, options);
       },
+      async unpublish(siteId, id, options) {
+        require('content:publish');
+        assertSiteId(siteId);
+        if (!UUID_RE.test(id) || !UUID_RE.test(options?.userId ?? '')) {
+          throw new TypeError('Invalid id');
+        }
+        return services().unpublishEntry(siteId, id, { userId: options.userId });
+      },
       registerProducer(producer) {
         require('content:write');
         host.addProducer(plugin, producer);
@@ -511,6 +526,24 @@ export function createPluginContext(plugin: LoadedPlugin, host: PluginHost): Plu
         require('languages');
         assertSiteId(siteId);
         return services().clearPendingLanguages(siteId);
+      },
+    },
+
+    redirects: {
+      async set(siteId, redirect) {
+        require('redirects');
+        assertSiteId(siteId);
+        return services().setRedirect(siteId, checkRedirect(redirect));
+      },
+      async remove(siteId, from) {
+        require('redirects');
+        assertSiteId(siteId);
+        return services().removeRedirect(siteId, checkRedirectPath(from));
+      },
+      async get(siteId, from) {
+        require('redirects');
+        assertSiteId(siteId);
+        return services().getRedirect(siteId, checkRedirectPath(from));
       },
     },
 
@@ -1200,4 +1233,27 @@ export function chatInput(input: AiChatInput): AiChatInput {
       ? { temperature: Math.min(Math.max(temperature, 0), 2) }
       : {}),
   };
+}
+
+/** A path of the site for a redirect (plugin API 1.83). */
+function checkRedirectPath(from: unknown): string {
+  if (typeof from !== 'string' || !/^\/(?!\/)/.test(from.trim()) || from.length > 2000) {
+    throw new TypeError('A redirect starts from a path of the site, such as /old-page');
+  }
+  return from.trim();
+}
+
+function checkRedirect(redirect: unknown): PluginRedirect {
+  const r = (redirect ?? {}) as { from?: unknown; to?: unknown; status?: unknown };
+  const from = checkRedirectPath(r.from);
+  const to = typeof r.to === 'string' ? r.to.trim() : '';
+  if (!to || to.length > 2000 || !(/^\/(?!\/)/.test(to) || /^https?:\/\/[^\s]+$/i.test(to))) {
+    throw new TypeError('A redirect goes to a path of the site or an http(s) address');
+  }
+  const status = r.status ?? 301;
+  if (status !== 301 && status !== 302 && status !== 307 && status !== 308) {
+    throw new TypeError('A redirect status is 301, 302, 307 or 308');
+  }
+  if (to === from) throw new TypeError('A redirect cannot lead to itself');
+  return { from, to, status };
 }

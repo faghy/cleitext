@@ -323,6 +323,13 @@ export interface ContentApi {
     id: string,
     options: { userId: string; at?: string },
   ): Promise<PluginEntry>;
+  /**
+   * Takes a published or scheduled entry back to draft, as the given user
+   * (plugin API 1.83, needs `content:publish`), as the editor's Unpublish
+   * does: its address then answers 404 (or the site's redirect for it).
+   * Missing on older cores.
+   */
+  unpublish?(siteId: string, id: string, options: { userId: string }): Promise<PluginEntry>;
   /** Offers a producer of entries to calendar plugins (plugin API 1.70, needs `content:write`). */
   registerProducer?(producer: ContentProducer): void;
   /** The producers of the plugins active on a site (plugin API 1.70, needs `content:write`). */
@@ -576,6 +583,33 @@ export interface CommentsApi {
    * many were deleted.
    */
   remove(siteId: string, input: { ids: string[]; userId?: string }): Promise<number>;
+}
+
+/** A redirect of the site (plugin API 1.83). */
+export interface PluginRedirect {
+  /** A path of the site, starting with `/`. */
+  from: string;
+  /** A path of the site or a full `http(s)` address. */
+  to: string;
+  status: 301 | 302 | 307 | 308;
+}
+
+/**
+ * The site's redirects (plugin API 1.83, needs `redirects`), the same as
+ * Settings → Redirects: like those, they apply before the site's pages, e.g.
+ * from an entry taken back to draft to the page that replaces it. Missing on
+ * older cores: call it as `ctx.redirects?.set(...)`.
+ */
+export interface RedirectsApi {
+  /** Adds the redirect, or replaces the one from the same path. */
+  set(
+    siteId: string,
+    redirect: { from: string; to: string; status?: 301 | 302 | 307 | 308 },
+  ): Promise<void>;
+  /** Removes the redirect from that path; false when there was none. */
+  remove(siteId: string, from: string): Promise<boolean>;
+  /** The redirect from that path, or null. */
+  get(siteId: string, from: string): Promise<PluginRedirect | null>;
 }
 
 export interface SecretsApi {
@@ -2100,6 +2134,8 @@ export interface PluginContext {
   readonly languages: LanguagesApi;
   readonly storage: StorageApi;
   readonly secrets: SecretsApi;
+  /** The site's redirects (plugin API 1.83, needs `redirects`); missing on older cores. */
+  readonly redirects?: RedirectsApi;
   readonly schedule: ScheduleApi;
   /**
    * Services between plugins (plugin API 1.73): functions a plugin offers to

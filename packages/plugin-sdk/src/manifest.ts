@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Version of the plugin API implemented by this SDK (semver). */
-export const SDK_VERSION = '1.82.0';
+export const SDK_VERSION = '1.83.0';
 
 /** Permissions a plugin can request (docs/SPECIFICATIONS.md §7.3). */
 export const PLUGIN_PERMISSIONS = [
@@ -52,6 +52,11 @@ export const PLUGIN_PERMISSIONS = [
    * as the user it names: e.g. an editorial calendar that publishes on time.
    */
   'content:publish',
+  /**
+   * Add and remove the site's redirects (plugin API 1.83, `ctx.redirects`),
+   * e.g. from an entry taken off the site to the page that replaces it.
+   */
+  'redirects',
 ] as const;
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number];
 
