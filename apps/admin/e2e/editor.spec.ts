@@ -93,6 +93,16 @@ test('write, classify, revise, translate and schedule a post', async ({ page }) 
   await expect(page.getByRole('button', { name: 'Remove Food' })).toBeVisible();
   saved = await entry(page, id);
   expect(saved.terms.tag.map((t: { name: string }) => t.name).sort()).toEqual(['Food', 'Rome']);
+  // Existing tags are suggested while typing (#53): the arrows pick one, Enter adds it.
+  await page.getByRole('button', { name: 'Remove Rome' }).click();
+  await expect(page.getByRole('button', { name: 'Remove Rome' })).toBeHidden();
+  await page.getByLabel('Add tags').fill('ro');
+  await expect(page.getByRole('option', { name: /^Rome/ })).toBeVisible();
+  await page.getByLabel('Add tags').press('ArrowDown');
+  await page.getByLabel('Add tags').press('Enter');
+  await expect(page.getByRole('button', { name: 'Remove Rome' })).toBeVisible();
+  saved = await entry(page, id);
+  expect(saved.terms.tag.map((t: { name: string }) => t.name).sort()).toEqual(['Food', 'Rome']);
 
   // 3. Change, save, restore the previous revision.
   await canvas.getByText('We walked from the Colosseum to Trastevere.').click();
