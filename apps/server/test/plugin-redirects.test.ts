@@ -80,14 +80,14 @@ beforeAll(async () => {
   app = await startTestApp({ pluginsPath });
   const site = await seedSite(owner, 'plugin-redirects');
   adminId = await seedUser(owner, {
-    email: 'admin@redirects.test',
+    email: 'admin@plugin-redirects.test',
     password: PASSWORD,
     site,
     role: 'administrator',
   });
   admin = new TestClient(app, site.host, '10.41.0.1');
   visitor = new TestClient(app, site.host, '10.41.0.2');
-  await admin.login('admin@redirects.test', PASSWORD);
+  await admin.login('admin@plugin-redirects.test', PASSWORD);
   for (const slug of [SLUG, 'redirects-denied']) {
     expect((await admin.post(`/api/v1/plugins/${slug}/activate`, {})).statusCode).toBe(200);
   }
