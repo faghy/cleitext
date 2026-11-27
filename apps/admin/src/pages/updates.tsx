@@ -1,5 +1,6 @@
 import type { CorePolicy } from '@cleitext/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import { api, errorMessage } from '../api';
 import { Alert, Button, Card, useT } from '../components/ui';
 import { CatalogUpdateButton, useCatalog, useCatalogUpdates } from '../components/catalog';
@@ -74,6 +75,25 @@ export function UpdatesPage() {
       (run.state === 'done' && info?.current !== run.to) ||
       (run.state === 'failed' &&
         Date.now() - Date.parse(run.finishedAt ?? run.startedAt) < 24 * 3600 * 1000));
+  // Done, and the server not yet answering with the new version: ask again until it does,
+  // then reload the admin by itself, as its pages belong to the old version (#52).
+  const finished = run?.state === 'done' && !!info && info.current !== run.to;
+  const waited = useRef(false);
+  useEffect(() => {
+    if (!finished) return;
+    waited.current = true;
+    const timer = window.setInterval(
+      () => void queryClient.invalidateQueries({ queryKey: ['updates'], exact: true }),
+      2000,
+    );
+    return () => window.clearInterval(timer);
+  }, [finished, queryClient]);
+  useEffect(() => {
+    if (waited.current && run?.state === 'done' && info?.current === run.to) {
+      const timer = window.setTimeout(() => window.location.reload(), 1500);
+      return () => window.clearTimeout(timer);
+    }
+  }, [info?.current, run?.state, run?.to]);
   const date = (iso: string | null | undefined) =>
     iso ? new Date(iso).toLocaleString(language, { dateStyle: 'medium', timeStyle: 'short' }) : '';
   const stepIndex = run?.step ? run.steps.indexOf(run.step) : -1;
@@ -109,7 +129,7 @@ export function UpdatesPage() {
                 </button>
               </p>
             )}
-            {info.available && !running && (
+            {info.available && !running && !(run?.state === 'done' && run.to === info.latest) && (
               <>
                 {info.notes && (
                   <div className="rounded border border-slate-200 bg-slate-50 p-3">
@@ -171,7 +191,10 @@ export function UpdatesPage() {
           )}
           {run.state === 'done' && (
             <div className="mt-3 space-y-2 text-sm">
-              <p>{t('Cleitext is updated to {version}.', { version: run.to })}</p>
+              <p>
+                {t('Cleitext is updated to {version}.', { version: run.to })}{' '}
+                {t('The admin reloads by itself as soon as the new version answers.')}
+              </p>
               <Button onClick={() => window.location.reload()}>{t('Reload the admin')}</Button>
             </div>
           )}
