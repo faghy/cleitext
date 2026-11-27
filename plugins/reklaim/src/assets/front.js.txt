@@ -1,0 +1,71 @@
+/* Reklaim: the call-to-action bar. Settings in #reklaim-config (JSON). */
+(function () {
+  var source = document.getElementById('reklaim-config');
+  if (!source) return;
+  var cfg;
+  try { cfg = JSON.parse(source.textContent || '{}'); } catch (e) { return; }
+  var d = new Date();
+  var today = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  var bar = null, target = null;
+  for (var i = 0; i < (cfg.bars || []).length; i++) {
+    var b = cfg.bars[i];
+    if ((b.from && today < b.from) || (b.to && today > b.to)) continue;
+    var el = b.anchor ? document.getElementById(b.anchor) : null;
+    if (el) { bar = b; target = el; break; }
+    // A bar of Pro with an anchor is only for pages that have it; the site's bar falls back to its link.
+    if ((!b.anchor || b.id === 'default') && b.link) { bar = b; break; }
+  }
+  if (!bar) return;
+
+  var root = document.createElement('div');
+  root.className = 'reklaim reklaim--' + (cfg.position === 'top' ? 'top' : 'bottom');
+  root.setAttribute('role', 'complementary');
+  root.setAttribute('aria-label', bar.button);
+  if (bar.text) {
+    var span = document.createElement('span');
+    span.className = 'reklaim__text';
+    span.textContent = bar.text;
+    root.appendChild(span);
+  }
+  var a = document.createElement('a');
+  a.className = 'reklaim__button';
+  a.href = target ? '#' + bar.anchor : bar.link;
+  a.textContent = bar.button;
+  root.appendChild(a);
+  document.body.appendChild(root);
+
+  var media = cfg.maxWidth > 0 && window.matchMedia ? window.matchMedia('(max-width: ' + (cfg.maxWidth - 1) + 'px)') : null;
+  var near = false;
+  function update() {
+    var on = (!media || media.matches) && !near && (window.scrollY || window.pageYOffset || 0) > (cfg.scroll || 0);
+    if (root.classList.contains('reklaim--on') === on) return;
+    root.classList.toggle('reklaim--on', on);
+    root.setAttribute('aria-hidden', on ? 'false' : 'true');
+    a.tabIndex = on ? 0 : -1;
+    document.documentElement.style.setProperty('--reklaim-space', on ? root.offsetHeight + 'px' : '0px');
+    document.documentElement.classList.toggle('reklaim-on', on);
+    document.documentElement.classList.toggle('reklaim-on-' + (cfg.position === 'top' ? 'top' : 'bottom'), on);
+  }
+  if (target && 'IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) {
+      near = entries[0].isIntersecting;
+      update();
+    }).observe(target);
+  }
+  window.addEventListener('scroll', update, { passive: true });
+  if (media && media.addEventListener) media.addEventListener('change', update);
+  update();
+
+  a.addEventListener('click', function () {
+    if (cfg.gaEvent) {
+      var params = { event_category: 'reklaim', event_label: bar.id, link_url: a.href };
+      if (typeof window.gtag === 'function') window.gtag('event', cfg.gaEvent, params);
+      else if (window.dataLayer && window.dataLayer.push) window.dataLayer.push(Object.assign({ event: cfg.gaEvent }, params));
+    }
+    if (cfg.track) {
+      var body = new URLSearchParams({ bar: bar.id });
+      if (navigator.sendBeacon) navigator.sendBeacon(cfg.track, body);
+      else fetch(cfg.track, { method: 'POST', body: body, keepalive: true }).catch(function () {});
+    }
+  });
+})();

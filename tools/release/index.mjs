@@ -76,6 +76,7 @@ const SEPARATE = [
   'push-relay',
   'ai-relay',
   'piuma',
+  'reklaim',
 ];
 const separate = [];
 for (const slug of await readdir(join(root, 'plugins'))) {

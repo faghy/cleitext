@@ -1,0 +1,12 @@
+{
+  "slug": "reklaim",
+  "name": "Reklaim",
+  "version": "1.0.0",
+  "apiVersion": "^1.69",
+  "description": "A call-to-action bar fixed at the bottom of the screen on phones: your text and button in every language, shown after some scrolling and hidden when the form it points to is in view, with a click counter and the Google Analytics event.",
+  "author": "Cleitext",
+  "license": "GPL-2.0-or-later",
+  "server": "dist/server.js",
+  "admin": "dist/admin.js",
+  "permissions": ["settings:own", "theme:hooks", "routes:public", "routes:admin"]
+}
