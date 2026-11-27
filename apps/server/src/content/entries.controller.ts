@@ -68,6 +68,19 @@ export class EntriesController {
     return { ...list, items: await this.states.annotate(site.id, list.items) };
   }
 
+  /** How many entries of a type in each status (#54): `?type=article`. */
+  @Get('entries/counts')
+  counts(
+    @CurrentSite() site: SiteContext,
+    @CurrentAuth() auth: AuthContext,
+    @Query('type') type: unknown,
+  ): Promise<Record<string, number>> {
+    if (typeof type !== 'string' || !/^[a-z0-9_-]{1,64}$/.test(type)) {
+      throw new BadRequestException('Give a content type, e.g. ?type=article.');
+    }
+    return this.entries.counts(site.id, auth, type);
+  }
+
   @Post('entries/bulk')
   @HttpCode(200)
   bulk(

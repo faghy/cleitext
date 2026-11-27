@@ -168,6 +168,12 @@ export const itAdmin: Messages = {
     'L’aggiornamento si è fermato: {error} Il sito funziona ancora con la {version}.',
   'Cleitext is updated to {version}.': 'Cleitext è aggiornato alla {version}.',
   'Reload the admin': 'Ricarica l’amministrazione',
+  'None yet: Add creates it.': 'Non c’è ancora: Aggiungi la crea.',
+  '{count} waiting for review': '{count} in attesa di revisione',
+  'Search title ({plugin})': 'Titolo per i motori di ricerca ({plugin})',
+  'Empty: from the template': 'Vuoto: dal modello',
+  'The admin reloads by itself as soon as the new version answers.':
+    'L’amministrazione si ricarica da sola appena risponde la nuova versione.',
   'An update is available': 'È disponibile un aggiornamento',
   'Update available': 'Aggiornamento disponibile',
   'Cleitext {version} is available (installed: {current}).':

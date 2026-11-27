@@ -93,16 +93,40 @@ export function AdminLayout() {
   const pluginUpdates = useCatalogUpdates('plugin').length;
   const themeUpdates = useCatalogUpdates('theme').length;
   const pendingComments = usePendingComments(me.capabilities.includes('moderate_comments'));
+  // Entries waiting for review, for those who publish the others' (#54).
+  const reviewer = me.capabilities.includes('publish_others_entries');
+  const postCounts = useQuery({
+    queryKey: ['entries', 'counts', 'article'],
+    queryFn: () => api<Record<string, number>>('GET', '/entries/counts?type=article'),
+    enabled: reviewer,
+    staleTime: 60_000,
+  });
+  const pageCounts = useQuery({
+    queryKey: ['entries', 'counts', 'page'],
+    queryFn: () => api<Record<string, number>>('GET', '/entries/counts?type=page'),
+    enabled: reviewer,
+    staleTime: 60_000,
+  });
   const badge = (to: string) =>
     to === '/comments'
       ? pendingComments
-      : to === '/' || to === '/updates'
-        ? (updateAvailable ? 1 : 0) + pluginUpdates + themeUpdates
-        : to === '/plugins'
-          ? pluginUpdates
-          : to === '/appearance'
-            ? themeUpdates
-            : 0;
+      : to === '/posts'
+        ? (postCounts.data?.pending ?? 0)
+        : to === '/pages'
+          ? (pageCounts.data?.pending ?? 0)
+          : to === '/' || to === '/updates'
+            ? (updateAvailable ? 1 : 0) + pluginUpdates + themeUpdates
+            : to === '/plugins'
+              ? pluginUpdates
+              : to === '/appearance'
+                ? themeUpdates
+                : 0;
+  const badgeLabel = (to: string) =>
+    to === '/comments'
+      ? t('{count} comments waiting', { count: badge(to) })
+      : to === '/posts' || to === '/pages'
+        ? t('{count} waiting for review', { count: badge(to) })
+        : t('{count} updates available', { count: badge(to) });
   // WordPress order: plugin content types after Pages, plugin pages at the end.
   const taxonomies = useQuery({
     ...taxonomiesQuery,
@@ -421,16 +445,8 @@ export function AdminLayout() {
                         // As in WordPress: counts on Dashboard, Updates, Plugins and Appearance.
                         <span
                           className="rounded-full bg-amber-500 px-1.5 text-xs leading-5 font-semibold text-slate-900"
-                          aria-label={
-                            section.to === '/comments'
-                              ? t('{count} comments waiting', { count: badge(section.to) })
-                              : t('{count} updates available', { count: badge(section.to) })
-                          }
-                          title={
-                            section.to === '/comments'
-                              ? t('{count} comments waiting', { count: badge(section.to) })
-                              : t('{count} updates available', { count: badge(section.to) })
-                          }
+                          aria-label={badgeLabel(section.to)}
+                          title={badgeLabel(section.to)}
                         >
                           {badge(section.to)}
                         </span>

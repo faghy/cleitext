@@ -49,7 +49,7 @@ test('list tables sort, edit inline and apply bulk actions', async ({ page }) =>
   // Quick edit of the title and order.
   await rows.nth(1).getByRole('button', { name: 'Quick Edit' }).click();
   const form = page.getByRole('form', { name: 'Quick Edit' });
-  await form.getByLabel('Title').fill(`Gamma ${stamp}`);
+  await form.getByLabel('Title', { exact: true }).fill(`Gamma ${stamp}`);
   await form.getByLabel('Order').fill('5');
   await form.getByRole('button', { name: 'Update' }).click();
   await expect(page.getByRole('link', { name: `Gamma ${stamp}` })).toBeVisible();

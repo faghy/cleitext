@@ -19,6 +19,8 @@ import { api, errorMessage } from '../api';
 import { useMe } from '../auth';
 import { Alert, Button, Card } from '../components/ui';
 import { entryTree } from '../entry-tree';
+import { fieldScreenQuery } from '../components/field-groups';
+import { EntryTerms } from './entry-terms';
 import {
   contentTypesQuery,
   PluginCell,
@@ -56,6 +58,12 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<EntryStatus | undefined>();
+  // How many in each status (#54), beside the filters.
+  const counts = useQuery({
+    queryKey: ['entries', 'counts', type],
+    queryFn: () => api<Record<EntryStatus | 'all', number>>('GET', `/entries/counts?type=${type}`),
+    staleTime: 30_000,
+  });
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [author, setAuthor] = useState('');
@@ -248,7 +256,18 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <nav aria-label={t('Filter by status')} className="flex flex-wrap gap-1 text-sm">
-          {FILTERS.map((filter) => (
+          {FILTERS.filter(
+            // Trash and pending only when they hold something, as in WordPress.
+            (filter) =>
+              !counts.data ||
+              !(
+                filter.status === 'trashed' ||
+                filter.status === 'pending' ||
+                filter.status === 'scheduled'
+              ) ||
+              (counts.data[filter.status] ?? 0) > 0 ||
+              status === filter.status,
+          ).map((filter) => (
             <button
               key={filter.label}
               type="button"
@@ -260,6 +279,11 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
               className={`rounded px-2 py-1 max-md:min-h-10 ${status === filter.status ? 'bg-slate-800 text-white' : 'text-sky-700 hover:underline'}`}
             >
               {t(filter.label)}
+              {counts.data && (
+                <span className="ml-1 opacity-70">
+                  ({counts.data[filter.status ?? 'all'] ?? 0})
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -570,6 +594,19 @@ export function EntriesListPage({ type, title }: { type: string; title: string }
 }
 
 /** Inline editing of title, slug and order (RF-ADM-03). */
+/** `YYYY-MM-DDTHH:MM` in local time, for a datetime-local input. */
+function localInput(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * Quick Edit (WordPress's): title, slug, date, the SEO plugin's search title,
+ * categories and tags, without opening the entry (#55). Terms are saved as
+ * soon as they change, as in the editor; the rest with Update.
+ */
 function QuickEditRow({
   entry,
   hierarchical,
@@ -582,19 +619,47 @@ function QuickEditRow({
   onClose: () => void;
 }) {
   const { t } = useT();
+  const me = useMe();
   const queryClient = useQueryClient();
+  const full = useQuery({
+    queryKey: ['entry', entry.id],
+    queryFn: () => api<EntryView>('GET', `/entries/${entry.id}`),
+  });
+  const screen = useQuery(fieldScreenQuery('entry'));
+  // The SEO plugin's group (Vetta SEO, or the older SEO) with a search title.
+  const seoGroup = screen.data?.groups.find(
+    (g) => (g.id === 'vetta' || g.id === 'seo') && g.fields.some((f) => f.name === 'title'),
+  );
+  const savedSeo = seoGroup
+    ? String(
+        ((full.data?.revision?.fields?.[seoGroup.id] ?? {}) as Record<string, unknown>).title ?? '',
+      )
+    : '';
   const [title, setTitle] = useState(entry.title);
   const [slug, setSlug] = useState(entry.slug);
   const [position, setPosition] = useState(String(entry.position));
+  const [date, setDate] = useState<string | null>(null);
+  const [seo, setSeo] = useState<string | null>(null);
+  const canDate =
+    me.capabilities.includes('publish_entries') &&
+    ['published', 'scheduled', 'private'].includes(entry.status);
   const save = useMutation({
     mutationFn: () =>
       api<EntryView>('PATCH', `/entries/${entry.id}`, {
         title,
         ...(slug !== entry.slug ? { slug } : {}),
         ...(hierarchical ? { position: Number(position) || 0 } : {}),
+        ...(canDate && date && date !== localInput(entry.publishedAt)
+          ? { publishedAt: new Date(date).toISOString() }
+          : {}),
+        // Only the search title: the group's other values stay as they are (core 0.123).
+        ...(seoGroup && seo !== null && seo !== savedSeo
+          ? { fields: { [seoGroup.id]: { title: seo } } }
+          : {}),
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['entries'] });
+      await queryClient.invalidateQueries({ queryKey: ['entry', entry.id] });
       onClose();
     },
   });
@@ -627,6 +692,35 @@ function QuickEditRow({
               <span className="block text-xs font-medium text-slate-600">{t('Slug')}</span>
               <input className={input} value={slug} onChange={(e) => setSlug(e.target.value)} />
             </label>
+            {canDate && (
+              <label className="space-y-1">
+                <span className="block text-xs font-medium text-slate-600">
+                  {t('Publication date')}
+                </span>
+                <input
+                  className={input}
+                  type="datetime-local"
+                  value={date ?? localInput(entry.publishedAt)}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </label>
+            )}
+            {seoGroup && full.data && (
+              <label className="space-y-1 sm:col-span-2">
+                <span className="block text-xs font-medium text-slate-600">
+                  {t('Search title ({plugin})', {
+                    plugin: labelText(seoGroup.title, me.user.locale) || 'SEO',
+                  })}
+                </span>
+                <input
+                  className={input}
+                  value={seo ?? savedSeo}
+                  maxLength={200}
+                  placeholder={t('Empty: from the template')}
+                  onChange={(e) => setSeo(e.target.value)}
+                />
+              </label>
+            )}
             {hierarchical && (
               <label className="space-y-1">
                 <span className="block text-xs font-medium text-slate-600">{t('Order')}</span>
@@ -640,6 +734,18 @@ function QuickEditRow({
               </label>
             )}
           </div>
+          {full.data && (
+            <div className="grid gap-4 sm:grid-cols-2 [&_section]:rounded [&_section]:border [&_section]:border-slate-200 [&_section]:bg-white [&_section]:p-3">
+              <EntryTerms
+                entry={full.data}
+                readOnly={false}
+                onSaved={(view) => {
+                  queryClient.setQueryData(['entry', entry.id], view);
+                  void queryClient.invalidateQueries({ queryKey: ['entries'] });
+                }}
+              />
+            </div>
+          )}
           {save.error && <Alert>{errorMessage(save.error)}</Alert>}
           <div className="flex gap-2">
             <Button type="submit" disabled={save.isPending}>

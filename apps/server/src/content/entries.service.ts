@@ -22,7 +22,7 @@ import {
   type DatabaseClient,
   type SiteTransaction,
 } from '@cleitext/db';
-import { mayMatchType } from '@cleitext/shared';
+import { ENTRY_STATUSES, mayMatchType } from '@cleitext/shared';
 import type {
   ContentTypeView,
   EntryAuthorOption,
@@ -401,6 +401,35 @@ export class EntriesService {
             ? encodeCursor(last.entry.updatedAt, last.entry.id)
             : null,
       };
+    });
+  }
+
+  /**
+   * How many entries of a type the user sees in each status (#54), for the
+   * filters of the list and the counts of the admin menu, as WordPress does.
+   */
+  async counts(
+    siteId: string,
+    auth: AuthContext,
+    type: string,
+  ): Promise<Record<EntryStatus | 'all', number>> {
+    return this.run(siteId, auth, async (tx) => {
+      const conditions: SQL[] = [eq(entries.typeSlug, type)];
+      if (!auth.capabilities.includes('read_private_entries')) {
+        conditions.push(or(ne(entries.status, 'private'), eq(entries.authorId, auth.userId))!);
+      }
+      const rows = await tx
+        .select({ status: entries.status, n: sql<number>`count(*)::int` })
+        .from(entries)
+        .where(and(...conditions))
+        .groupBy(entries.status);
+      const out = { all: 0 } as Record<EntryStatus | 'all', number>;
+      for (const status of ENTRY_STATUSES) out[status] = 0;
+      for (const row of rows) {
+        out[row.status as EntryStatus] = row.n;
+        if (row.status !== 'trashed') out.all += row.n;
+      }
+      return out;
     });
   }
 
