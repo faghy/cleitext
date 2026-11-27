@@ -154,6 +154,16 @@ describe('Vetta SEO', () => {
     );
     expect(graph.find((n) => n['@type'] === 'BlogPosting')!.keywords).toBe('espresso, moka');
 
+    // One value of a group, sent alone, keeps the others (0.123).
+    const patched = await admin.request('PATCH', `/api/v1/entries/${post.id}`, {
+      fields: { vetta: { ogTitle: 'A new title for sharing' } },
+    });
+    expect(patched.statusCode, patched.body).toBe(200);
+    expect(patched.json().revision.fields.vetta).toMatchObject({
+      keywords: 'espresso, moka',
+      ogTitle: 'A new title for sharing',
+    });
+
     const hidden = await publish('page', 'Hidden page', { fields: { vetta: { noindex: true } } });
     const hiddenHtml = (await visitor.get(`/${hidden.slug}`)).body;
     expect(meta(hiddenHtml, 'robots')).toBe('noindex, follow');

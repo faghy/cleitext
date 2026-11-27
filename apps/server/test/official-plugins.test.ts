@@ -194,7 +194,7 @@ describe('SEO', () => {
     expect(html).toContain('<meta name="description" content="All our news."/>');
     // A title of the plugin itself is the page's part: the template adds the site.
     await admin.request('PATCH', `/api/v1/entries/${blog.id}`, {
-      fields: { seo: { title: 'News', description: 'What happens here.' } },
+      fields: { seo: { title: 'News', description: 'What happens here.', fullTitle: false } },
     });
     await admin.post(`/api/v1/entries/${blog.id}/publish`);
     const own = (await visitor.get(`/${blog.slug}`)).body;

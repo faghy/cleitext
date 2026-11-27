@@ -678,10 +678,11 @@ export class EntriesService {
 
       // Terms first: field groups may show only on entries with some term.
       if (input.terms) await this.termsService.assign(tx, siteId, auth, entry, input.terms);
+      const current = await this.revisionRow(tx, entry.currentRevisionId);
       const fields =
         input.fields === undefined
           ? undefined
-          : await this.validFields(siteId, auth, type, input.fields, {
+          : await this.validFields(siteId, auth, type, mergeFields(current?.fields, input.fields), {
               id: entry.id,
               locale: entry.locale,
               status: entry.status,
@@ -699,7 +700,6 @@ export class EntriesService {
         input.excerpt !== undefined ||
         input.featuredMediaId !== undefined;
       if (needsRevision) {
-        const current = await this.revisionRow(tx, entry.currentRevisionId);
         await this.addRevision(
           tx,
           siteId,
@@ -1694,4 +1694,29 @@ export function treeOrder(rows: { id: string; parentId: string | null }[]): stri
   };
   visit(null);
   return order;
+}
+
+const isGroup = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * The fields of an update laid over the saved ones (since 0.123): fields and
+ * field groups left out keep their values, and so do the fields left out of
+ * a group, so a script may write one value (`{ vetta: { ogImage } }`) without
+ * erasing the others. A group sent empty (`{}`) is emptied; lists and other
+ * values are replaced as sent.
+ */
+export function mergeFields(
+  saved: unknown,
+  update: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = isGroup(saved) ? { ...saved } : {};
+  for (const [key, value] of Object.entries(update)) {
+    const before = result[key];
+    result[key] =
+      isGroup(before) && isGroup(value) && Object.keys(value).length > 0
+        ? { ...before, ...value }
+        : value;
+  }
+  return result;
 }
