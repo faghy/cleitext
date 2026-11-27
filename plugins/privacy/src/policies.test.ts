@@ -81,8 +81,9 @@ describe('Spanish', () => {
 });
 
 describe('banner texts', () => {
-  it('has Spanish, and English for languages it does not know', () => {
+  it('has Spanish and French, and English for languages it does not know', () => {
     expect(textsFor('es-ES').accept).toBe('Aceptar todas');
-    expect(textsFor('fr').accept).toBe('Accept all');
+    expect(textsFor('fr-FR').accept).toBe('Tout accepter');
+    expect(textsFor('pt').accept).toBe('Accept all');
   });
 });

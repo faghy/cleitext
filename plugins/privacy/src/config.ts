@@ -429,6 +429,52 @@ export const TEXTS = {
     sessionDuration: 'Sesión o 30 días',
     months: 'meses',
   },
+  fr: {
+    title: 'Votre vie privée',
+    message:
+      'Ce site utilise des cookies techniques nécessaires à son fonctionnement et, uniquement avec votre consentement, d’autres cookies décrits dans la politique de cookies. Choisissez « Tout accepter », « Tout refuser » ou sélectionnez les catégories dans « Personnaliser ». Vous pouvez modifier votre choix à tout moment.',
+    accept: 'Tout accepter',
+    reject: 'Tout refuser',
+    customize: 'Personnaliser',
+    save: 'Enregistrer mes choix',
+    close: 'Fermer et continuer sans accepter',
+    preferences: 'Préférences de cookies',
+    privacyPolicy: 'Politique de confidentialité',
+    cookiePolicy: 'Politique de cookies',
+    alwaysOn: 'Toujours actifs',
+    necessary: 'Nécessaires',
+    necessaryHelp: 'Indispensables au fonctionnement du site, par exemple pour mémoriser ce choix.',
+    preferencesLabel: 'Préférences',
+    preferencesHelp: 'Mémorisent des options comme la langue.',
+    statistics: 'Statistiques',
+    statisticsHelp: 'Aident à comprendre, de façon agrégée, comment le site est utilisé.',
+    marketing: 'Marketing',
+    marketingHelp:
+      'Affichent des publicités personnalisées, ou des contenus d’autres sites comme des vidéos, des cartes et des publications de réseaux sociaux.',
+    embed: {
+      title: (name: string) => `Contenu de ${name}`,
+      map: (name: string, category = 'Marketing') =>
+        `Pour voir la carte, acceptez les cookies « ${category} » : ${name} peut utiliser des cookies et collecter des données.`,
+      other: (name: string, category = 'Marketing') =>
+        `Pour le voir, acceptez les cookies « ${category} » : ${name} peut utiliser des cookies et collecter des données.`,
+      accept: 'Accepter et afficher',
+      open: (name: string) => `Ouvrir sur ${name}`,
+    },
+    table: {
+      name: 'Nom',
+      provider: 'Fournisseur',
+      purpose: 'Finalité',
+      category: 'Catégorie',
+      duration: 'Durée',
+    },
+    noCookies: 'Aucun cookie n’est encore listé.',
+    thisSite: 'Ce site',
+    consentCookie: 'Mémorise vos choix concernant les cookies.',
+    sessionCookie:
+      'Uniquement pour les personnes qui se connectent à l’administration : les gardent connectées et protègent les formulaires.',
+    sessionDuration: 'Session ou 30 jours',
+    months: 'mois',
+  },
 };
 
 export type Texts = (typeof TEXTS)['en'];
@@ -436,14 +482,14 @@ export type Texts = (typeof TEXTS)['en'];
 /** The language of the built-in texts for a locale (`it-IT` → `it`), English when there are none. */
 export function textsLang(locale: string): keyof typeof TEXTS {
   const lang = locale.toLowerCase().slice(0, 2);
-  return lang === 'it' || lang === 'de' || lang === 'es' ? lang : 'en';
+  return lang === 'it' || lang === 'de' || lang === 'es' || lang === 'fr' ? lang : 'en';
 }
 
 export function textsFor(locale: string): Texts {
   return TEXTS[textsLang(locale)];
 }
 
-const UNITS: Record<'en' | 'it' | 'de' | 'es', Record<string, [string, string]>> = {
+const UNITS: Record<'en' | 'it' | 'de' | 'es' | 'fr', Record<string, [string, string]>> = {
   en: {
     minute: ['minute', 'minutes'],
     hour: ['hour', 'hours'],
@@ -476,12 +522,21 @@ const UNITS: Record<'en' | 'it' | 'de' | 'es', Record<string, [string, string]>>
     month: ['mes', 'meses'],
     year: ['año', 'años'],
   },
+  fr: {
+    minute: ['minute', 'minutes'],
+    hour: ['heure', 'heures'],
+    day: ['jour', 'jours'],
+    week: ['semaine', 'semaines'],
+    month: ['mois', 'mois'],
+    year: ['an', 'ans'],
+  },
 };
-const SESSION: Record<'en' | 'it' | 'de' | 'es', string> = {
+const SESSION: Record<'en' | 'it' | 'de' | 'es' | 'fr', string> = {
   en: 'Session',
   it: 'Sessione',
   de: 'Sitzung',
   es: 'Sesión',
+  fr: 'Session',
 };
 
 /**
@@ -489,7 +544,7 @@ const SESSION: Record<'en' | 'it' | 'de' | 'es', string> = {
  * declare it ("2 years", "30 minutes", "Session"); any other text as it is.
  */
 export function durationText(value: string, locale: string): string {
-  const lang = textsLang(locale) as 'en' | 'it' | 'de' | 'es';
+  const lang = textsLang(locale) as 'en' | 'it' | 'de' | 'es' | 'fr';
   const units = UNITS[lang] ?? UNITS.en;
   const text = value.trim();
   if (/^session$/i.test(text)) return SESSION[lang] ?? SESSION.en;

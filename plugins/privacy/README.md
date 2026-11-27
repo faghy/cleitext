@@ -10,7 +10,7 @@ It follows the GDPR and, for Italy, the Garante's cookie guidelines of 10 June 2
 - With no optional category the site only uses technical cookies, and no banner is shown.
 - The choice lasts 6 months (up to 12), then it is asked again; it is also asked again when the categories or the cookie list change, or with **Save and ask everyone again**.
 - People change their choice from a small button in a corner of every page, from a menu item with the address `#cookie-preferences`, or from the **Cookie preferences button** block.
-- Texts in English, Italian, Spanish and German, or your own per language; bar or box; your color. Keyboard accessible.
+- Texts in English, Italian, Spanish, German and French (1.11), or your own title and message per language; bar or box; your color. Keyboard accessible.
 
 ### Services of other plugins
 
