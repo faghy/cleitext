@@ -174,6 +174,10 @@ describe('the head', () => {
       ).noindex,
     ).toBe(true);
     expect(robotsFor(input({ route: 'search', path: '/search' })).noindex).toBe(true);
+    // A site hidden from search engines (the core's noindex) stays hidden (2.1.1).
+    const hiddenSite = buildHead(input({ head: { ...baseHead, robots: 'noindex, follow' } }));
+    expect(hiddenSite.robots).toMatch(/^noindex/);
+    expect(hiddenSite.canonical).toBeNull();
     expect(
       robotsFor(
         input({ route: 'archive', path: '/blog/page/2', config: { noindex_paginated: true } }),
@@ -214,7 +218,7 @@ describe('the head', () => {
       input({ seo: { noindex: true, canonical: 'https://other.example/x' } }),
     );
     expect(hidden.robots).toBe('noindex, follow');
-    expect(hidden.canonical).toBeNull();
+    expect(hiddenSite.canonical).toBeNull();
     expect(buildHead(input({ seo: { canonical: 'https://other.example/x' } })).canonical).toBe(
       'https://other.example/x',
     );

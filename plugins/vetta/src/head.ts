@@ -408,6 +408,8 @@ export function buildHead(input: HeadInput): Head {
 
   // Robots and canonical.
   const robots = robotsFor(input);
+  // What the core keeps out of search engines stays out (a site hidden from them, Settings → Reading).
+  if (/\bnoindex\b/i.test(input.head.robots ?? '')) robots.noindex = true;
   next.robots = robotsContent(robots, c);
   if (robots.noindex) next.canonical = null;
   else if (
