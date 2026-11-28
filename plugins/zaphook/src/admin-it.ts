@@ -90,4 +90,12 @@ export const IT: Record<string, string> = {
   'The site’s administrators': 'Gli amministratori del sito',
   'Empty: every administrator of the site.': 'Vuoto: tutti gli amministratori del sito.',
   'The email address is not valid.': 'L’indirizzo email non è valido.',
+  'Format of the request': 'Formato della richiesta',
+  'JSON (Zapier, Make, n8n…)': 'JSON (Zapier, Make, n8n…)',
+  'Form (application/x-www-form-urlencoded)': 'Modulo (application/x-www-form-urlencoded)',
+  'Choose Form when the receiving side reads only classic form posts (e.g. a PHP script with $_POST): lists go as name[]=a&name[]=b.':
+    'Scegli Modulo quando dall’altra parte si leggono solo i moduli classici (per esempio uno script PHP con $_POST): le liste vanno come nome[]=a&nome[]=b.',
+  'Send only the form fields and the fixed fields, without _form, _page_url and the other keys starting with _.':
+    'Invia solo i campi del modulo e i campi fissi, senza _form, _page_url e le altre chiavi che iniziano con _.',
+  'Leave out Zaphook’s own keys': 'Non inviare le chiavi di servizio di Zaphook',
 };

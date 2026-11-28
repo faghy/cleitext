@@ -1,7 +1,7 @@
 {
   "slug": "zaphook",
   "name": "Zaphook",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "apiVersion": "^1.73",
   "description": "Sends every message of your contact forms to the services you use, through a webhook: Zapier, Make, n8n or any https address. Choose the forms, sign the requests with a secret if you like, and see every delivery in a log. Failed deliveries are retried by themselves.",
   "author": "Cleitext",

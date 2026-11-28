@@ -20,6 +20,7 @@ import {
   matches,
   MAX_WEBHOOKS,
   nextAttempt,
+  requestBody,
   samplePayload,
   shortError,
   signature,
@@ -139,10 +140,10 @@ export function setupZaphook(ctx: PluginContext): void {
     webhook: Webhook,
     payload: Record<string, unknown>,
   ): Promise<{ status: number | null; error: string | null }> {
-    const body = JSON.stringify(payload);
+    const { body, contentType } = requestBody(webhook, payload);
     const secret = webhook.hasSecret ? await ctx.secrets.get(siteId, secretName(webhook.id)) : null;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      'Content-Type': contentType,
       Accept: 'application/json, text/plain, */*',
       ...(secret ? await signature(secret, String(Math.floor(Date.now() / 1000)), body) : {}),
     };

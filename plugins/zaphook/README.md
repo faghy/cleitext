@@ -30,6 +30,7 @@ The message still arrives by email and stays in **Messages**, as always (unless 
 ## Fixed fields and failure emails (1.1.0)
 
 - **Fixed fields**: each webhook can send values of its own with every message, at the root of the JSON next to the form fields (e.g. `product-id` → `PROD-123`, or a category your automation expects). A fixed field wins over a form field with the same name; names cannot start with `_`.
+- **Format**: JSON by default; or a classic form post (`application/x-www-form-urlencoded`, as PHP's `http_build_query` writes it: lists as `name[]=a&name[]=b`) for receivers that read only `$_POST`. The signature is made on the body as sent. An option leaves out Zaphook's own keys (`_form`, `_page_url`…).
 - **Failed deliveries**: when a message still does not arrive after the last attempt, or the webhook refuses it, Zaphook sends an email to the site's administrators (those with a confirmed address), or to the address chosen in the page. It names the form, the webhook and the answer, never the visitor's values. It can be turned off.
 
 ## For developers

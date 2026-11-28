@@ -1,6 +1,8 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
+  formBody,
+  requestBody,
   buildPayload,
   fixedFieldsOf,
   classify,
@@ -31,6 +33,8 @@ const HOOK: Webhook = {
   skipMail: false,
   hasSecret: false,
   fixedFields: [],
+  bodyFormat: 'json',
+  omitServiceKeys: false,
 };
 
 /** The first real case: the fields the existing Zap expects at the root. */
@@ -147,6 +151,8 @@ describe('webhooks as saved', () => {
       skipMail: false,
       hasSecret: true,
       fixedFields: [],
+      bodyFormat: 'json',
+      omitServiceKeys: false,
     });
     expect(JSON.stringify(webhook)).not.toContain('a-long-secret');
     expect(secret).toBe('a-long-secret');
@@ -255,5 +261,33 @@ describe('fixed fields', () => {
       },
     );
     expect(payload).toMatchObject({ nome: 'Mario', artigiano: 'Tecnico Caldaie' });
+  });
+});
+
+describe('the body of the request (1.2.0)', () => {
+  const payload = {
+    nome: 'Mario Rossi',
+    'product-id': '42',
+    servizi: ['a b', 'c&d'],
+    vuoto: '',
+    _form: 'Preventivo',
+    _test: true,
+  };
+  it('writes a form as http_build_query does', () => {
+    expect(formBody(payload)).toBe(
+      'nome=Mario+Rossi&product-id=42&servizi%5B%5D=a+b&servizi%5B%5D=c%26d&vuoto=&_form=Preventivo&_test=1',
+    );
+    expect(formBody({ x: "(it's)*~!" })).toBe('x=%28it%27s%29%2A%7E%21');
+  });
+  it('keeps JSON by default and can leave out the service keys', () => {
+    expect(requestBody({ bodyFormat: 'json', omitServiceKeys: false }, payload)).toEqual({
+      body: JSON.stringify(payload),
+      contentType: 'application/json',
+    });
+    const form = requestBody({ bodyFormat: 'form', omitServiceKeys: true }, payload);
+    expect(form.contentType).toBe('application/x-www-form-urlencoded');
+    expect(form.body).toBe(
+      'nome=Mario+Rossi&product-id=42&servizi%5B%5D=a+b&servizi%5B%5D=c%26d&vuoto=',
+    );
   });
 });

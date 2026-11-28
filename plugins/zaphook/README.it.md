@@ -30,6 +30,7 @@ Il messaggio arriva comunque per email e resta in **Messaggi**, come sempre (a m
 ## Campi fissi ed email sugli invii falliti (1.1.0)
 
 - **Campi fissi**: ogni webhook può mandare, con ogni messaggio, dei valori suoi alla radice del JSON accanto ai campi del modulo (es. `product-id` → `PROD-123`, o una categoria che la tua automazione si aspetta). Un campo fisso vince su un campo del modulo con lo stesso nome; i nomi non possono iniziare con `_`.
+- **Formato**: JSON di serie; oppure un modulo classico (`application/x-www-form-urlencoded`, come lo scrive `http_build_query` di PHP: liste come `nome[]=a&nome[]=b`) per chi legge solo `$_POST`. La firma è fatta sul corpo così come parte. Un'opzione toglie le chiavi di servizio di Zaphook (`_form`, `_page_url`…).
 - **Invii non riusciti**: quando un messaggio non arriva nemmeno dopo l'ultimo tentativo, o il webhook lo rifiuta, Zaphook manda un'email agli amministratori del sito (quelli con l'indirizzo confermato), o all'indirizzo scelto nella pagina. Dice il modulo, il webhook e la risposta, mai i valori del visitatore. Si può spegnere.
 
 ## Per gli sviluppatori

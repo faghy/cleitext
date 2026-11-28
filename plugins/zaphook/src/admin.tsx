@@ -12,7 +12,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { IT } from './admin-it';
-import type { FixedField, Webhook } from './model';
+import type { BodyFormat, FixedField, Webhook } from './model';
 import type { LogLine, StateView, TestResult } from './server';
 
 addMessages('it', IT);
@@ -34,6 +34,8 @@ interface Draft {
   secretAction: 'keep' | 'replace' | 'clear';
   secret: string;
   fixedFields: FixedField[];
+  bodyFormat: BodyFormat;
+  omitServiceKeys: boolean;
 }
 
 const EMPTY: Draft = {
@@ -50,6 +52,8 @@ const EMPTY: Draft = {
   secretAction: 'replace',
   secret: '',
   fixedFields: [],
+  bodyFormat: 'json',
+  omitServiceKeys: false,
 };
 
 const draftOf = (w: Webhook): Draft => ({
@@ -67,6 +71,8 @@ const draftOf = (w: Webhook): Draft => ({
   secretAction: 'keep',
   secret: '',
   fixedFields: w.fixedFields ?? [],
+  bodyFormat: w.bodyFormat ?? 'json',
+  omitServiceKeys: w.omitServiceKeys ?? false,
 });
 
 function Check({
@@ -305,6 +311,39 @@ function Editor({
           </Button>
         )}
       </div>
+      <fieldset className="space-y-2 text-sm">
+        <legend className="font-medium text-slate-800">{t('Format of the request')}</legend>
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            checked={draft.bodyFormat === 'json'}
+            onChange={() => onChange({ bodyFormat: 'json' })}
+          />
+          {t('JSON (Zapier, Make, n8n…)')}
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            checked={draft.bodyFormat === 'form'}
+            onChange={() => onChange({ bodyFormat: 'form' })}
+          />
+          {t('Form (application/x-www-form-urlencoded)')}
+        </label>
+        <p className="text-xs text-slate-500">
+          {t(
+            'Choose Form when the receiving side reads only classic form posts (e.g. a PHP script with $_POST): lists go as name[]=a&name[]=b.',
+          )}
+        </p>
+      </fieldset>
+      <Check
+        checked={draft.omitServiceKeys}
+        onChange={(omitServiceKeys) => onChange({ omitServiceKeys })}
+        hint={t(
+          'Send only the form fields and the fixed fields, without _form, _page_url and the other keys starting with _.',
+        )}
+      >
+        {t('Leave out Zaphook’s own keys')}
+      </Check>
       <Check
         checked={draft.skipMail}
         onChange={(skipMail) => onChange({ skipMail })}
@@ -425,6 +464,8 @@ function ZaphookPage(props: AdminPageProps) {
       includeUserAgent: d.includeUserAgent,
       skipMail: d.skipMail,
       fixedFields: d.fixedFields.filter((f) => f.name.trim()),
+      bodyFormat: d.bodyFormat,
+      omitServiceKeys: d.omitServiceKeys,
       ...(d.secretAction === 'clear'
         ? { secret: null }
         : d.secretAction === 'replace' && d.secret.trim()

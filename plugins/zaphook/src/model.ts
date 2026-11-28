@@ -25,7 +25,17 @@ export interface Webhook {
    * with the same name.
    */
   fixedFields: FixedField[];
+  /**
+   * How the body is written (1.2.0): JSON, or a form as a browser sends it
+   * (`application/x-www-form-urlencoded`), for receivers that read only form
+   * posts (PHP's `$_POST`).
+   */
+  bodyFormat: BodyFormat;
+  /** Leave out Zaphook's own keys (`_form`, `_page_url`…), 1.2.0. */
+  omitServiceKeys: boolean;
 }
+
+export type BodyFormat = 'json' | 'form';
 
 /** A value sent with every message of a webhook. */
 export interface FixedField {
@@ -66,6 +76,8 @@ export interface WebhookInput {
   skipMail?: unknown;
   secret?: unknown;
   fixedFields?: unknown;
+  bodyFormat?: unknown;
+  omitServiceKeys?: unknown;
 }
 
 /** A message delivered by Forms (`forms.delivered`, Forms 1.9.0). */
@@ -157,6 +169,11 @@ export function webhookFrom(
       input.fixedFields === undefined
         ? (saved?.fixedFields ?? [])
         : fixedFieldsOf(input.fixedFields),
+    bodyFormat:
+      input.bodyFormat === 'form' || input.bodyFormat === 'json'
+        ? input.bodyFormat
+        : (saved?.bodyFormat ?? 'json'),
+    omitServiceKeys: flag(input.omitServiceKeys, saved?.omitServiceKeys ?? false),
   };
   if (webhook.scope === 'selected' && webhook.forms.length === 0)
     throw new InvalidWebhook('Choose at least one form, or send every form.');
@@ -183,6 +200,8 @@ export function webhooksOf(stored: unknown): Webhook[] {
       skipMail: item.skipMail === true,
       hasSecret: item.hasSecret === true,
       fixedFields: fixedFieldsOf(item.fixedFields),
+      bodyFormat: item.bodyFormat === 'form' ? 'form' : 'json',
+      omitServiceKeys: item.omitServiceKeys === true,
     });
   }
   return out.slice(0, MAX_WEBHOOKS);
@@ -251,6 +270,60 @@ export function samplePayload(
     }),
     _test: true,
   };
+}
+
+/** A value as PHP's `urlencode` writes it: spaces as `+`, everything but `A-Za-z0-9-_.` escaped. */
+export function formEncode(value: string): string {
+  return encodeURIComponent(value)
+    .replace(/[!'()*~]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
+    .replace(/%20/g, '+');
+}
+
+/**
+ * A payload as a form body, the way PHP's `http_build_query` writes it:
+ * `name=value`, lists as `name[]=a&name[]=b` (brackets escaped), `true` as
+ * `1`, `false` as `0`; empty values are kept (`name=`), nulls left out.
+ */
+export function formBody(payload: Record<string, unknown>): string {
+  const parts: string[] = [];
+  const scalar = (value: unknown): string | null =>
+    typeof value === 'string'
+      ? value
+      : typeof value === 'number' && Number.isFinite(value)
+        ? String(value)
+        : typeof value === 'boolean'
+          ? value
+            ? '1'
+            : '0'
+          : null;
+  for (const [name, value] of Object.entries(payload)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const text = scalar(item);
+        if (text !== null) parts.push(`${formEncode(name)}%5B%5D=${formEncode(text)}`);
+      }
+      continue;
+    }
+    const text = scalar(value);
+    if (text !== null) parts.push(`${formEncode(name)}=${formEncode(text)}`);
+  }
+  return parts.join('&');
+}
+
+/**
+ * The request's body and type for a webhook: its format, without Zaphook's
+ * own keys when it asks so. The signature is made on this body, as sent.
+ */
+export function requestBody(
+  webhook: Pick<Webhook, 'bodyFormat' | 'omitServiceKeys'>,
+  payload: Record<string, unknown>,
+): { body: string; contentType: string } {
+  const sent = webhook.omitServiceKeys
+    ? Object.fromEntries(Object.entries(payload).filter(([name]) => !name.startsWith('_')))
+    : payload;
+  return webhook.bodyFormat === 'form'
+    ? { body: formBody(sent), contentType: 'application/x-www-form-urlencoded' }
+    : { body: JSON.stringify(sent), contentType: 'application/json' };
 }
 
 /** The visitor's email address in a payload, for privacy requests. */
