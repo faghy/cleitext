@@ -587,9 +587,9 @@ export default definePlugin({
                   en: 'Only the towns of a province, in a drop-down menu; empty: every town of Italy, searched as you type.',
                   it: 'Solo i comuni di una provincia, in un menu a tendina; vuoto: tutti i comuni d’Italia, cercati mentre si scrive.',
                 },
-                default: '',
+                default: 'all',
                 options: [
-                  { value: '', label: { en: 'All of Italy', it: 'Tutta Italia' } },
+                  { value: 'all', label: { en: 'All of Italy', it: 'Tutta Italia' } },
                   ...provinces().map(([value, label]) => ({ value, label })),
                 ],
               },

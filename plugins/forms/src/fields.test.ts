@@ -271,7 +271,7 @@ describe('web addresses and default values (1.5.0)', () => {
 describe('hidden and Italian municipality fields (1.11.0)', () => {
   const fields = normalizeFields([
     { name: 'product-id', type: 'hidden', value: ' 1234 ', required: true },
-    { name: 'a_comune', type: 'comune', send: 'code', required: true },
+    { name: 'a_comune', type: 'comune', province: 'all', send: 'code', required: true },
     { name: 'comune', type: 'comune', province: '28' },
   ]);
 
