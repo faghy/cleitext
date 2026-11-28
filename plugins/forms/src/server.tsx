@@ -27,6 +27,8 @@ import {
   newsletterTicked,
   type OptInCheckbox,
 } from './newsletter-optin';
+import { comuniOf, comuniScript, provinces } from './comuni';
+import { ISTAT_CREDIT } from './comuni-data';
 import { notifyDelivered, submittedFields } from './delivered';
 import { pushMessage } from './push';
 import { submissions, type Submission } from './schema';
@@ -95,7 +97,14 @@ const TYPE_LABELS: Record<(typeof FIELD_TYPES)[number], { en: string; it: string
   checkbox: { en: 'Checkboxes', it: 'Caselle di spunta' },
   radio: { en: 'Radio buttons', it: 'Scelta singola' },
   acceptance: { en: 'Consent (required)', it: 'Consenso (obbligatorio)' },
+  hidden: { en: 'Hidden (fixed value)', it: 'Nascosto (valore fisso)' },
+  comune: { en: 'Italian municipality', it: 'Comune italiano' },
 };
+
+/** The script with the list of the Italian municipalities (1.11.0), made once. */
+const COMUNI_PATH = '/_forms/comuni.js';
+let comuniJs: string | null = null;
+const COMUNI_VERSION = '2025';
 
 const SECRET = 'form-key';
 const keys = new Map<string, Promise<CryptoKey>>();
@@ -239,6 +248,45 @@ function Field({ field }: { field: FormField }) {
           </span>
         </label>
       );
+    case 'hidden':
+      // Fixed and signed in the form's spec: nothing to show or send.
+      return null;
+    case 'comune': {
+      const towns = field.province ? comuniOf(field.province) : null;
+      if (towns) {
+        return (
+          <label className={classes()}>
+            {title}
+            <select name={field.name} required={field.required} aria-label={aria}>
+              <option value="">{field.placeholder || '—'}</option>
+              {towns.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        );
+      }
+      const list = `cf-comuni-${field.name}`;
+      return (
+        <label className={classes()}>
+          {title}
+          <input
+            name={field.name}
+            type="text"
+            list={list}
+            required={field.required}
+            maxLength={200}
+            placeholder={placeholder}
+            aria-label={aria}
+            autoComplete="off"
+          />
+          <datalist id={list} data-cf-comuni="" />
+          <script src={`${COMUNI_PATH}?v=${COMUNI_VERSION}`} defer />
+        </label>
+      );
+    }
     case 'acceptance':
       return (
         <label className={classes()}>
@@ -484,8 +532,8 @@ export default definePlugin({
                 multiline: true,
                 label: { en: 'Default value', it: 'Valore iniziale' },
                 help: {
-                  en: 'The text it starts with; for menus, checkboxes and radio buttons the chosen option(s), one per line.',
-                  it: 'Il testo con cui parte; per menu, caselle e scelta singola le opzioni scelte, una per riga.',
+                  en: 'The text it starts with; for menus, checkboxes and radio buttons the chosen option(s), one per line. For a hidden field, the fixed value it sends (the visitor cannot change it).',
+                  it: 'Il testo con cui parte; per menu, caselle e scelta singola le opzioni scelte, una per riga. Per un campo nascosto, il valore fisso che invia (il visitatore non può cambiarlo).',
                 },
                 maxLength: 5000,
               },
@@ -527,6 +575,40 @@ export default definePlugin({
                 type: 'text',
                 label: { en: 'Maximum (number or date)', it: 'Massimo (numero o data)' },
                 maxLength: 20,
+              },
+              {
+                name: 'province',
+                type: 'select',
+                label: {
+                  en: 'Province (Italian municipality)',
+                  it: 'Provincia (comune italiano)',
+                },
+                help: {
+                  en: 'Only the towns of a province, in a drop-down menu; empty: every town of Italy, searched as you type.',
+                  it: 'Solo i comuni di una provincia, in un menu a tendina; vuoto: tutti i comuni d’Italia, cercati mentre si scrive.',
+                },
+                default: '',
+                options: [
+                  { value: '', label: { en: 'All of Italy', it: 'Tutta Italia' } },
+                  ...provinces().map(([value, label]) => ({ value, label })),
+                ],
+              },
+              {
+                name: 'send',
+                type: 'select',
+                label: {
+                  en: 'Italian municipality: value sent',
+                  it: 'Comune italiano: valore inviato',
+                },
+                help: {
+                  en: `The name, or the numeric ISTAT code without leading zeros (Abano Terme: 28001). ${ISTAT_CREDIT}.`,
+                  it: `Il nome, oppure il codice ISTAT numerico senza zeri iniziali (Abano Terme: 28001). ${ISTAT_CREDIT}.`,
+                },
+                default: 'name',
+                options: [
+                  { value: 'name', label: { en: 'Name', it: 'Nome' } },
+                  { value: 'code', label: { en: 'ISTAT code', it: 'Codice ISTAT' } },
+                ],
               },
               {
                 name: 'className',
@@ -842,6 +924,17 @@ export default definePlugin({
           .catch((error: unknown) => ctx.log.error('Mail not sent', { error: String(error) }));
       }
     }
+
+    ctx.routes.public({
+      method: 'GET',
+      path: COMUNI_PATH,
+      handler: () =>
+        Promise.resolve({
+          body: (comuniJs ??= comuniScript()),
+          contentType: 'text/javascript; charset=utf-8',
+          headers: { 'cache-control': 'public, max-age=31536000, immutable' },
+        }),
+    });
 
     ctx.routes.public({
       method: 'POST',

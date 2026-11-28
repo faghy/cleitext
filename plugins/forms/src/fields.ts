@@ -1,3 +1,5 @@
+import { comuneLabel, comuneValue, findComune, provinceCode, type ComuneSend } from './comuni';
+
 /**
  * Custom fields of the contact form (Forms 1.3.0), as pure functions tested
  * on their own: the fields saved in the block made safe to render, the
@@ -17,6 +19,8 @@ export const FIELD_TYPES = [
   'checkbox',
   'radio',
   'acceptance',
+  'hidden',
+  'comune',
 ] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
 
@@ -37,6 +41,10 @@ export interface SavedField {
   className?: unknown;
   /** The value it starts with (1.5.0): text, or options chosen, one per line. */
   value?: unknown;
+  /** An Italian municipality field's province (1.11.0), its ISTAT code. */
+  province?: unknown;
+  /** What an Italian municipality field sends (1.11.0): `name` or `code`. */
+  send?: unknown;
 }
 
 export interface FieldOption {
@@ -64,6 +72,12 @@ export interface FormField {
    * line), `1` for a single checkbox. Empty when none.
    */
   value: string;
+  /**
+   * An Italian municipality field (1.11.0): the province it is limited to
+   * (three-digit ISTAT code, empty for all of Italy) and what it sends.
+   */
+  province?: string;
+  send?: ComuneSend;
 }
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -89,6 +103,8 @@ export const MAX_LENGTH: Record<FieldType, number> = {
   checkbox: 1000,
   radio: 200,
   acceptance: 10,
+  hidden: 1000,
+  comune: 200,
 };
 
 const str = (value: unknown, max: number) =>
@@ -165,7 +181,10 @@ function startValue(type: FieldType, value: unknown, options: FieldOption[]): st
         .filter((v) => options.some((o) => o.value === v))
         .join('\n');
     case 'acceptance':
+    case 'comune':
       return '';
+    case 'hidden':
+      return raw.replace(/\s+/g, ' ').trim().slice(0, MAX_LENGTH.hidden);
     case 'textarea':
       return raw.replace(/\r\n/g, '\n').trim().slice(0, MAX_LENGTH.textarea);
     default:
@@ -202,8 +221,8 @@ export function normalizeFields(saved: unknown): FormField[] {
       type,
       label: str(field.label, 500),
       placeholder: str(field.placeholder, 200),
-      // A consent is always required.
-      required: type === 'acceptance' || field.required === true,
+      // A consent is always required; a hidden value is never asked.
+      required: type === 'acceptance' || (type !== 'hidden' && field.required === true),
       width: (FIELD_WIDTHS as readonly unknown[]).includes(field.width)
         ? (field.width as FieldWidth)
         : 'full',
@@ -212,6 +231,9 @@ export function normalizeFields(saved: unknown): FormField[] {
       ...(max !== undefined ? { max } : {}),
       className: classNames(field.className),
       value: startValue(type, field.value, options),
+      ...(type === 'comune'
+        ? { province: provinceCode(field.province), send: field.send === 'code' ? 'code' : 'name' }
+        : {}),
     });
   }
   return out;
@@ -355,6 +377,12 @@ export interface FieldValue {
   label: string;
   type: FieldType;
   value: string;
+  /**
+   * How the value is shown in the email and in Messages when it differs
+   * from the value sent on (an Italian municipality by code: "Abano Terme
+   * (28001)").
+   */
+  display?: string;
 }
 
 export interface Checked {
@@ -390,8 +418,24 @@ export function checkValues(
     );
     const first = sent.find((v) => v !== '') ?? '';
     let value = first;
+    let display: string | undefined;
     let ok = true;
     switch (field.type) {
+      case 'hidden':
+        // Fixed in the block and signed: what the browser sends is ignored.
+        value = field.value;
+        break;
+      case 'comune': {
+        if (!first) break;
+        const found = findComune(first, field.province ?? '');
+        if (!found) {
+          ok = false;
+          break;
+        }
+        value = comuneValue(found, field.send ?? 'name');
+        if (value !== found.name) display = `${comuneLabel(found)} (${value})`;
+        break;
+      }
       case 'email':
         value = first.toLowerCase();
         if (value && !EMAIL_RE.test(value)) ok = false;
@@ -441,7 +485,13 @@ export function checkValues(
     }
     if (ok && field.required && value === '') ok = false;
     if (!ok) invalid.push(field.name);
-    values.push({ name: field.name, label: fieldTitle(field), type: field.type, value });
+    values.push({
+      name: field.name,
+      label: fieldTitle(field),
+      type: field.type,
+      value,
+      ...(display ? { display } : {}),
+    });
   }
   return { values, invalid };
 }
@@ -474,7 +524,7 @@ export function messageText(values: FieldValue[], page: string, locale = 'en'): 
   const it = locale.startsWith('it');
   const lines: string[] = [];
   for (const v of values) {
-    const value = v.value || '—';
+    const value = v.display || v.value || '—';
     lines.push(v.type === 'textarea' ? `${v.label}:\n${value}\n` : `${v.label}: ${value}`);
   }
   lines.push('', `${it ? 'Pagina' : 'Page'}: ${page}`);

@@ -14,6 +14,7 @@ import {
   type FormSpec,
 } from './fields';
 import fixture from './hotel.fixture.json';
+import { comuneLabel, comuni, comuniScript, findComune } from './comuni';
 
 /**
  * The acceptance case: a hotel's booking request rebuilt from Contact Form 7
@@ -264,5 +265,57 @@ describe('web addresses and default values (1.5.0)', () => {
     expect(checkValues(url, { site: 'https://example.com/a?b=1' }).invalid).toEqual([]);
     expect(checkValues(url, { site: 'javascript:alert(1)' }).invalid).toEqual(['site']);
     expect(checkValues(url, { site: '' }).invalid).toEqual([]);
+  });
+});
+
+describe('hidden and Italian municipality fields (1.11.0)', () => {
+  const fields = normalizeFields([
+    { name: 'product-id', type: 'hidden', value: ' 1234 ', required: true },
+    { name: 'a_comune', type: 'comune', send: 'code', required: true },
+    { name: 'comune', type: 'comune', province: '28' },
+  ]);
+
+  it('keeps a hidden value and the municipality options', () => {
+    expect(fields[0]).toMatchObject({ type: 'hidden', value: '1234', required: false });
+    expect(fields[1]).toMatchObject({ type: 'comune', province: '', send: 'code' });
+    expect(fields[2]).toMatchObject({ type: 'comune', province: '028', send: 'name' });
+  });
+
+  it('sends the fixed value whatever the browser sends', () => {
+    const { values, invalid } = checkValues(
+      fields,
+      { 'product-id': 'forged', a_comune: 'Abano Terme', comune: '028001' },
+      'it',
+    );
+    expect(invalid).toEqual([]);
+    expect(values[0]!.value).toBe('1234');
+    expect(values[1]).toMatchObject({ value: '28001', display: 'Abano Terme (28001)' });
+    expect(values[2]!.value).toBe('Abano Terme');
+    expect(messageText(values, '/', 'it')).toContain('Abano Terme (28001)');
+  });
+
+  it('finds a municipality by code, name or name and province', () => {
+    expect(findComune('28001')?.name).toBe('Abano Terme');
+    expect(findComune('abano  terme')?.code).toBe('028001');
+    // Homonyms need the province.
+    expect(findComune('Samone')).toBeNull();
+    const samone = comuni().filter((c) => c.name === 'Samone');
+    expect(samone).toHaveLength(2);
+    expect(findComune(comuneLabel(samone[0]!))?.code).toBe(samone[0]!.code);
+    expect(comuni().length).toBeGreaterThan(7800);
+  });
+
+  it('loads the search list with a valid script', () => {
+    const script = comuniScript();
+    expect(() => new Function(script)).not.toThrow();
+    expect(script).toContain('"Samone (Torino)"');
+    expect(script.length).toBeLessThan(150_000);
+  });
+
+  it('refuses a municipality outside the province or unknown', () => {
+    const one = normalizeFields([{ name: 'comune', type: 'comune', province: '028' }]);
+    expect(checkValues(one, { comune: '001272' }).invalid).toEqual(['comune']);
+    expect(checkValues(one, { comune: 'Atlantide' }).invalid).toEqual(['comune']);
+    expect(checkValues(one, { comune: '' }).invalid).toEqual([]);
   });
 });

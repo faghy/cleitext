@@ -6,6 +6,8 @@ export interface SubmissionField {
   label: string;
   type: string;
   value: string;
+  /** How it is shown when it differs from the value sent on (1.11.0). */
+  display?: string;
 }
 
 export const submissions = pgTable('submissions', {

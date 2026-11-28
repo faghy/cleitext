@@ -535,6 +535,44 @@ describe('add-ons: forms.delivered (1.9.0)', () => {
     });
   });
 
+  it('sends hidden values and Italian municipalities (1.11.0)', async () => {
+    const one = provider();
+    const { render, send, mails, inserted } = setUp({ providers: [one.entry] });
+    const { html, data } = await render({
+      formName: 'Preventivo',
+      fields: [
+        { name: 'email', type: 'email', required: true },
+        { name: 'product-id', type: 'hidden', value: '1234' },
+        { name: 'a_comune', type: 'comune', send: 'code', required: true },
+        { name: 'comune', type: 'comune', province: '028' },
+      ],
+    });
+    // The hidden value is not in the page; the province's towns are a menu,
+    // Italy is searched with the list loaded by a script.
+    expect(html).not.toContain('1234');
+    expect(html).toContain('<option value="028001">Abano Terme</option>');
+    expect(html).toContain('list="cf-comuni-a_comune"');
+    expect(html).toContain('src="/_forms/comuni.js?v=2025"');
+    await send({
+      _form: 'Preventivo',
+      _spec: data.spec,
+      website: '',
+      email: 'a@example.com',
+      'product-id': 'forged',
+      a_comune: 'Abano Terme',
+      comune: '028002',
+    });
+    expect(one.given[0]!.fields).toEqual({
+      email: 'a@example.com',
+      'product-id': '1234',
+      a_comune: '28001',
+      comune: 'Agna',
+    });
+    expect(mails[0]!.text).toContain('Abano Terme (28001)');
+    expect(mails[0]!.text).toContain('1234');
+    expect(JSON.stringify(inserted[0])).toContain('Abano Terme (28001)');
+  });
+
   it('keeps the email back when a provider asks, the message stays stored', async () => {
     const keep = provider({ skipMail: true });
     const other = provider(undefined);

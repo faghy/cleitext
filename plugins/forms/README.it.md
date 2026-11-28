@@ -13,6 +13,8 @@ Di serie il modulo chiede nome, email e messaggio (e il telefono, se vuoi). Dall
 - Numeri e date possono avere un **minimo e un massimo** (le date come `2027-07-10`).
 - Le opzioni di menu, caselle e scelte singole vanno una per riga, come `valore|etichetta` o solo il testo.
 - Il **consenso e il pulsante sulla stessa riga**, se ti piace.
+- Un campo **Nascosto** (1.11.0) manda un valore fisso, scritto nel blocco (ad esempio un codice prodotto): il visitatore non lo vede e non può cambiarlo, ma arriva nell'email, in **Messaggi** e ai plugin come Zaphook.
+- Un campo **Comune italiano** (1.11.0), con l'elenco ISTAT incluso: con una provincia scelta è un menu dei suoi comuni, senza provincia si cerca tra tutti i comuni d'Italia mentre si scrive. Invia il nome del comune oppure il codice ISTAT numerico senza zeri iniziali (Abano Terme: `28001`); nell'email e in Messaggi compaiono nome e codice. Fonte: ISTAT, unità amministrative al 1° gennaio 2025 (CC BY 3.0 IT).
 - L'**oggetto dell'email** lo decidi tu: `{form}` è il nome del modulo e `{nome-campo}` il valore di un campo, ad esempio `Prenotazione di {your-name}`. Se lo lasci vuoto resta `[nome del modulo] nome`.
 - Il **Rispondi a** è il campo email del visitatore: il primo, o quello che indichi.
 - L'email elenca tutti i campi con la loro etichetta, nell'ordine del modulo, e **Messaggi** li mostra allo stesso modo.

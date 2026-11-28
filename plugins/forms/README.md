@@ -14,6 +14,8 @@ Out of the box the form asks for name, email and message (and the phone, if you 
 - A **default value** (1.5.0): the text a field starts with, or the option(s) chosen at first in menus, checkboxes and radio buttons (one per line). Contact Form 7's forms imported by the WordPress Importer (1.28.0) become these fields.
 - Options of menus, checkboxes and radio buttons go one per line, as `value|label` or just the text.
 - The **consent and the button on one row**, if you like.
+- A **Hidden** field (1.11.0) sends a fixed value set in the block (e.g. a product code): the visitor neither sees nor changes it, and it reaches the email, **Messages** and add-ons such as Zaphook.
+- An **Italian municipality** field (1.11.0), with the ISTAT list included: with a province chosen it is a menu of its towns, without one every town of Italy is searched as you type. It sends the town's name or its numeric ISTAT code without leading zeros (Abano Terme: `28001`); the email and Messages show both. Source: ISTAT, administrative units at 1 January 2025 (CC BY 3.0 IT).
 - The **email subject** is yours: `{form}` is the form name and `{field-name}` the value of a field, e.g. `Booking from {your-name}`. Left empty, it stays `[form name] name`.
 - **Reply-To** is the visitor's email field: the first one, or the one you name.
 - The email lists every field with its label, in the form's order, and **Messages** shows them the same way.

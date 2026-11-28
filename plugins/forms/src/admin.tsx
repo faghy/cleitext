@@ -83,7 +83,7 @@ function SubmissionsPage({ api, user }: AdminPageProps) {
           {s.fields.map((f) => (
             <div key={f.name} className="contents">
               <dt className="font-medium text-slate-700">{f.label}</dt>
-              <dd className="whitespace-pre-wrap text-slate-900">{f.value || '—'}</dd>
+              <dd className="whitespace-pre-wrap text-slate-900">{f.display || f.value || '—'}</dd>
             </div>
           ))}
         </dl>
